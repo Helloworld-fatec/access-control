@@ -1,0 +1,51 @@
+
+export const USER_ROLES = {
+  ADMIN: "ADMIN",
+  RESIDENT: "RESIDENT",
+  VISITOR: "VISITOR",
+} as const;
+
+export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];
+
+export const AUTHORIZATION_STATUSES = {
+  ACTIVE: "ACTIVE",
+  CANCELED: "CANCELED",
+} as const;
+
+export type AuthorizationStatus =
+  (typeof AUTHORIZATION_STATUSES)[keyof typeof AUTHORIZATION_STATUSES];
+
+export const ACCESS_METHODS = {
+  QR: "QR",
+  NFC: "NFC",
+  FACE: "FACE",
+} as const;
+
+export type AccessMethod =
+  (typeof ACCESS_METHODS)[keyof typeof ACCESS_METHODS];
+
+export const ACCESS_RESULTS = {
+  GRANTED: "GRANTED",
+  DENIED: "DENIED",
+} as const;
+
+export type AccessResult =
+  (typeof ACCESS_RESULTS)[keyof typeof ACCESS_RESULTS];
+
+export const DENY_REASONS = {
+  INVALID_CREDENTIAL: "INVALID_CREDENTIAL",
+  EXPIRED_CREDENTIAL: "EXPIRED_CREDENTIAL",
+  REPLAYED_CREDENTIAL: "REPLAYED_CREDENTIAL",
+  USER_INACTIVE: "USER_INACTIVE",
+  NO_AUTHORIZATION: "NO_AUTHORIZATION",
+  AUTHORIZATION_CANCELED: "AUTHORIZATION_CANCELED",
+  OUTSIDE_PERIOD: "OUTSIDE_PERIOD",
+  OUTSIDE_SCHEDULE: "OUTSIDE_SCHEDULE",
+  USES_EXHAUSTED: "USES_EXHAUSTED",
+  TOO_FAR: "TOO_FAR",
+  FACE_LOW_CONFIDENCE: "FACE_LOW_CONFIDENCE",
+  TERMINAL_OFFLINE: "TERMINAL_OFFLINE",
+} as const;
+
+export type DenyReason =
+  (typeof DENY_REASONS)[keyof typeof DENY_REASONS];
