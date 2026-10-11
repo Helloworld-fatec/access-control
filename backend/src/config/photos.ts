@@ -1,7 +1,7 @@
 // backend/src/config/photos.ts
 import fs from "node:fs";
 import path from "node:path";
-import { env } from "./env";
+import { env } from "./env.js";
 
 /** Cria a pasta de fotos se ela não existir. Chamada na subida do servidor. */
 export function ensurePhotosDir(): void {
