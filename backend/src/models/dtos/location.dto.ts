@@ -1,6 +1,6 @@
 // backend/src/models/dtos/location.dto.ts
 import { z } from "zod";
-import { paginationSchema } from "./common.dto";
+import { paginationSchema } from "./common.dto.js";
 
 const optionalText = z
   .string()

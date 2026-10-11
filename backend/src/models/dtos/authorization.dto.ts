@@ -1,6 +1,6 @@
 // backend/src/models/dtos/authorization.dto.ts
 import { z } from "zod";
-import { dateOnlySchema, paginationSchema, timeSchema } from "./common.dto";
+import { dateOnlySchema, paginationSchema, timeSchema } from "./common.dto.js";
 
 /** Situação exibida ao cliente. EXPIRED é calculada na consulta (endDate < hoje). */
 export const AUTHORIZATION_QUERY_STATUS = ["ACTIVE", "CANCELED", "EXPIRED"] as const;

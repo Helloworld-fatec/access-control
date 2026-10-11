@@ -1,6 +1,6 @@
 // backend/src/models/authorization.model.ts
-import type { AuthorizationStatus } from "../types/index";
-import { toLocationResponse, type LocationResponse, type LocationRow } from "./location.model";
+import type { AuthorizationStatus } from "../types/index.js";
+import { toLocationResponse, type LocationResponse, type LocationRow } from "./location.model.js";
 
 export interface AuthorizationRow {
   id: string;

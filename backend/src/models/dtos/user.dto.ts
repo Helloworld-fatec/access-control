@@ -1,7 +1,7 @@
 // backend/src/models/dtos/user.dto.ts
 import { z } from "zod";
-import { USER_ROLES, type UserRole } from "../../types/index";
-import { paginationSchema, booleanQuerySchema } from "./common.dto";
+import { USER_ROLES, type UserRole } from "../../types/index.js";
+import { paginationSchema, booleanQuerySchema } from "./common.dto.js";
 
 const roles = Object.values(USER_ROLES) as [UserRole, ...UserRole[]];
 const roleSchema = z.enum(roles, { message: "Perfil inválido" });

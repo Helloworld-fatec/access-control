@@ -1,5 +1,5 @@
 // backend/src/models/terminal.model.ts
-import { toLocationResponse, type LocationResponse, type LocationRow } from "./location.model";
+import { toLocationResponse, type LocationResponse, type LocationRow } from "./location.model.js";
 
 export interface TerminalRow {
   id: string;

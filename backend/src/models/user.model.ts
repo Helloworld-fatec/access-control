@@ -1,5 +1,5 @@
 // backend/src/models/user.model.ts
-import type { UserRole } from "../types/index";
+import type { UserRole } from "../types/index.ts";
 
 /** Linha do banco (estrutural, compatível com o que o Prisma devolve). */
 export interface UserRow {

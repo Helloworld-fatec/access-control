@@ -1,5 +1,5 @@
 // backend/src/models/access-log.model.ts
-import type { AccessMethod, AccessResult, DenyReason } from "../types/index";
+import type { AccessMethod, AccessResult, DenyReason } from "../types/index.js";
 
 export interface AccessLogRow {
   id: string;

@@ -5,8 +5,8 @@ import {
   ACCESS_RESULTS,
   type AccessMethod,
   type AccessResult,
-} from "../../types/index";
-import { dateOnlySchema, paginationSchema } from "./common.dto";
+} from "../../types/index.js"
+import { dateOnlySchema, paginationSchema } from "./common.dto.js";
 
 const methods = Object.values(ACCESS_METHODS) as [AccessMethod, ...AccessMethod[]];
 const results = Object.values(ACCESS_RESULTS) as [AccessResult, ...AccessResult[]];

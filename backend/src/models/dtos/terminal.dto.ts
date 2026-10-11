@@ -1,6 +1,6 @@
 // backend/src/models/dtos/terminal.dto.ts
 import { z } from "zod";
-import { paginationSchema } from "./common.dto";
+import { paginationSchema } from "./common.dto.js";
 
 const latitude = z.number().min(-90).max(90);
 const longitude = z.number().min(-180).max(180);
