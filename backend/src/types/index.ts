@@ -1,3 +1,4 @@
+// backend/src/types/index.ts
 
 export const USER_ROLES = {
   ADMIN: "ADMIN",
