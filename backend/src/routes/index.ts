@@ -12,8 +12,8 @@ const apiInfo = {
   name: "access-control API",
   status: "online",
   message: "API do Sistema Integrado de Controle de Acesso funcionando.",
-  health: "/health",
-  endpoints: ["/users", "/locations", "/terminals", "/authorizations", "/access-logs"],
+  health: "api/health",
+  endpoints: ["api/users", "api/locations", "api/terminals", "api/authorizations", "api/access-logs"],
 };
 
 
@@ -284,12 +284,18 @@ const landingPage = `<!doctype html>
 
 
 // Navegador (Accept: text/html) recebe a página; curl, Postman e o frontend recebem JSON.
-routes.get("/", (_req, res) => {
+/**
+ * Retorna a página de boas-vindas ou as informações da API.
+ */
+export const sendLandingPage = (req: import("express").Request, res: import("express").Response) => {
   res.format({
     json: () => res.json(apiInfo),
     html: () => res.send(landingPage),
+    default: () => res.status(406).send("Not Acceptable"),
   });
-});
+};
+
+routes.get("/", sendLandingPage);
 
 routes.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });

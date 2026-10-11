@@ -6,7 +6,7 @@ import express from "express";
 import cors from "cors";
 import { z } from "zod";
 
-import { routes } from "./routes/index.js";
+import { routes, sendLandingPage } from "./routes/index.js";
 import {
   errorHandler,
   notFoundHandler,
@@ -21,6 +21,9 @@ export const app = express();
 app.use(cors());
 
 app.use(express.json());
+
+// Página de boas-vindas diretamente na raiz
+app.get("/", sendLandingPage);
 
 // Todas as rotas recebem o prefixo /api.
 app.use("/api", routes);
