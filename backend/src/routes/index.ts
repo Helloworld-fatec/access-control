@@ -269,7 +269,7 @@ const landingPage = `<!doctype html>
       ${apiInfo.endpoints.map((e) => `<li><code>${e}</code></li>`).join("\n      ")}
     </ul>
 
-    <a class="health-link" href="/health">
+    <a class="health-link" href="/api/health">
       <span>Verificar integridade do servidor</span>
       <span>↗</span>
     </a>
