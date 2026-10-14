@@ -1,30 +1,36 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:mobileuser/main.dart';
+import 'package:mobileuser/app/app.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Login aceita qualquer credencial e navega até as autorizações',
+      (WidgetTester tester) async {
+    // Tela de celular (360x800 lógicos) para nada ficar fora da área visível.
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(const MobileUserApp());
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Tela de login
+    expect(find.text('Controle de Acesso'), findsOneWidget);
+    expect(find.text('ENTRAR'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Qualquer credencial entra.
+    await tester.enterText(find.byType(TextField).at(0), 'qualquer');
+    await tester.enterText(find.byType(TextField).at(1), '123');
+    await tester.tap(find.text('ENTRAR'));
+    await tester.pumpAndSettle(const Duration(seconds: 2));
+
+    // Tela inicial
+    expect(find.text('Início'), findsOneWidget);
+    expect(find.text('ABRIR PORTA'), findsOneWidget);
+
+    // Tela de autorizações
+    await tester.tap(find.text('MINHAS AUTORIZAÇÕES'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Minhas autorizações'), findsOneWidget);
+    expect(find.text('Portaria Principal'), findsOneWidget);
   });
 }
