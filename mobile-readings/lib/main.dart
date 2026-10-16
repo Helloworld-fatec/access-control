@@ -24,7 +24,7 @@ Future<void> main() async {
   final initialConfig = await configStorage.load();
   final apiClient = TerminalApiClient(config: initialConfig);
   final nfcService = NativeNfcReaderService();
-  final mqttService = MosquittoPresenceService();
+  final mqttService = PresenceMqttService();
 
   final controller = TerminalController(
     configStorage: configStorage,
