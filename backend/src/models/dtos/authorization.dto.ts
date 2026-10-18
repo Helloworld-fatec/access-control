@@ -15,7 +15,7 @@ export const createAuthorizationSchema = z
     endTime: timeSchema,
     maxUses: z.number().int().positive().nullable().optional(),
     // TODO: sai daqui quando existir login; passará a vir do token do admin.
-    createdById: z.string().uuid("createdById inválido"),
+    createdById: z.string().uuid("createdById inválido").optional(),
   })
   .refine((v) => v.endDate >= v.startDate, {
     message: "A data de término deve ser igual ou posterior à de início",
@@ -28,7 +28,7 @@ export const createAuthorizationSchema = z
 
 export const cancelAuthorizationSchema = z.object({
   // TODO: sai daqui quando existir login.
-  canceledById: z.string().uuid("canceledById inválido"),
+  canceledById: z.string().uuid("canceledById inválido").optional(),
 });
 
 export const listAuthorizationsQuerySchema = paginationSchema

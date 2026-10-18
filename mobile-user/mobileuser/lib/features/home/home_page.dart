@@ -1,26 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../../app/routes.dart';
+import '../../core/session/session_scope.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/warning_stripe.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  void _logout(BuildContext context) {
-    // MOCK: depois, limpar token do flutter_secure_storage.
-    Navigator.pushNamedAndRemoveUntil(context, Routes.login, (_) => false);
-  }
+  void _logout(BuildContext context) => SessionScope.of(context).logout();
 
-  void _openDoor(BuildContext context) {
-    // MOCK: depois, abrir a tela de leitura do QR (mobile_scanner).
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Leitura do QR Code em breve')),
-    );
-  }
+  void _openDoor(BuildContext context) =>
+      Navigator.pushNamed(context, Routes.qrScanner);
 
   @override
   Widget build(BuildContext context) {
+    final session = SessionScope.of(context);
+    final name = session.user?['name'] as String?;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Início'),
@@ -44,7 +40,7 @@ class HomePage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Olá!',
+                      name == null || name.isEmpty ? 'Olá!' : 'Olá, $name!',
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 4),
@@ -66,8 +62,11 @@ class HomePage extends StatelessWidget {
                             child: const Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.qr_code_scanner_rounded,
-                                    size: 120, color: AppColors.black),
+                                Icon(
+                                  Icons.qr_code_scanner_rounded,
+                                  size: 120,
+                                  color: AppColors.black,
+                                ),
                                 SizedBox(height: 16),
                                 Text(
                                   'ABRIR PORTA',

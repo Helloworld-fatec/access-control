@@ -11,6 +11,7 @@ import {
   listAuthorizationsQuerySchema,
 } from "../models/dtos/index.js";
 import { paginate, toAuthorizationResponse, todayInSaoPaulo } from "../models/index.js";
+import { paginationSchema } from "../models/dtos/common.dto.js";
 
 // @db.Date: gravamos sempre a meia-noite UTC do dia informado.
 const toDate = (yyyyMmDd: string) => new Date(`${yyyyMmDd}T00:00:00.000Z`);
@@ -19,6 +20,23 @@ const include = {
   location: true,
   user: { select: { id: true, name: true } },
 } satisfies Prisma.authorizationInclude;
+
+export async function listMyAuthorizations(req: Request, res: Response) {
+  if (!req.auth) throw new AppError(401, "User not authenticated", "UNAUTHORIZED");
+  const q = paginationSchema.parse(req.query);
+  const where: Prisma.authorizationWhereInput = { userId: req.auth.userId };
+  const [rows, total] = await prisma.$transaction([
+    prisma.authorization.findMany({
+      where,
+      include,
+      orderBy: { createdAt: "desc" },
+      skip: (q.page - 1) * q.pageSize,
+      take: q.pageSize,
+    }),
+    prisma.authorization.count({ where }),
+  ]);
+  res.json(paginate(rows.map(toAuthorizationResponse), total, q.page, q.pageSize));
+}
 
 /** TODO: remover quando existir login (o admin virá do token). */
 async function assertAdmin(userId: string, field: string) {
@@ -81,6 +99,7 @@ export async function getAuthorization(req: Request, res: Response) {
 
 // POST /authorizations
 export async function createAuthorization(req: Request, res: Response) {
+  if (!req.auth) throw new AppError(401, "User not authenticated", "UNAUTHORIZED");
   const dto = createAuthorizationSchema.parse(req.body);
 
   const [user, location] = await Promise.all([
@@ -93,7 +112,7 @@ export async function createAuthorization(req: Request, res: Response) {
   if (!user) throw new AppError(404, "Usuário não encontrado", "USER_NOT_FOUND");
   if (!user.active) throw new AppError(409, "Usuário inativo", "USER_INACTIVE");
   if (!location) throw new AppError(404, "Local não encontrado", "LOCATION_NOT_FOUND");
-  await assertAdmin(dto.createdById, "createdById");
+  await assertAdmin(req.auth.userId, "createdById");
 
   const authorization = await prisma.authorization.create({
     data: {
@@ -104,7 +123,7 @@ export async function createAuthorization(req: Request, res: Response) {
       startTime: dto.startTime,
       endTime: dto.endTime,
       maxUses: dto.maxUses ?? null,
-      createdById: dto.createdById,
+      createdById: req.auth.userId,
     },
     include,
   });
@@ -114,10 +133,11 @@ export async function createAuthorization(req: Request, res: Response) {
 
 // PATCH /authorizations/:id/cancel
 export async function cancelAuthorization(req: Request, res: Response) {
+  if (!req.auth) throw new AppError(401, "User not authenticated", "UNAUTHORIZED");
   const { id } = idParamSchema.parse(req.params);
-  const { canceledById } = cancelAuthorizationSchema.parse(req.body);
+  cancelAuthorizationSchema.parse(req.body);
 
-  await assertAdmin(canceledById, "canceledById");
+  await assertAdmin(req.auth.userId, "canceledById");
 
   // Atômico: só cancela se ainda estiver ACTIVE.
   const { count } = await prisma.authorization.updateMany({
@@ -125,7 +145,7 @@ export async function cancelAuthorization(req: Request, res: Response) {
     data: {
       status: AUTHORIZATION_STATUSES.CANCELED,
       canceledAt: new Date(),
-      canceledById,
+      canceledById: req.auth.userId,
     },
   });
 

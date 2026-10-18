@@ -6,7 +6,7 @@ import { consumeQrSchema } from "../models/dtos/qr-access.dto.js";
 import { ACCESS_METHODS, ACCESS_RESULTS, DENY_REASONS } from "../types/index.js";
 import { requestDoorUnlock } from "../services/door-unlock.service.js";
 
-const QR_TTL_SECONDS = 45;
+const QR_TTL_SECONDS = 300;
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
 

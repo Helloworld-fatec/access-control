@@ -3,27 +3,28 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
 class AppTheme {
-  static ThemeData get dark {
-    const scheme = ColorScheme.dark(
-      primary: AppColors.yellow,
-      onPrimary: AppColors.black,
-      secondary: AppColors.yellow,
-      onSecondary: AppColors.black,
-      surface: AppColors.surface,
-      onSurface: AppColors.white,
-      error: AppColors.danger,
+  static ThemeData get light {
+    const scheme = ColorScheme.light(
+      primary: AppColors.primary,
+      onPrimary: AppColors.white,
+      secondary: AppColors.highlight,
+      onSecondary: AppColors.white,
+      surface: AppColors.white,
+      onSurface: AppColors.primary,
+      error: AppColors.highlight,
+      onError: AppColors.white,
     );
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: AppColors.black,
+      scaffoldBackgroundColor: AppColors.background,
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.black,
-        foregroundColor: AppColors.yellow,
+        backgroundColor: AppColors.support,
+        foregroundColor: AppColors.primary,
         centerTitle: false,
         titleTextStyle: TextStyle(
-          color: AppColors.yellow,
+          color: AppColors.primary,
           fontSize: 22,
           fontWeight: FontWeight.w800,
         ),
@@ -34,11 +35,11 @@ class AppTheme {
         titleMedium: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
         bodyLarge: TextStyle(fontSize: 18),
         bodyMedium: TextStyle(fontSize: 16),
-      ),
+      ).apply(bodyColor: AppColors.primary, displayColor: AppColors.primary),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.yellow,
-          foregroundColor: AppColors.black,
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.white,
           minimumSize: const Size.fromHeight(64),
           textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
           shape: RoundedRectangleBorder(
@@ -48,9 +49,9 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.yellow,
+          foregroundColor: AppColors.primary,
           minimumSize: const Size.fromHeight(60),
-          side: const BorderSide(color: AppColors.yellow, width: 2),
+          side: const BorderSide(color: AppColors.primary, width: 2),
           textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -59,34 +60,36 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.yellow,
+          foregroundColor: AppColors.highlight,
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surface,
-        labelStyle: const TextStyle(color: AppColors.grey, fontSize: 16),
-        floatingLabelStyle: const TextStyle(color: AppColors.yellow),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+        fillColor: AppColors.support,
+        labelStyle: const TextStyle(color: AppColors.primary, fontSize: 16),
+        floatingLabelStyle: const TextStyle(color: AppColors.primary),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 20,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.surfaceHigh),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.surfaceHigh, width: 2),
+          borderSide: const BorderSide(color: AppColors.support, width: 2),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.yellow, width: 2),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2),
         ),
       ),
       snackBarTheme: const SnackBarThemeData(
-        backgroundColor: AppColors.yellow,
+        backgroundColor: AppColors.primary,
         contentTextStyle: TextStyle(
-          color: AppColors.black,
+          color: AppColors.white,
           fontSize: 16,
           fontWeight: FontWeight.w700,
         ),

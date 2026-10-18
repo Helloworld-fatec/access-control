@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 
-/// Paleta preto e amarelo: amarelo = atenção/ação principal.
+/// Paleta principal do aplicativo.
 class AppColors {
-  static const black = Color(0xFF0A0A0A);
-  static const surface = Color(0xFF171717);
-  static const surfaceHigh = Color(0xFF262626);
-  static const yellow = Color(0xFFFFC107);
-  static const yellowDark = Color(0xFFB38600);
+  static const primary = Color(0xFF31566A);
+  static const highlight = Color(0xFFB51F2E);
+  static const background = Color(0xFFF7F7F4);
+  static const support = Color(0xFFE5EBEE);
   static const white = Color(0xFFFFFFFF);
-  static const grey = Color(0xFFB8B8B8);
-  static const danger = Color(0xFFFF5252);
+
+  // Aliases semânticos usados nas telas.
+  static const black = primary;
+  static const surface = white;
+  static const surfaceHigh = support;
+  static const yellow = primary;
+  static const yellowDark = primary;
+  static const grey = primary;
+  static const danger = highlight;
 }

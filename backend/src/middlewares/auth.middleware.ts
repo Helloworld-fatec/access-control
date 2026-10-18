@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
+import { prisma } from "../config/prisma.js";
+import { AppError, asyncHandler } from "./error.middleware.js";
 
 declare global {
   namespace Express {
@@ -29,3 +31,15 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
   }
   next();
 }
+
+export const requireAdmin = asyncHandler(async (req, _res, next) => {
+  if (!req.auth) throw new AppError(401, "User not authenticated", "UNAUTHORIZED");
+  const user = await prisma.user.findUnique({
+    where: { id: req.auth.userId },
+    select: { role: true, active: true },
+  });
+  if (!user || !user.active || user.role !== "ADMIN") {
+    throw new AppError(403, "Administrator access required", "FORBIDDEN");
+  }
+  next();
+});
