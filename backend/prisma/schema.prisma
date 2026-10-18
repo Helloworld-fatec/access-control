@@ -37,6 +37,7 @@ model User {
   accessLogs     AccessLog[]
 
   @@index([role, active])
+  @@map("users")
 }
 
 model NfcTag {

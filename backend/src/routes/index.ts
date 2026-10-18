@@ -5,6 +5,7 @@ import { locationRoutes } from "./location.routes.js";
 import { terminalRoutes } from "./terminal.routes.js";
 import { authorizationRoutes } from "./authorization.routes.js";
 import { accessLogRoutes } from "./access-log.routes.js";
+import { authRoutes } from "./auth.routes.js";
 
 export const routes = Router();
 
@@ -13,7 +14,7 @@ const apiInfo = {
   status: "online",
   message: "API do Sistema Integrado de Controle de Acesso funcionando.",
   health: "api/health",
-  endpoints: ["api/users", "api/locations", "api/terminals", "api/authorizations", "api/access-logs"],
+  endpoints: ["api/login", "api/users", "api/locations", "api/terminals", "api/authorizations", "api/access-logs"],
 };
 
 
@@ -301,6 +302,10 @@ routes.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// Login permanece público; os recursos da API exigem JWT.
+routes.use("/login", authRoutes);
+// Temporariamente sem autenticação nas rotas; descomente o middleware para exigir JWT.
+// routes.use(authenticate);
 routes.use("/users", userRoutes);
 routes.use("/locations", locationRoutes);
 routes.use("/terminals", terminalRoutes);

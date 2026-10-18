@@ -9,6 +9,8 @@ const envSchema = z.object({
   /** Pasta das fotos. Relativa ao diretório de execução (backend/). */
   PHOTOS_DIR: z.string().min(1).default("photos"),
   BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(10),
+  JWT_SECRET: z.string().min(32, "JWT_SECRET deve ter ao menos 32 caracteres"),
+  JWT_EXPIRES_IN: z.string().default("1h"),
   /** Limite do upload (100 KB: folga sobre os ~50 KB da foto reduzida). */
   MAX_PHOTO_BYTES: z.coerce.number().int().positive().default(100 * 1024),
 });

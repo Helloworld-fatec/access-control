@@ -1,5 +1,6 @@
 // backend/src/models/dtos/index.ts
 export * from "./common.dto.js";
+export * from "./auth.dto.js";
 export * from "./user.dto.js";
 export * from "./nfc-tag.dto.js";
 export * from "./face.dto.js";
