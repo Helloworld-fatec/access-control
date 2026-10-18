@@ -18,7 +18,7 @@ const server = app.listen(env.PORT, "0.0.0.0", (err?: Error) => {
 // Mantém nonces expirados por 24 horas para permitir auditoria de leituras atrasadas.
 const qrNonceCleanup = setInterval(() => {
   const retentionCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  void prisma.qrNonce
+  void prisma.qrnonce
     .deleteMany({ where: { expiresAt: { lt: retentionCutoff } } })
     .catch((error) => console.error("Falha ao limpar QR codes expirados:", error));
 }, 60 * 60 * 1000);

@@ -13,7 +13,7 @@ const endOfDay = (d: string) => new Date(`${d}T23:59:59.999-03:00`);
 export async function listAccessLogs(req: Request, res: Response) {
   const q = listAccessLogsQuerySchema.parse(req.query);
 
-  const where: Prisma.AccessLogWhereInput = {
+  const where: Prisma.accesslogWhereInput = {
     ...(q.userId ? { userId: q.userId } : {}),
     ...(q.terminalId ? { terminalId: q.terminalId } : {}),
     ...(q.method ? { method: q.method } : {}),
@@ -29,7 +29,7 @@ export async function listAccessLogs(req: Request, res: Response) {
   };
 
   const [rows, total] = await prisma.$transaction([
-    prisma.accessLog.findMany({
+    prisma.accesslog.findMany({
       where,
       include: {
         user: { select: { id: true, name: true } },
@@ -39,7 +39,7 @@ export async function listAccessLogs(req: Request, res: Response) {
       skip: (q.page - 1) * q.pageSize,
       take: q.pageSize,
     }),
-    prisma.accessLog.count({ where }),
+    prisma.accesslog.count({ where }),
   ]);
 
   res.json(paginate(rows.map(toAccessLogResponse), total, q.page, q.pageSize));

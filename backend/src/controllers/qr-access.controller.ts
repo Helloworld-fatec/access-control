@@ -36,7 +36,7 @@ export async function issueQr(req: Request, res: Response) {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + QR_TTL_SECONDS * 1000);
 
-  await prisma.qrNonce.create({
+  await prisma.qrnonce.create({
     data: {
       nonce: hashToken(token),
       terminalId: req.terminal.id,
@@ -62,14 +62,14 @@ export async function consumeQr(req: Request, res: Response) {
   const todayDate = new Date(`${today}T00:00:00.000Z`);
 
   const outcome = await prisma.$transaction(async (tx) => {
-    const qr = await tx.qrNonce.findUnique({
+    const qr = await tx.qrnonce.findUnique({
       where: { nonce: tokenHash },
       include: { terminal: { select: { id: true, locationId: true } } },
     });
     if (!qr) return { kind: "UNKNOWN" as const };
 
     // Claim atômico: apenas uma requisição pode consumir este QR.
-    const claim = await tx.qrNonce.updateMany({
+    const claim = await tx.qrnonce.updateMany({
       where: { nonce: tokenHash, consumedAt: null },
       data: { consumedAt: now },
     });
@@ -165,7 +165,7 @@ export async function consumeQr(req: Request, res: Response) {
     }
 
     const granted = grantedAuthorizationId !== null && reason === null;
-    const accessLog = await tx.accessLog.create({
+    const accessLog = await tx.accesslog.create({
       data: {
         userId: logUserId,
         terminalId: qr.terminalId,

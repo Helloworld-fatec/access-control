@@ -32,7 +32,7 @@ async function assertUnique(
   document: string | undefined,
   ignoreId?: string,
 ) {
-  const or: Prisma.UserWhereInput[] = [];
+  const or: Prisma.userWhereInput[] = [];
   if (email) or.push({ email });
   if (document) or.push({ document });
   if (or.length === 0) return;
@@ -50,7 +50,7 @@ async function assertUnique(
 export async function listUsers(req: Request, res: Response) {
   const q = listUsersQuerySchema.parse(req.query);
 
-  const where: Prisma.UserWhereInput = {
+  const where: Prisma.userWhereInput = {
     ...(q.role ? { role: q.role } : {}),
     ...(q.active !== undefined ? { active: q.active } : {}),
     ...(q.search
@@ -146,12 +146,12 @@ export async function addTag(req: Request, res: Response) {
   if (!user) throw userNotFound();
 
   // Mensagem genérica: não revela de quem é a tag.
-  const existing = await prisma.nfcTag.findUnique({ where: { uid }, select: { id: true } });
+  const existing = await prisma.nfctag.findUnique({ where: { uid }, select: { id: true } });
   if (existing) {
     throw new AppError(409, "Esta tag já está cadastrada", "TAG_CONFLICT");
   }
 
-  const tag = await prisma.nfcTag.create({ data: { uid, userId: id } });
+  const tag = await prisma.nfctag.create({ data: { uid, userId: id } });
 
   res.status(201).json(toNfcTagResponse(tag));
 }
@@ -160,7 +160,7 @@ export async function addTag(req: Request, res: Response) {
 export async function removeTag(req: Request, res: Response) {
   const { id, tagId } = nfcTagParamsSchema.parse(req.params);
 
-  const { count } = await prisma.nfcTag.deleteMany({ where: { id: tagId, userId: id } });
+  const { count } = await prisma.nfctag.deleteMany({ where: { id: tagId, userId: id } });
   if (count === 0) throw new AppError(404, "Tag não encontrada", "TAG_NOT_FOUND");
 
   res.status(204).send();
@@ -194,7 +194,7 @@ export async function upsertFace(req: Request, res: Response) {
     };
 
     const ops: Prisma.PrismaPromise<unknown>[] = [
-      prisma.faceTemplate.upsert({
+      prisma.facetemplate.upsert({
         where: { userId: id },
         create: { userId: id, ...faceData },
         update: faceData,
@@ -203,7 +203,7 @@ export async function upsertFace(req: Request, res: Response) {
 
     if (file) {
       ops.push(
-        prisma.userPhoto.upsert({
+        prisma.userphoto.upsert({
           where: { userId: id },
           create: { userId: id, filePath: file.filename, mimeType: file.mimetype },
           update: { filePath: file.filename, mimeType: file.mimetype, updatedAt: now },
@@ -237,8 +237,8 @@ export async function deleteFace(req: Request, res: Response) {
   if (!user) throw userNotFound();
 
   await prisma.$transaction([
-    prisma.faceTemplate.deleteMany({ where: { userId: id } }),
-    prisma.userPhoto.deleteMany({ where: { userId: id } }),
+    prisma.facetemplate.deleteMany({ where: { userId: id } }),
+    prisma.userphoto.deleteMany({ where: { userId: id } }),
   ]);
   await removePhotoFile(user.photo?.filePath);
 
@@ -250,7 +250,7 @@ export async function deleteFace(req: Request, res: Response) {
 export async function getPhoto(req: Request, res: Response) {
   const { id } = idParamSchema.parse(req.params);
 
-  const photo = await prisma.userPhoto.findUnique({ where: { userId: id } });
+  const photo = await prisma.userphoto.findUnique({ where: { userId: id } });
   if (!photo) throw new AppError(404, "Foto não encontrada", "PHOTO_NOT_FOUND");
 
   const absolutePath = resolvePhotoPath(photo.filePath);

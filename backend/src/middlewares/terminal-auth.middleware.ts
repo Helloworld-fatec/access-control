@@ -16,7 +16,7 @@ export async function authenticateTerminal(
   next: NextFunction,
 ) {
   const apiKey = req.get("x-terminal-key");
-  if (!apiKey || !/^[a-f0-9]{48}$/i.test(apiKey)) {
+  if (!apiKey || !/^[\x21-\x7E]{24,200}$/.test(apiKey)) {
     res.status(401).json({
       error: { code: "TERMINAL_UNAUTHORIZED", message: "Credencial do terminal obrigatória" },
     });

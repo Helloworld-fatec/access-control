@@ -26,7 +26,7 @@ export const hashApiKey = (apiKey: string) =>
 // GET /terminals
 export async function listTerminals(req: Request, res: Response) {
   const q = listTerminalsQuerySchema.parse(req.query);
-  const where: Prisma.TerminalWhereInput = q.locationId ? { locationId: q.locationId } : {};
+  const where: Prisma.terminalWhereInput = q.locationId ? { locationId: q.locationId } : {};
 
   const [rows, total] = await prisma.$transaction([
     prisma.terminal.findMany({
@@ -106,7 +106,7 @@ export async function updateTerminal(req: Request, res: Response) {
 export async function deleteTerminal(req: Request, res: Response) {
   const { id } = idParamSchema.parse(req.params);
 
-  const logs = await prisma.accessLog.count({ where: { terminalId: id } });
+  const logs = await prisma.accesslog.count({ where: { terminalId: id } });
   if (logs > 0) {
     throw new AppError(
       409,
