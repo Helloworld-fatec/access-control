@@ -167,9 +167,10 @@ model AccessLog {
 }
 
 model QrNonce {
-  nonce      String   @id
+  nonce      String   @id // SHA-256 do token QR; nunca guardar o token em claro
   terminalId String
   expiresAt  DateTime
+  consumedAt DateTime?
 
   terminal Terminal @relation(fields: [terminalId], references: [id], onDelete: Cascade)
 

@@ -1,0 +1,2 @@
+ALTER TABLE "QrNonce"
+ADD COLUMN "consumedAt" TIMESTAMP(3);

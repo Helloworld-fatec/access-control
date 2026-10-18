@@ -15,6 +15,15 @@ const server = app.listen(env.PORT, "0.0.0.0", (err?: Error) => {
   console.log(`Pasta de fotos: ${env.PHOTOS_DIR}`);
 });
 
+// Mantém nonces expirados por 24 horas para permitir auditoria de leituras atrasadas.
+const qrNonceCleanup = setInterval(() => {
+  const retentionCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  void prisma.qrNonce
+    .deleteMany({ where: { expiresAt: { lt: retentionCutoff } } })
+    .catch((error) => console.error("Falha ao limpar QR codes expirados:", error));
+}, 60 * 60 * 1000);
+qrNonceCleanup.unref();
+
 server.on("error", (err: NodeJS.ErrnoException) => {
   if (err.code === "EADDRINUSE") {
     console.error(`Porta ${env.PORT} já está em uso. Feche o outro processo ou mude a PORT no .env.`);
@@ -27,6 +36,7 @@ server.on("error", (err: NodeJS.ErrnoException) => {
 // Encerramento limpo (Ctrl+C ou docker stop): fecha o servidor e a conexão com o banco.
 async function shutdown(signal: string) {
   console.log(`\n${signal} recebido, encerrando...`);
+  clearInterval(qrNonceCleanup);
   server.close(async () => {
     await prisma.$disconnect();
     process.exit(0);
