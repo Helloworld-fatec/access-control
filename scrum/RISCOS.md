@@ -26,7 +26,7 @@ Origem: `docs/access-control-visao-geral.docx`, PDF do desafio e imagens de arqu
 | R5 | Sem pipeline de CI com testes o projeto não é aceito (RP10) | Pipeline mínimo (build, lint, testes) já na Sprint 1 | Bruno | aberto |
 | R6 | Alimentação da trava e HC-SR04 instáveis na bancada | Fonte separada, diodo de flyback, testar antes de integrar | Bruna | aberto |
 | R7 | Precisão do GPS em ambiente fechado | Enviar `accuracy`, calibrar raio no local | Bruno | aberto |
-| R8 | Escopo grande (cerca de 166 histórias) para 3 sprints | Priorizar Must por sprint, adiar Could | Suelen | aberto |
+| R8 | Escopo grande (cerca de 170 histórias) para 3 sprints | Priorizar Must por sprint, adiar Could | Suelen | aberto |
 | R9 | Dado biométrico (LGPD): embedding e foto são dados sensíveis | Consentimento registrado, coluna separada, exclusão prevista | Backend / Registry | aberto |
 | R10 | Integração do leitor e gravador NFC (RC522 ou PN532) com o ESP32: ligação SPI ou I2C em 3,3 V | Testar na bancada cedo; ACL nos tópicos `nfc` e `enroll` | Bruna / Bruno | aberto |
 | R11 | Tipo de tag incompatível com gravação, ou gravação que falha ou corrompe o código | Escolher tag com memória gravável (NTAG ou MIFARE), ler de volta para conferir e permitir repetir o pedido | Bruna | aberto |
