@@ -36,7 +36,7 @@ O princípio central da arquitetura: **apps e dispositivo nunca decidem o acesso
 
 - 📱 **QR Code rotativo:** gerado no backend e renovado a cada 10 segundos no terminal de acesso
 - 📍 **Validação por proximidade:** o app envia a geolocalização junto com a leitura do QR
-- 📡 **Leitura de tag NFC** por leitor ligado ao ESP32, no terminal de acesso
+- 📡 **Tag NFC lida e gravada pelo ESP32:** o backend gera um código aleatório, o ESP32 o grava na tag e o lê no acesso
 - 🤳 **Reconhecimento facial** como credencial adicional
 - 🚪 **Abertura física:** ESP32 com sensor de presença, trava eletrônica e buzzer
 - 🧾 **Histórico completo** de tentativas de acesso, liberadas ou negadas
@@ -51,8 +51,8 @@ O princípio central da arquitetura: **apps e dispositivo nunca decidem o acesso
 ```mermaid
 flowchart LR
   subgraph Clientes
-    RD["mobile-readings<br/>Flutter<br/>exibe QR e resultado"]
-    RG["mobile-registry<br/>Flutter"]
+    RD["mobile-readings<br/>Flutter<br/>QR, resultado e facial (extra)"]
+    RG["mobile-registry<br/>Flutter<br/>cadastro e gravação de tags"]
     US["mobile-user<br/>Flutter"]
     FE["frontend<br/>React"]
   end
@@ -62,7 +62,7 @@ flowchart LR
     PH[("Volume /photos")]
     MQ{{"Mosquitto (MQTT)"}}
   end
-  ESP["device-esp32<br/>ESP32 + leitor NFC + HC-SR04<br/>+ trava + buzzer"]
+  ESP["device-esp32<br/>ESP32 + leitor e gravador NFC<br/>+ HC-SR04 + trava + buzzer"]
 
   RD & RG & US & FE -- "HTTP / REST" --> BE
   BE --> DB
@@ -96,12 +96,12 @@ sequenceDiagram
 
 | Serviço | Tecnologia | Papel |
 |---|---|---|
-| [`mobile-readings`](./mobile-readings) | Flutter | Tela do terminal de acesso: exibe o QR rotativo e o resultado; reconhecimento facial (extra) |
-| [`mobile-registry`](./mobile-registry) | Flutter | App do administrador: usuários, tags NFC, foto e dado facial |
+| [`mobile-readings`](./mobile-readings) | Flutter | Terminal de acesso (tela): exibe o QR rotativo e o resultado; lê a foto para o reconhecimento facial (extra). Não usa NFC |
+| [`mobile-registry`](./mobile-registry) | Flutter | App do administrador: usuários, foto, dado facial e pedido de gravação de tags NFC |
 | [`mobile-user`](./mobile-user) | Flutter | App do usuário: login, leitura do QR com GPS e lista de autorizações |
 | [`backend`](./backend) | Node.js, Express, TypeScript, Prisma | Regras de negócio, decisão de acesso e ponte MQTT |
 | [`frontend`](./frontend) | React | Painel web de administração e dashboard |
-| [`device-esp32`](./device-esp32) | ESP32 (Arduino), leitor NFC, HC-SR04, trava, buzzer | Leitura de tags NFC, presença, atuação e sinalização |
+| [`device-esp32`](./device-esp32) | ESP32 (Arduino), leitor e gravador NFC, HC-SR04, trava, buzzer | Leitura e gravação de tags NFC, presença, atuação e sinalização |
 
 ---
 
@@ -119,7 +119,7 @@ sequenceDiagram
 | Upload de fotos | Multer |
 | Mensageria | MQTT (Mosquitto) |
 | Firmware | ESP32 (Arduino, C/C++) |
-| Leitor NFC | Módulo de 13,56 MHz ligado ao ESP32 |
+| Leitor e gravador NFC | Módulo de 13,56 MHz ligado ao ESP32 |
 | Containerização | Docker + Docker Compose |
 
 ---

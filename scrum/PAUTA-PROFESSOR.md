@@ -8,7 +8,7 @@ Dúvidas de requisitos e escopo a alinhar com o prof. Leandro Toss Hoffmann ante
 | 2 | Raio de proximidade do QR Code | mobile-user, backend |
 | 3 | Banco de dados e deploy em nuvem | backend, DevOps |
 | 4 | Administração (locais e autorizações) no app móvel | mobile-registry, frontend |
-| 5 | Leitor NFC no ESP32, e não no celular (**decidido pelo professor**) | mobile-readings, mobile-registry, device-esp32, backend |
+| 5 | Leitor NFC no ESP32, e não no terminal (**decidido pelo professor**) | mobile-readings, mobile-registry, frontend, device-esp32, backend |
 | 6 | Receptor GPS do terminal | device-esp32 |
 | 7 | Login do visitante | mobile-registry, mobile-user, backend |
 | 8 | Comportamento da trava sem energia | device-esp32 |
@@ -56,13 +56,15 @@ Dúvidas de requisitos e escopo a alinhar com o prof. Leandro Toss Hoffmann ante
 
 ---
 
-## 5. Leitor NFC no ESP32, e não no celular (RF11)
+## 5. Leitor NFC no ESP32, e não no terminal (RF11)
 
-**Contexto:** o RF11 lista tela e leitor NFC como parte do Terminal de Acesso. O grupo havia planejado a leitura de NFC no celular (mobile-readings).
+**Contexto:** o RF11 lista tela e leitor NFC como parte do Terminal de Acesso. O grupo havia planejado a leitura de NFC no celular do terminal (mobile-readings).
 
-**Decisão do professor:** a leitura de tag NFC **para acesso** é feita por um **leitor ligado ao Arduino (ESP32)**, e não pelo celular. O celular exibe a tela do terminal (QR Code e resultado).
+**Decisão do professor:** a leitura de tag NFC é feita por um **leitor ligado ao Arduino (ESP32)**, e não pelo terminal (app mobile-readings). O terminal exibe o QR Code e o resultado e lê a foto, sem usar NFC.
 
-**Impacto na arquitetura:** o ESP32 lê o UID e o publica por MQTT; o backend valida e responde. O cadastro das tags continua no mobile-registry, por decisão do Product Owner, o que exige o mesmo formato de UID no celular e no leitor. Detalhes em [`docs/arquitetura.md`](../docs/arquitetura.md).
+**Decisão do Product Owner (gravação):** o cadastro parte do mobile-registry ou do frontend; o backend gera um **código aleatório** e o manda ao ESP32, que o **grava na tag**. O mesmo ESP32 grava e lê.
+
+**Impacto na arquitetura:** no acesso, o ESP32 lê o código da tag e o publica por MQTT; o backend valida e responde. Detalhes em [`docs/arquitetura.md`](../docs/arquitetura.md).
 
 ---
 

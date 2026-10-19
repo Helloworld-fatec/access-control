@@ -11,7 +11,7 @@ Origem: `docs/access-control-visao-geral.docx`, PDF do desafio e imagens de arqu
 | D2 | Raio de proximidade: "pelo menos 100 m" (PDF) ou "no máximo 100 m" (docx)? | Define a regra de validação do QR (RF13) | Suelen | aberto |
 | D3 | Banco e deploy em nuvem (RNF06, RP11) com demonstração em LAN: aceitável ter os dois? | Entrega final roda local com Docker (decisão do PO); backend já publicado em nuvem no desenvolvimento | Suelen / Bruno | aberto |
 | D4 | Locais e autorizações só no frontend: aceito, ou o mobile-registry precisa dessas telas? | O desafio descreve a administração como função do app móvel | Suelen | aberto |
-| D5 | Leitura de NFC: celular ou leitor ligado ao ESP32? | Definido pelo professor: leitor no ESP32 (Arduino) para o acesso. Arquitetura atualizada; cadastro de tags segue no mobile-registry | Suelen | resolvido |
+| D5 | Leitura de NFC: celular ou leitor ligado ao ESP32? | Definido pelo professor: leitor no ESP32 (Arduino). O mesmo ESP32 grava a tag com um código gerado pelo backend (definição do PO). Arquitetura atualizada | Suelen | resolvido |
 | D6 | Login do visitante: senha temporária ou convite? | Afeta mobile-registry, mobile-user e backend | Suelen | aberto |
 | D7 | Fechadura: fail-secure ou fail-safe? | Comportamento sem energia; declarar a escolha | Suelen / Bruna | aberto |
 
@@ -28,6 +28,8 @@ Origem: `docs/access-control-visao-geral.docx`, PDF do desafio e imagens de arqu
 | R7 | Precisão do GPS em ambiente fechado | Enviar `accuracy`, calibrar raio no local | Bruno | aberto |
 | R8 | Escopo grande (cerca de 166 histórias) para 3 sprints | Priorizar Must por sprint, adiar Could | Suelen | aberto |
 | R9 | Dado biométrico (LGPD): embedding e foto são dados sensíveis | Consentimento registrado, coluna separada, exclusão prevista | Backend / Registry | aberto |
-| R10 | Integração do leitor NFC (RC522 ou PN532) com o ESP32: ligação SPI ou I2C em 3,3 V | Testar na bancada cedo; ACL no tópico `nfc` | Bruna / Bruno | aberto |
-| R11 | UID diferente entre o cadastro (celular, mobile-registry) e o acesso (leitor do ESP32): a tag cadastrada não seria reconhecida | Padronizar o UID em hexadecimal maiúsculo, na mesma ordem de bytes, no app, no firmware e no backend; validar na bancada que o mesmo cartão gera o mesmo UID | Ryan / Bruna | aberto |
-| R12 | O escopo do device-esp32 aumentou (leitor NFC e publicação do UID) | Priorizar a leitura do UID e o comando de abertura; simulador MQTT como plano B | Bruna / Suelen | aberto |
+| R10 | Integração do leitor e gravador NFC (RC522 ou PN532) com o ESP32: ligação SPI ou I2C em 3,3 V | Testar na bancada cedo; ACL nos tópicos `nfc` e `enroll` | Bruna / Bruno | aberto |
+| R11 | Tipo de tag incompatível com gravação, ou gravação que falha ou corrompe o código | Escolher tag com memória gravável (NTAG ou MIFARE), ler de volta para conferir e permitir repetir o pedido | Bruna | aberto |
+| R12 | Um único ESP32 lê e grava: durante a gravação o acesso por NFC fica indisponível por alguns segundos | Janela de gravação curta, com tempo limite; acesso por QR segue funcionando | Bruna / Bruno | aberto |
+| R13 | O escopo do device-esp32 aumentou (leitor, gravador e publicação do código) | Priorizar a leitura e o comando de abertura; gravação em seguida; simulador MQTT como plano B | Bruna / Suelen | aberto |
+| R14 | Tag copiada com o código dentro seria aceita como a original | Revogar a tag no backend; avaliar conferir também o UID | Bruno | aberto |
