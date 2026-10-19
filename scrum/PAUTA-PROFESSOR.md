@@ -60,9 +60,9 @@ Dúvidas de requisitos e escopo a alinhar com o prof. Leandro Toss Hoffmann ante
 
 **Contexto:** o RF11 lista tela e leitor NFC como parte do Terminal de Acesso. O grupo havia planejado a leitura de NFC no celular (mobile-readings).
 
-**Decisão do professor:** a leitura de tag NFC é feita por um **leitor ligado ao Arduino (ESP32)**, e não pelo celular. O celular exibe a tela do terminal (QR Code e resultado).
+**Decisão do professor:** a leitura de tag NFC **para acesso** é feita por um **leitor ligado ao Arduino (ESP32)**, e não pelo celular. O celular exibe a tela do terminal (QR Code e resultado).
 
-**Impacto na arquitetura:** o ESP32 lê o UID e o publica por MQTT; o backend valida e responde; o cadastro de tags passa a ser feito no leitor do terminal. Detalhes em [`docs/arquitetura.md`](../docs/arquitetura.md).
+**Impacto na arquitetura:** o ESP32 lê o UID e o publica por MQTT; o backend valida e responde. O cadastro das tags continua no mobile-registry, por decisão do Product Owner, o que exige o mesmo formato de UID no celular e no leitor. Detalhes em [`docs/arquitetura.md`](../docs/arquitetura.md).
 
 ---
 

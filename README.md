@@ -97,7 +97,7 @@ sequenceDiagram
 | Serviço | Tecnologia | Papel |
 |---|---|---|
 | [`mobile-readings`](./mobile-readings) | Flutter | Tela do terminal de acesso: exibe o QR rotativo e o resultado; reconhecimento facial (extra) |
-| [`mobile-registry`](./mobile-registry) | Flutter | App do administrador: usuários, foto e dado facial; inicia o cadastro de tags NFC no leitor do terminal |
+| [`mobile-registry`](./mobile-registry) | Flutter | App do administrador: usuários, tags NFC, foto e dado facial |
 | [`mobile-user`](./mobile-user) | Flutter | App do usuário: login, leitura do QR com GPS e lista de autorizações |
 | [`backend`](./backend) | Node.js, Express, TypeScript, Prisma | Regras de negócio, decisão de acesso e ponte MQTT |
 | [`frontend`](./frontend) | React | Painel web de administração e dashboard |
