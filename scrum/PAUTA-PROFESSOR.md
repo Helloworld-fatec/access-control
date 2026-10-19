@@ -8,7 +8,7 @@ Dúvidas de requisitos e escopo a alinhar com o prof. Leandro Toss Hoffmann ante
 | 2 | Raio de proximidade do QR Code | mobile-user, backend |
 | 3 | Banco de dados e deploy em nuvem | backend, DevOps |
 | 4 | Administração (locais e autorizações) no app móvel | mobile-registry, frontend |
-| 5 | Terminal de Acesso dividido entre celular e ESP32 | mobile-readings, device-esp32 |
+| 5 | Leitor NFC no ESP32, e não no celular (**decidido pelo professor**) | mobile-readings, mobile-registry, device-esp32, backend |
 | 6 | Receptor GPS do terminal | device-esp32 |
 | 7 | Login do visitante | mobile-registry, mobile-user, backend |
 | 8 | Comportamento da trava sem energia | device-esp32 |
@@ -56,13 +56,13 @@ Dúvidas de requisitos e escopo a alinhar com o prof. Leandro Toss Hoffmann ante
 
 ---
 
-## 5. Terminal de Acesso dividido entre celular e ESP32 (RF11)
+## 5. Leitor NFC no ESP32, e não no celular (RF11)
 
-**Contexto:** o RF11 lista tela e leitor NFC como parte do Terminal de Acesso. No projeto, tela e NFC estão em um celular (mobile-readings) e o ESP32 fornece sensor de presença, trava e buzzer.
+**Contexto:** o RF11 lista tela e leitor NFC como parte do Terminal de Acesso. O grupo havia planejado a leitura de NFC no celular (mobile-readings).
 
-**Proposta do grupo:** considerar o conjunto celular + ESP32 como o Terminal de Acesso.
+**Decisão do professor:** a leitura de tag NFC é feita por um **leitor ligado ao Arduino (ESP32)**, e não pelo celular. O celular exibe a tela do terminal (QR Code e resultado).
 
-**Decisão do professor:** ______________________________
+**Impacto na arquitetura:** o ESP32 lê o UID e o publica por MQTT; o backend valida e responde; o cadastro de tags passa a ser feito no leitor do terminal. Detalhes em [`docs/arquitetura.md`](../docs/arquitetura.md).
 
 ---
 

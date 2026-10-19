@@ -28,7 +28,7 @@ O responsável por um serviço responde pelo andamento das histórias do respect
 | Cerimônia | Quando | Duração | Objetivo |
 |---|---|---|---|
 | Planning | No início de cada sprint (Sprint 1: 07/10/2026) | 1 h | Definir a meta e escolher as histórias da sprint |
-| Daily | Toda quarta-feira, 20h30 | 15 min | O que fiz, o que farei, impedimentos |
+| Daily | Toda quarta-feira, 20h30 (nas noites de Sprint Review, a retrospectiva a substitui) | 15 min | O que fiz, o que farei, impedimentos |
 | Sprint Review 1 | 21/10/2026, 19h30 | | Demonstrar as entregas parciais ao professor |
 | Sprint Review 2 | 11/11/2026, 19h30 | | Idem |
 | Sprint Review 3 | 25/11/2026, 19h30 | | Idem |

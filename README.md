@@ -36,7 +36,7 @@ O princípio central da arquitetura: **apps e dispositivo nunca decidem o acesso
 
 - 📱 **QR Code rotativo:** gerado no backend e renovado a cada 10 segundos no terminal de acesso
 - 📍 **Validação por proximidade:** o app envia a geolocalização junto com a leitura do QR
-- 📡 **Leitura de tag NFC** no terminal de acesso
+- 📡 **Leitura de tag NFC** por leitor ligado ao ESP32, no terminal de acesso
 - 🤳 **Reconhecimento facial** como credencial adicional
 - 🚪 **Abertura física:** ESP32 com sensor de presença, trava eletrônica e buzzer
 - 🧾 **Histórico completo** de tentativas de acesso, liberadas ou negadas
@@ -51,7 +51,7 @@ O princípio central da arquitetura: **apps e dispositivo nunca decidem o acesso
 ```mermaid
 flowchart LR
   subgraph Clientes
-    RD["mobile-readings<br/>Flutter"]
+    RD["mobile-readings<br/>Flutter<br/>exibe QR e resultado"]
     RG["mobile-registry<br/>Flutter"]
     US["mobile-user<br/>Flutter"]
     FE["frontend<br/>React"]
@@ -62,14 +62,14 @@ flowchart LR
     PH[("Volume /photos")]
     MQ{{"Mosquitto (MQTT)"}}
   end
-  ESP["device-esp32<br/>ESP32 + HC-SR04 + trava + buzzer"]
+  ESP["device-esp32<br/>ESP32 + leitor NFC + HC-SR04<br/>+ trava + buzzer"]
 
   RD & RG & US & FE -- "HTTP / REST" --> BE
   BE --> DB
   BE --> PH
   BE <-- "MQTT" --> MQ
   MQ <-- "MQTT" --> ESP
-  MQ -- "presence" --> RD
+  MQ -- "presence, result" --> RD
 ```
 
 ### Fluxo de acesso por QR Code
@@ -96,12 +96,12 @@ sequenceDiagram
 
 | Serviço | Tecnologia | Papel |
 |---|---|---|
-| [`mobile-readings`](./mobile-readings) | Flutter | Terminal de acesso: exibe o QR rotativo, lê NFC e faz reconhecimento facial |
-| [`mobile-registry`](./mobile-registry) | Flutter | App do administrador: usuários, tags NFC, foto e dado facial |
+| [`mobile-readings`](./mobile-readings) | Flutter | Tela do terminal de acesso: exibe o QR rotativo e o resultado; reconhecimento facial (extra) |
+| [`mobile-registry`](./mobile-registry) | Flutter | App do administrador: usuários, foto e dado facial; inicia o cadastro de tags NFC no leitor do terminal |
 | [`mobile-user`](./mobile-user) | Flutter | App do usuário: login, leitura do QR com GPS e lista de autorizações |
 | [`backend`](./backend) | Node.js, Express, TypeScript, Prisma | Regras de negócio, decisão de acesso e ponte MQTT |
 | [`frontend`](./frontend) | React | Painel web de administração e dashboard |
-| [`device-esp32`](./device-esp32) | ESP32, HC-SR04, trava, buzzer | Presença, atuação e sinalização |
+| [`device-esp32`](./device-esp32) | ESP32 (Arduino), leitor NFC, HC-SR04, trava, buzzer | Leitura de tags NFC, presença, atuação e sinalização |
 
 ---
 
@@ -118,7 +118,8 @@ sequenceDiagram
 | Segurança de senhas | bcrypt |
 | Upload de fotos | Multer |
 | Mensageria | MQTT (Mosquitto) |
-| Firmware | ESP32 (C/C++) |
+| Firmware | ESP32 (Arduino, C/C++) |
+| Leitor NFC | Módulo de 13,56 MHz ligado ao ESP32 |
 | Containerização | Docker + Docker Compose |
 
 ---
@@ -270,6 +271,7 @@ Todas as rotas ficam sob o prefixo `/api`.
 | Recurso | Link |
 |---|---|
 | Desafio do semestre | [docs/Desafio 4DSM - 2026-2.pdf](./docs/Desafio%204DSM%20-%202026-2.pdf) |
+| Arquitetura | [docs/arquitetura.md](./docs/arquitetura.md) |
 | Visão geral do projeto | [docs/access-control-visao-geral.docx](./docs/access-control-visao-geral.docx) |
 | Product Backlog | [scrum/BACKLOG.md](./scrum/BACKLOG.md) |
 | Sprint 1 | [scrum/sprints/sprint-1.md](./scrum/sprints/sprint-1.md) |
