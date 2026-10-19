@@ -2,7 +2,7 @@
 
 Documentação da arquitetura do Sistema Integrado de Controle de Acesso (ABP 2026-2, 4º DSM, FATEC Jacareí). Atende ao item RP07 do desafio: desenho da arquitetura e descrição da comunicação entre os elementos do sistema.
 
-> Base: [`access-control-visao-geral.docx`](./access-control-visao-geral.docx), que detalha cada serviço. **Atenção:** por definição do professor, a leitura de tag NFC é feita por um **leitor ligado ao ESP32** (programado com Arduino), e não pelo celular. O `.docx` ainda descreve a leitura no celular; neste ponto, **este documento prevalece**. Endpoints e payloads são uma **proposta inicial** e serão refinados na documentação da API.
+> Base: [`access-control-visao-geral.docx`](./access-control-visao-geral.docx), que detalha cada serviço. **Atenção:** por definição do professor, a leitura de tag NFC **para acesso** é feita por um **leitor ligado ao ESP32** (programado com Arduino), e não pelo celular. O `.docx` ainda descreve essa leitura no celular; neste ponto, **este documento prevalece**. O cadastro das tags continua no mobile-registry. Endpoints e payloads são uma **proposta inicial** e serão refinados na documentação da API.
 
 ## 1. Visão geral
 
@@ -12,7 +12,7 @@ O sistema libera uma catraca ou fechadura a partir de uma credencial lida por **
 
 | Quem | Faz |
 |---|---|
-| Aplicativos | Coletam a credencial (o app do usuário lê o QR) e a encaminham ao backend |
+| Aplicativos | Coletam a credencial (o app do usuário lê o QR) e a encaminham ao backend. O mobile-registry lê a tag apenas para cadastrá-la |
 | Leitor NFC (ESP32) | Lê o UID da tag e o publica no broker |
 | Backend | Valida, registra o evento e ordena a abertura |
 | ESP32 | Obedece ao comando recebido e reporta o que percebe |
@@ -27,7 +27,7 @@ A arquitetura é distribuída, com separação clara entre dispositivo, backend 
 flowchart LR
   subgraph Clientes
     RD["mobile-readings<br/>Flutter<br/>exibe QR e resultado"]
-    RG["mobile-registry<br/>Flutter"]
+    RG["mobile-registry<br/>Flutter<br/>cadastro de tags NFC"]
     US["mobile-user<br/>Flutter"]
     FE["frontend<br/>React"]
   end
@@ -52,7 +52,7 @@ flowchart LR
 | Serviço | Tecnologia | Responsabilidade |
 |---|---|---|
 | `mobile-readings` | Flutter | **Tela do terminal de acesso.** Exibe o QR Code rotativo, escuta presença e mostra o resultado (liberado ou negado). Reconhecimento facial como extra |
-| `mobile-registry` | Flutter | **App do administrador.** Cadastro de usuários, foto reduzida (cerca de 50 KB) e dado facial. Inicia o cadastro de tags NFC, que é feito no leitor do terminal |
+| `mobile-registry` | Flutter | **App do administrador.** Cadastro de usuários, tags NFC (leitura do UID pelo celular, só para cadastro), foto reduzida (cerca de 50 KB) e dado facial |
 | `mobile-user` | Flutter | **App do usuário.** Login, leitura do QR Code com geolocalização e lista de autorizações |
 | `backend` | Node.js, Express, TypeScript, Prisma, PostgreSQL | **Núcleo do sistema.** Regras de negócio, decisão de acesso, persistência e ponte com o MQTT |
 | `frontend` | React | **Painel web.** Usuários, locais, terminais, autorizações, histórico e dashboard |
@@ -67,7 +67,7 @@ flowchart LR
 | `locations` | Edifício, portaria, porta, catraca e terminais |
 | `authorizations` | Regras de autorização e seu ciclo de vida |
 | `access` | Validação de credenciais e **decisão de acesso** |
-| `terminals` | QR rotativo, estado, presença, cadastro de tags pelo leitor e embeddings do terminal |
+| `terminals` | QR rotativo, estado, presença e embeddings do terminal |
 | `mqtt` | Publicação de comandos e assinatura de eventos (`nfc`, `presence`, `status`, `ack`) |
 | `storage` | Abstração de armazenamento de arquivos (`/photos`) |
 | `audit` | Registro e consulta do histórico de acessos |
@@ -79,7 +79,7 @@ O módulo `access` é o único que reúne a decisão. QR Code, NFC e facial conv
 | Origem | Destino | Protocolo | Uso |
 |---|---|---|---|
 | Apps e frontend | backend | HTTP / REST | Cadastros, autenticação, validação de acesso por QR, consultas |
-| backend | ESP32 | MQTT, via Mosquitto | Comandos de abertura e negação, início do cadastro de tag |
+| backend | ESP32 | MQTT, via Mosquitto | Comandos de abertura e negação |
 | ESP32 | backend | MQTT | UID da tag NFC, presença, estado e confirmação (ack) |
 | backend | mobile-readings | MQTT | Resultado do acesso, para a tela do terminal |
 | ESP32 | mobile-readings | MQTT | Evento de presença (assinatura direta, somente leitura) |
@@ -94,8 +94,7 @@ As rotas da API ficam sob o prefixo `/api`.
 |---|---|---|
 | Autenticação | `POST /auth/login`, `POST /auth/refresh` | Todos os apps |
 | Usuários | `GET/POST /users`, `PUT /users/{id}`, `PATCH /users/{id}/status` | mobile-registry, frontend |
-| Tags e face | `GET /users/{id}/tags`, `DELETE /users/{id}/tags/{tagId}`, `POST /users/{id}/face`, `GET /users/{id}/photo` | mobile-registry, frontend |
-| Cadastro de tag | `POST /terminals/{id}/enroll` (informa o `userId` e abre a janela de cadastro) | mobile-registry, frontend |
+| Tags e face | `POST /users/{id}/tags`, `GET /users/{id}/tags`, `DELETE /users/{id}/tags/{tagId}`, `POST /users/{id}/face`, `GET /users/{id}/photo` | mobile-registry, frontend |
 | Locais e terminais | `GET/POST /locations`, `GET/POST /terminals` | frontend |
 | Autorizações | `GET/POST /authorizations`, `PATCH /authorizations/{id}/cancel` | frontend |
 | Histórico | `GET /access-logs` (com filtros) | frontend |
@@ -104,7 +103,7 @@ As rotas da API ficam sob o prefixo `/api`.
 | Usuário | `GET /me/authorizations` | mobile-user |
 | Operação | `GET /health` | Docker, CI/CD, monitoramento |
 
-O acesso por **NFC não tem endpoint HTTP**: o UID chega ao backend pelo tópico MQTT `nfc`.
+O **acesso** por NFC não tem endpoint HTTP: o UID chega ao backend pelo tópico MQTT `nfc`. O **cadastro** da tag usa `POST /users/{id}/tags`.
 
 ### 4.2 Tópicos MQTT (proposta)
 
@@ -112,7 +111,6 @@ O acesso por **NFC não tem endpoint HTTP**: o UID chega ao backend pelo tópico
 |---|---|---|
 | `terminal/{id}/nfc` | ESP32 → backend | `{uid, ts}` |
 | `terminal/{id}/command` | backend → ESP32 | `{action: "open" \| "deny", duration, requestId, expiresAt}` |
-| `terminal/{id}/enroll` | backend → ESP32 | `{action: "start" \| "cancel", userId, requestId, expiresAt}` |
 | `terminal/{id}/result` | backend → mobile-readings | `{result: "granted" \| "denied", reason, ts}`, com motivo genérico |
 | `terminal/{id}/presence` | ESP32 → backend e mobile-readings | `{detected, distance, ts}` |
 | `terminal/{id}/status` | ESP32 → backend | `{online, rssi, uptime, lockState}`, com *Last Will* para detectar queda |
@@ -124,7 +122,7 @@ Decisões de projeto: QoS 1 nos comandos; o ESP32 trata `requestId` repetido sem
 
 - **Hardware:** módulo leitor de 13,56 MHz (por exemplo RC522 ou PN532), ligado ao ESP32 por SPI ou I2C e alimentado em 3,3 V. O modelo é definido pela equipe do firmware.
 - **Leitura:** o firmware lê o UID da tag, aplica um intervalo mínimo entre leituras da mesma tag (evita registros duplicados) e publica em `terminal/{id}/nfc`. Emite um bipe curto ao ler.
-- **Formato do UID:** hexadecimal em maiúsculas, sempre na mesma ordem de bytes, definido de forma única no firmware e no backend.
+- **Formato do UID:** hexadecimal em maiúsculas, sempre na mesma ordem de bytes, definido de forma única no firmware, no backend e no mobile-registry. Como a tag é cadastrada pelo celular e lida no acesso pelo leitor do ESP32, **o mesmo cartão precisa gerar o mesmo UID nos dois**; validar na bancada antes de integrar.
 - **Independência do celular:** como o leitor está no ESP32, o terminal continua aceitando NFC mesmo com a tela do mobile-readings em repouso.
 
 ## 5. Fluxos principais
@@ -173,19 +171,16 @@ A tag funciona apenas como identificador. Aplicam-se as mesmas regras do QR Code
 
 ```mermaid
 sequenceDiagram
-  participant A as mobile-registry ou frontend
+  participant A as mobile-registry
   participant B as backend
-  participant E as device-esp32 (leitor NFC)
 
-  A->>B: POST /terminals/{id}/enroll (userId)
-  B->>E: MQTT enroll (start, userId, requestId)
-  E->>E: aguarda a tag no leitor, com tempo limite
-  E->>B: MQTT nfc (UID da tag)
-  B->>B: vincula o UID ao usuário
+  A->>A: administrador aproxima a tag do celular e o app lê o UID
+  A->>B: POST /users/{id}/tags (uid)
+  B->>B: valida e padroniza o UID, verifica se já está vinculado
   B-->>A: sucesso ou conflito (UID já vinculado a outro usuário)
 ```
 
-Enquanto a janela de cadastro está aberta, o próximo `nfc` desse terminal é tratado como cadastro, e não como tentativa de acesso. Se o UID já estiver vinculado, o backend informa o conflito sem revelar dados do outro usuário.
+O cadastro é feito no **mobile-registry**, que lê o UID pelo NFC do celular. Essa é a única leitura de NFC feita pelo celular; o **acesso** é lido apenas pelo leitor do ESP32. Se o UID já estiver vinculado, o backend informa o conflito sem revelar dados do outro usuário.
 
 ### 5.4 Presença e modo de escuta
 
@@ -256,9 +251,9 @@ O desafio não exige reconhecimento facial. Por decisão do grupo, ele é tratad
 
 | Tema | Decisão ou limitação |
 |---|---|
-| Leitura de NFC | **Definição do professor:** feita por leitor ligado ao ESP32 (Arduino), e não pelo celular. O UID segue por MQTT |
+| Leitura de NFC para acesso | **Definição do professor:** feita por leitor ligado ao ESP32 (Arduino), e não pelo celular. O UID segue por MQTT |
 | Terminal de Acesso (RF11) | Tela do QR e do resultado no celular (mobile-readings); leitor NFC, sensor de presença, trava e buzzer no ESP32. O conjunto compõe o terminal |
-| Cadastro de tags | Feito no leitor do terminal (seção 5.3), pois o celular não lê NFC |
+| Cadastro de tags | Feito no mobile-registry, lendo o UID pelo NFC do celular (seção 5.3). O formato do UID precisa ser idêntico ao do leitor do ESP32 (seção 4.3) |
 | Proximidade (RF13) | Distância **máxima** configurável (padrão 100 m), por fórmula de Haversine, considerando a precisão do GPS enviada pelo app. A redação do enunciado ("pelo menos 100 metros") será confirmada com o professor |
 | GPS do terminal (RF11) | Coordenada fixa cadastrada no backend, conforme o RP08 |
 | Falha de rede | Diretriz: o terminal **nega por padrão** quando não alcança o backend, sem cache de autorizações (opção mais segura) |
