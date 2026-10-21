@@ -23,9 +23,6 @@ Este pacote traz só o código-fonte. Gere a casca nativa e sobreponha os arquiv
 
 ```bash
 # na raiz do repositório access-control
-flutter create --org br.fatec.accesscontrol --project-name mobile_registry --platforms android mobile-registry
-# extraia este pacote por cima (substitui pubspec.yaml, lib/, test/, analysis_options.yaml
-# e android/app/src/main/AndroidManifest.xml)
 cd mobile-registry
 flutter pub get
 flutter analyze
