@@ -74,6 +74,7 @@ A preencher pelos responsáveis: mobile-readings (Nick), mobile-registry (Ryan),
 | US-12 | Núcleo de decisão de acesso e rota `POST /api/access/nfc` com registro em `AccessLog` | concluído |
 | US-14 | Rotas `GET /api/terminals/:id/faces` e `POST /api/access/face` | concluído |
 | US-16 | Rota `GET /api/terminals/:id/status` para consulta de presença e estado online | concluído |
+
 ## Impedimentos e riscos
 
 Ver [RISCOS.md](../RISCOS.md).
