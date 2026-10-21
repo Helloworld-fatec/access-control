@@ -5,6 +5,7 @@ import { locationRoutes } from "./location.routes.js";
 import { terminalRoutes } from "./terminal.routes.js";
 import { authorizationRoutes } from "./authorization.routes.js";
 import { accessLogRoutes } from "./access-log.routes.js";
+import { accessRoutes } from "./access.routes.js";
 
 export const routes = Router();
 
@@ -13,7 +14,7 @@ const apiInfo = {
   status: "online",
   message: "API do Sistema Integrado de Controle de Acesso funcionando.",
   health: "api/health",
-  endpoints: ["api/users", "api/locations", "api/terminals", "api/authorizations", "api/access-logs"],
+  endpoints: ["api/users", "api/locations", "api/terminals", "api/authorizations", "api/access-logs", "api/access"],
 };
 
 
@@ -306,3 +307,4 @@ routes.use("/locations", locationRoutes);
 routes.use("/terminals", terminalRoutes);
 routes.use("/authorizations", authorizationRoutes);
 routes.use("/access-logs", accessLogRoutes);
+routes.use("/access", accessRoutes);

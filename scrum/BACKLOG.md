@@ -5,11 +5,13 @@
 Legenda de prioridade (MoSCoW): **Must** (essencial), **Should** (importante), **Could** (desejável / extra).
 Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF, RNF, RP) vêm do documento do desafio.
 
+> **Atualização de 18/10/2026:** por definição do professor, a leitura de tags NFC é feita pelo ESP32, e não pelo terminal. Por definição do Product Owner, o mesmo ESP32 grava nas tags um código gerado pelo backend, a pedido do mobile-registry ou do frontend. Histórias ajustadas: épico 1 (US-11 e US-12), épico 2 (US-09 e US-10), épico 4 (novas US-22 a US-25), épico 5 (US-05, US-09, US-12 e US-15) e épico 6 (US-07). O épico 4 passa a ter 25 histórias.
+
 ---
 
 # Épico 1: mobile-registry
 
-**Descrição:** aplicativo Flutter de cadastro, usado pelo administrador (portaria ou administração do prédio) para criar usuários, vincular tags NFC e registrar o rosto, aproveitando a câmera e o leitor NFC do aparelho. É também a redundância do frontend para o cadastro básico. O app coleta e envia dados; o backend valida e decide.
+**Descrição:** aplicativo Flutter de cadastro, usado pelo administrador (portaria ou administração do prédio) para criar usuários, pedir a gravação das tags NFC e registrar o rosto, aproveitando a câmera do aparelho. A tag é gravada pelo ESP32 do terminal, com um código gerado pelo backend; o app não usa o NFC do celular. É também a redundância do frontend para o cadastro básico. O app coleta e envia dados; o backend valida e decide.
 
 **Requisitos relacionados:** RF01, RF07, RF10, RNF02, RNF03, RNF04, RNF05, RP04, RP05
 
@@ -42,7 +44,7 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 - Campos: endereço do backend (IP e porta), tamanho máximo da foto (padrão 50 KB) e número de amostras faciais por cadastro.
 - Valores persistidos em `shared_preferences` e aplicados imediatamente ao cliente HTTP.
 - Validação do formato de IP e porta, com mensagem de erro clara.
-- Android configurado com `usesCleartextTraffic` para HTTP na LAN, e permissões de câmera e NFC declaradas.
+- Android configurado com `usesCleartextTraffic` para HTTP na LAN, e permissão de câmera declarada.
 
 ---
 
@@ -103,7 +105,7 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 - Lista obtida por `GET /users`, com paginação.
 - Busca por nome ou documento.
 - Filtro por perfil: administrador, condômino ou visitante.
-- Cada item indica perfil, situação (ativo ou inativo) e se há tag NFC e rosto vinculados.
+- Cada item indica perfil, situação (ativo ou inativo) e se há tag NFC ativa e rosto vinculados.
 - Estados de carregamento, lista vazia e erro tratados.
 
 ---
@@ -116,7 +118,7 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 **para** concluir o cadastro de forma simples e sem me perder (RF01, RNF04).
 
 **Critérios de aceite:**
-- Etapas: 1) dados do usuário, 2) tag NFC (opcional), 3) rosto (opcional), 4) revisão.
+- Etapas: 1) dados do usuário, 2) gravação da tag NFC (opcional), 3) rosto (opcional), 4) revisão.
 - Indicador de progresso visível e botões de avançar e voltar.
 - As etapas 2 e 3 podem ser puladas e feitas depois, pela tela de edição.
 - Na revisão, o administrador confere todos os dados antes de confirmar.
@@ -148,7 +150,7 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 
 **Critérios de aceite:**
 - Tela de detalhe e edição com os dados atuais, enviada por `PUT /users/{id}`.
-- A partir dessa tela é possível vincular tag NFC e cadastrar rosto, caso tenham sido puladas.
+- A partir dessa tela é possível pedir a gravação da tag NFC e cadastrar rosto, caso tenham sido puladas.
 - Alterações só são salvas após confirmação, com mensagem de sucesso ou falha.
 
 ---
@@ -167,33 +169,35 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 
 ---
 
-### US-11: Leitura de tag NFC
+### US-11: Solicitação de gravação de tag NFC
 **Prioridade:** Must
 
 **Como** administrador,
-**quero** aproximar uma tag NFC do celular para capturar seu identificador,
-**para** vinculá-la a um usuário (RF10).
+**quero** pedir a gravação da tag NFC de um usuário,
+**para** que ele passe a usar a tag no terminal de acesso (RF10).
 
 **Critérios de aceite:**
-- Leitura do UID usando a API NFC nativa do Android.
-- UID padronizado no mesmo formato do mobile-readings (hexadecimal em maiúsculas, sempre na mesma ordem de bytes).
-- Instrução na tela durante a leitura, com feedback de sucesso ou falha.
-- Mensagem clara se o aparelho não tiver NFC ou se o NFC estiver desligado.
+- Botão "Gravar tag" na tela do usuário, que chama `POST /users/{id}/tags` informando o terminal onde a tag será gravada.
+- O backend gera o código e comanda o ESP32 por MQTT. O app **não usa o NFC do celular** e não conhece o código gravado.
+- Instrução na tela para aproximar a tag do leitor do terminal escolhido, dentro do tempo limite.
+- Situação exibida a partir de `GET /users/{id}/tags`: aguardando a tag, gravada, falhou ou expirou.
+- Mensagem clara se o terminal estiver offline ou ocupado.
+- Possibilidade de repetir o pedido em caso de falha ou de tempo esgotado.
 
 ---
 
-### US-12: Vínculo, remoção e substituição de tag NFC
+### US-12: Situação, revogação e substituição de tag NFC
 **Prioridade:** Must
 
 **Como** administrador,
-**quero** vincular, remover ou substituir a tag NFC de um usuário,
+**quero** ver a situação, revogar ou substituir a tag NFC de um usuário,
 **para** manter os acessos corretos, inclusive em caso de perda da tag.
 
 **Critérios de aceite:**
-- Vínculo por `POST /users/{id}/tags` e remoção por `DELETE /users/{id}/tags/{tagId}`.
-- Substituição disponível, removendo a tag antiga e vinculando a nova.
-- Se o UID já estiver vinculado a outro usuário, o backend responde com conflito e o app exibe a mensagem sem revelar dados do outro usuário.
-- Confirmação antes de remover uma tag.
+- Situação de cada tag (pendente, ativa, falha ou revogada) obtida por `GET /users/{id}/tags`.
+- Revogação por `DELETE /users/{id}/tags/{tagId}`, com confirmação antes de revogar.
+- Substituição disponível: revoga a tag antiga e pede a gravação de uma nova.
+- O app nunca exibe o código gravado na tag.
 
 ---
 
@@ -353,7 +357,7 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 
 # Épico 2: mobile-readings
 
-**Descrição:** aplicativo Flutter que faz o papel de Terminal de Acesso (RF11). Fica fixo junto à entrada, em um dispositivo dedicado, exibe o QR Code rotativo, lê tags NFC e, como extra, reconhece rostos. Permanece em repouso até que o sensor de presença do ESP32 detecte alguém. O app **não decide** a liberação: coleta a credencial e encaminha ao backend, que valida, registra o evento e publica o comando de abertura.
+**Descrição:** aplicativo Flutter que faz o papel de Terminal de Acesso (RF11). Fica fixo junto à entrada, em um dispositivo dedicado, exibe o QR Code rotativo e o resultado do acesso e, como extra, reconhece rostos pela câmera. Não usa NFC: a leitura e a gravação das tags são feitas pelo ESP32. Permanece em repouso até que o sensor de presença do ESP32 detecte alguém. O app **não decide** a liberação: coleta a credencial e encaminha ao backend, que valida, registra o evento e publica o comando de abertura.
 
 **Requisitos relacionados:** RF10, RF11, RF12, RF14, RF16, RNF03, RNF04, RNF07, RP03, RP04
 
@@ -367,9 +371,9 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 **para** facilitar a manutenção e manter o mesmo padrão dos demais apps (RNF05).
 
 **Critérios de aceite:**
-- Estrutura de pastas separando telas, estado, repositórios e serviços (API, MQTT, NFC, câmera).
+- Estrutura de pastas separando telas, estado, repositórios e serviços (API, MQTT, câmera).
 - Gerenciamento de estado definido (Riverpod ou Bloc), igual ao dos outros apps Flutter.
-- O app compila e executa em um aparelho Android com leitor NFC.
+- O app compila e executa em um aparelho Android com câmera frontal.
 
 ---
 
@@ -384,7 +388,7 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 - Campos: endereço do backend (IP e porta), endereço do broker MQTT (IP e porta), credenciais do broker, identificador do terminal, tempo de inatividade antes de voltar ao repouso e limiar de similaridade facial.
 - Valores persistidos em `shared_preferences` e aplicados sem reiniciar o app.
 - Validação de formato dos campos, com mensagens claras.
-- Android configurado com `usesCleartextTraffic` para HTTP na LAN, e permissões de câmera e NFC concedidas.
+- Android configurado com `usesCleartextTraffic` para HTTP na LAN, e permissão de câmera concedida.
 
 ---
 
@@ -396,7 +400,7 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 **para** que apenas terminais cadastrados enviem acessos e o funcionamento seja contínuo (RNF02, RNF03).
 
 **Critérios de aceite:**
-- Chave de API ou token próprio do terminal enviado em toda chamada de acesso (`/access/nfc` e `/access/face`).
+- Chave de API ou token próprio do terminal enviado em toda chamada de acesso (`/access/face`). A leitura de NFC não passa por este app: o ESP32 se autentica no broker MQTT.
 - Camada única de acesso à API, com tratamento central de erros.
 - Retry com limite de tentativas em falhas de rede e de timeout.
 - Chave do terminal configurável e guardada de forma segura.
@@ -477,33 +481,32 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 
 ---
 
-### US-09: Leitura de tag NFC
+### US-09: Resultado do acesso por tag NFC
 **Prioridade:** Must
 
 **Como** usuário,
-**quero** aproximar minha tag NFC do terminal,
-**para** solicitar acesso sem usar o celular (RF10).
+**quero** ver no terminal o resultado quando apresento minha tag ao leitor,
+**para** saber se o acesso foi liberado ou negado (RF10, RF16).
 
 **Critérios de aceite:**
-- Leitura do UID da tag pela API NFC nativa, ativa apenas em Escuta.
-- UID padronizado no mesmo formato do mobile-registry (hexadecimal em maiúsculas, mesma ordem de bytes).
-- Feedback imediato ao detectar a tag.
-- Mensagem clara se o aparelho não tiver NFC ou se o NFC estiver desligado.
+- O app assina `terminal/{id}/result` no MQTT e, ao receber o resultado, exibe liberado ou negado com motivo genérico (ver US-11).
+- O app **não lê NFC**: por definição do professor, a tag é lida pelo leitor do ESP32.
+- Se o MQTT falhar, o app consulta `GET /terminals/{id}/status` por polling.
+- Credenciais do broker com permissão somente de leitura nos tópicos `result` e `presence`, via ACL.
 
 ---
 
-### US-10: Envio da tag NFC ao backend
-**Prioridade:** Must
+### US-10: Aviso de leitor ocupado na gravação de tag
+**Prioridade:** Should
 
-**Como** terminal de acesso,
-**quero** enviar o UID lido ao backend e aguardar a decisão,
-**para** que ele valide a tag e a autorização do usuário (RF14).
+**Como** usuário,
+**quero** ser avisado quando o leitor estiver gravando uma tag,
+**para** usar o QR Code enquanto o leitor está ocupado.
 
 **Critérios de aceite:**
-- Envio por `POST /access/nfc` com o UID e o identificador do terminal.
-- O app passa a Validando enquanto aguarda a resposta.
-- Intervalo mínimo entre envios para evitar leituras repetidas e registros duplicados.
-- A tag funciona apenas como identificador: quem resolve o dono e a autorização é o backend.
+- O app assina `terminal/{id}/status` e identifica o modo de gravação publicado pelo ESP32.
+- Durante a gravação, exibe um aviso curto, por exemplo "Leitor NFC ocupado. Use o QR Code".
+- O QR Code continua visível e o aviso some quando o ESP32 volta ao modo normal.
 
 ---
 
@@ -545,10 +548,10 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 **para** reduzir o consumo e evitar leituras acidentais (RNF07).
 
 **Critérios de aceite:**
-- Em Repouso: tela econômica, câmera desligada e leitor NFC inativo.
-- Em Escuta: leitor NFC e câmera ativos e QR Code visível.
+- Em Repouso: tela econômica e câmera desligada.
+- Em Escuta: câmera ativa (quando o facial estiver habilitado) e QR Code visível.
 - Tempo de inatividade (N) configurável e respeitado.
-- A câmera e o NFC são liberados ao voltar para Repouso.
+- A câmera é liberada ao voltar para Repouso.
 
 ---
 
@@ -673,7 +676,7 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 
 - **Reconhecimento facial como extra:** o docx diz que ele só deve ser implementado depois que QR Code e NFC estiverem estáveis. Por isso as stories US-15 a US-19 ficaram como **Could**.
 - **Sincronização dos embeddings (US-15):** o docx deixa em aberto quando o app atualiza a lista (ao entrar em Escuta, a cada N minutos ou por evento do backend). Deixei a decisão como critério de aceite da story.
-- **Suporte a NFC:** o aparelho do terminal precisa ter leitor NFC e rodar Android, pois no iOS a leitura em segundo plano é limitada. Esse risco não virou story, mas vale constar na documentação.
+- **Sem NFC no terminal:** por definição do professor, a leitura de tags é feita pelo ESP32, então o aparelho do terminal não precisa de leitor NFC. A gravação das tags também é do ESP32.
 - **Falha de rede:** adotei a opção mais segura citada no docx, negar por padrão e sem cache de autorizações (US-12).
 
 ---
@@ -1016,9 +1019,9 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 
 # Épico 4: device-esp32
 
-**Descrição:** dispositivo embarcado que representa o mecanismo físico de acesso (catraca ou porta). Tem três papéis: detectar a aproximação de uma pessoa (HC-SR04), acionar a trava eletrônica quando o backend ordenar e sinalizar o resultado com buzzer e LED. O ESP32 não toma decisões de acesso: apenas obedece comandos recebidos via MQTT e reporta o que percebe. Junto com o mobile-readings, forma o Terminal de Acesso (RF11).
+**Descrição:** dispositivo embarcado que representa o mecanismo físico de acesso (catraca ou porta). Tem cinco papéis: detectar a aproximação de uma pessoa (HC-SR04), **ler as tags NFC**, **gravar nas tags o código gerado pelo backend**, acionar a trava eletrônica quando o backend ordenar e sinalizar o resultado com buzzer e LED. O ESP32 não toma decisões de acesso: apenas obedece comandos recebidos via MQTT, publica o código lido da tag e reporta o que percebe. Há um único ESP32, que lê e grava. Junto com o mobile-readings (tela), forma o Terminal de Acesso (RF11).
 
-**Requisitos relacionados:** RF11, RF15, RF16, RNF01, RNF03, RNF05, RNF07, RP02, RP03, RP08
+**Requisitos relacionados:** RF10, RF11, RF14, RF15, RF16, RNF01, RNF03, RNF05, RNF07, RP02, RP03, RP08
 
 ---
 
@@ -1335,11 +1338,75 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 
 ---
 
+### US-22: Leitor e gravador NFC ligado ao ESP32
+**Prioridade:** Must
+
+**Como** desenvolvedor,
+**quero** ligar um módulo leitor e gravador NFC ao ESP32,
+**para** ler e gravar as tags do terminal de acesso (RF10, RF11).
+
+**Critérios de aceite:**
+- Módulo de 13,56 MHz com leitura e escrita (por exemplo RC522 ou PN532) ligado por SPI ou I2C, em 3,3 V.
+- Mapeamento de pinos definido no arquivo de configuração do firmware.
+- Biblioteca escolhida e registrada na documentação.
+- Tipo de tag com memória gravável (por exemplo NTAG ou MIFARE) definido e documentado.
+- Teste de bancada de leitura e de escrita com mais de uma tag.
+
+---
+
+### US-23: Leitura do código da tag e publicação no MQTT
+**Prioridade:** Must
+
+**Como** terminal físico,
+**quero** ler o código gravado na tag e publicá-lo no broker,
+**para** que o backend valide o acesso (RF10, RF14).
+
+**Critérios de aceite:**
+- Leitura do código a partir da área de dados da tag.
+- Publicação em `terminal/{id}/nfc` com `{code, uid, ts}` (o `uid` é opcional).
+- Intervalo mínimo entre leituras da mesma tag, para evitar registros duplicados.
+- Bipe curto ao ler a tag, e tag sem código válido não gera abertura.
+- A leitura não bloqueia o laço principal, e o sensor e o MQTT continuam atendidos.
+
+---
+
+### US-24: Gravação do código na tag
+**Prioridade:** Must
+
+**Como** terminal físico,
+**quero** gravar na tag o código enviado pelo backend,
+**para** que o usuário passe a ter uma tag válida (RF10).
+
+**Critérios de aceite:**
+- Ao receber `terminal/{id}/enroll` com `{requestId, code, expiresAt}`, entra em modo de gravação por tempo limitado.
+- Grava o código na próxima tag apresentada e lê de volta para conferir.
+- Publica `ack` com `type: "enroll"` e resultado `written`, `failed` ou `timeout`.
+- Bipes distintos para sucesso e falha.
+- Pedidos vencidos ou repetidos (mesmo `requestId`) são descartados, sem gravar duas vezes.
+- Durante a janela de gravação, publica `status` indicando o modo de gravação.
+
+---
+
+### US-25: Convivência de leitura e gravação no mesmo leitor
+**Prioridade:** Should
+
+**Como** terminal físico,
+**quero** alternar entre leitura e gravação sem conflitos,
+**para** que o acesso continue confiável com um único leitor.
+
+**Critérios de aceite:**
+- A máquina de estados inclui o estado "Gravando".
+- Durante a gravação, leituras não são tratadas como tentativas de acesso, e o acesso por QR Code segue normalmente.
+- Ao fim da gravação ou ao esgotar o tempo limite, o leitor volta ao modo de leitura.
+- Testes de unidade para as transições entre os modos.
+
+---
+
 ## Pontos para sua decisão sobre este épico
 
 - **Fail-secure ou fail-safe:** o docx pede que a escolha seja decidida e documentada. Em um prédio real isso envolve segurança contra incêndio. Está na US-14.
 - **Relógio sem internet:** a decisão entre NTP local e validade relativa está na US-17.
-- **Tela e NFC no celular:** o desafio lista tela e sensor NFC como parte do Terminal de Acesso, mas no projeto eles estão no mobile-readings. O docx recomenda confirmar com o professor que essa divisão é aceita.
+- **Leitor e gravador NFC no ESP32:** o professor definiu que a leitura de tags é feita pelo ESP32, e o Product Owner definiu que o mesmo ESP32 grava as tags com um código gerado pelo backend (US-22 a US-25). O mobile-readings não usa NFC. Falta definir o módulo (RC522 ou PN532) e o tipo de tag.
 - **Confiabilidade do HC-SR04:** se os testes de bancada mostrarem instabilidade, o docx sugere considerar um sensor PIR ou óptico. Não gerei story para isso.
 - **ACL do Mosquitto:** o tópico `command` é, na prática, a chave da fechadura, e só o backend deve poder publicar nele. A configuração do broker e das ACLs ficará no épico de DevOps.
 
@@ -1378,7 +1445,7 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 
 **Critérios de aceite:**
 - Ferramenta de migração adotada (Prisma, TypeORM ou Knex).
-- Tabelas criadas: `users`, `nfc_tags`, `face_templates`, `user_photos`, `locations`, `terminals`, `authorizations` e `access_logs`.
+- Tabelas criadas: `users`, `nfc_tags` (com o hash do código da tag e a situação), `face_templates`, `user_photos`, `locations`, `terminals`, `authorizations` e `access_logs`.
 - `access_logs` aceita `user_id` nulo, para registrar tentativas com tag desconhecida (RF17).
 - Embedding em coluna própria, separada dos dados cadastrais, com `model_version`.
 - Datas armazenadas em UTC, com fuso `America/Sao_Paulo` definido para as regras de horário.
@@ -1417,18 +1484,19 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 
 ---
 
-### US-05: Gestão de tags NFC
+### US-05: Gestão de tags NFC (código gerado e gravado pelo ESP32)
 **Prioridade:** Must
 
 **Como** administrador,
-**quero** vincular e remover tags NFC de um usuário,
+**quero** pedir a gravação e revogar tags NFC de um usuário,
 **para** que ele possa acessar pelo terminal com a tag (RF10).
 
 **Critérios de aceite:**
-- `POST /users/{id}/tags` e `DELETE /users/{id}/tags/{tagId}`.
-- UID já vinculado a outro usuário resulta em conflito, sem revelar dados do outro usuário.
-- UID armazenado no formato padronizado (hexadecimal em maiúsculas).
-- Remoção ou substituição de tag perdida disponível.
+- `POST /users/{id}/tags` informando o terminal: o backend gera um código aleatório (por exemplo 128 bits), guarda **apenas o hash**, cria a tag como `pendente` e publica o pedido em `terminal/{id}/enroll`.
+- Quando o ESP32 confirma a gravação (`ack` com `written`), a tag passa a `ativa`; em `failed` ou `timeout`, passa a `falha`, e o pedido pode ser repetido.
+- `GET /users/{id}/tags` devolve a situação (pendente, ativa, falha ou revogada) e `DELETE /users/{id}/tags/{tagId}` revoga a tag, sem depender de apagar a tag física.
+- O código em claro só trafega no pedido de gravação e nunca é registrado em log nem devolvido aos apps.
+- Terminal offline ou ocupado resulta em erro claro, e pedidos de gravação expiram.
 
 ---
 
@@ -1490,7 +1558,7 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 
 **Critérios de aceite:**
 - Chave de API ou token próprio por terminal, gerado no cadastro do terminal.
-- Chave exigida em `/access/nfc` e `/access/face`, e rejeitada se inválida ou de outro terminal.
+- Chave exigida em `/access/face`, e rejeitada se inválida ou de outro terminal. Para o NFC, usuário e senha MQTT por terminal e ACL, de modo que só o ESP32 daquele terminal publique em `nfc`, `presence`, `status` e `ack`.
 - Chave armazenada de forma segura (hash) e revogável.
 - Documentado que o backend confia no resultado facial feito no terminal, o que torna esse o ponto mais frágil do fluxo.
 
@@ -1539,7 +1607,7 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 - Módulo `access` com função de validação única, à qual QR, NFC e facial convergem, mudando só a forma de identificar a pessoa.
 - Regras avaliadas: usuário ativo, autorização existente para o local, situação, janela de datas e horários, e usos restantes.
 - Atualização atômica da contagem de usos (`UPDATE ... WHERE usos < limite`), para que acessos simultâneos não ultrapassem o limite.
-- `POST /access/nfc` localiza a tag, identifica o usuário e aplica as regras, sem teste de geolocalização.
+- O backend assina `terminal/{id}/nfc`, calcula o hash do código recebido, localiza a tag ativa, identifica o usuário e aplica as regras, sem teste de geolocalização. Código desconhecido ou de tag revogada gera registro com usuário nulo e comando `deny`.
 - Cada decisão devolve resultado e motivo, e aciona o registro do evento e a publicação do comando.
 
 ---
@@ -1588,6 +1656,8 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 - Publicação em `terminal/{id}/command` com `{action: "open" ou "deny", duration, requestId, expiresAt}`, em QoS 1, com validade curta.
 - Negação também publicada, para acionar o buzzer.
 - Lógica de publicação exposta por interface (`CommandPublisher`), permitindo trocar o MQTT por um *mock* nos testes.
+- Publicação em `terminal/{id}/enroll` com `{requestId, code, expiresAt}` para a gravação de tags, e do resultado do acesso em `terminal/{id}/result`, para a tela do terminal.
+- Assinatura de `terminal/{id}/nfc`, e de `terminal/{id}/ack` também para os pedidos de gravação (`type: "enroll"`).
 - Assinatura de `terminal/{id}/ack`, associando o `requestId` ao evento de acesso para confirmar a abertura real.
 - Se o broker estiver indisponível, o acesso é registrado como autorizado, mas com a indicação de que o comando não foi entregue, e o app recebe erro em vez de "liberado".
 
@@ -1795,18 +1865,19 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 
 ---
 
-### US-07: Vínculo de tag NFC no navegador
-**Prioridade:** Should
+### US-07: Pedido de gravação de tag NFC pelo navegador
+**Prioridade:** Must
 
 **Como** administrador,
-**quero** vincular e remover tags NFC pelo navegador,
+**quero** pedir a gravação e revogar tags NFC pelo navegador,
 **para** manter o cadastro possível se o aplicativo falhar (RF10).
 
 **Critérios de aceite:**
-- UID informado por leitor USB que emula teclado (o UID cai em um campo de texto) ou digitado manualmente.
-- UID padronizado no mesmo formato do app (hexadecimal em maiúsculas).
-- Vínculo e remoção pelos mesmos endpoints do app, com tratamento de conflito sem revelar dados do outro usuário.
-- Declarado que a Web NFC API só funciona no Chrome para Android e exige HTTPS, por isso não é usada.
+- Botão "Gravar tag" no detalhe do usuário, que chama `POST /users/{id}/tags` informando o terminal.
+- Instrução na tela para aproximar a tag do leitor do terminal, dentro do tempo limite.
+- Situação da tag (pendente, ativa, falha ou revogada) obtida por `GET /users/{id}/tags`, com mensagem clara para falha e tempo esgotado.
+- Revogação por `DELETE /users/{id}/tags/{tagId}`, com confirmação.
+- O navegador não lê nem grava NFC: leitor USB e Web NFC não são usados, porque a gravação é feita pelo ESP32. O frontend e o app têm os mesmos endpoints.
 
 ---
 
@@ -2009,7 +2080,7 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 
 ## Pontos para sua decisão sobre este épico
 
-- **Escopo da redundância:** o embedding facial não é cadastrado pelo frontend, e a tag NFC só pelo leitor USB ou digitação. É preciso decidir se isso é aceitável como redundância ou se o frontend precisa de paridade total.
+- **Escopo da redundância:** o embedding facial não é cadastrado pelo frontend, mas o pedido de gravação de tags NFC tem paridade com o app, pois a gravação é feita pelo ESP32. É preciso decidir se a ausência do facial é aceitável como redundância ou se o frontend precisa de paridade total.
 - **Quem administra:** o PDF descreve a administração como função do aplicativo móvel, mas hoje locais e autorizações só existem no frontend. Confirmar com o professor se isso é aceito, ou se o mobile-registry precisa de telas de autorizações.
 - **Prioridade do dashboard:** o docx observa que o dashboard é o que mais impressiona na apresentação, mas também o que mais consome tempo, e recomenda priorizar login, usuários, autorizações e histórico. Por isso as stories do dashboard ficaram como **Should**.
 - **Nginx e Docker:** o proxy reverso e o build multi-estágio em contêiner ficam no épico de DevOps. A US-17 cobre apenas o comportamento do frontend.
@@ -2486,7 +2557,7 @@ Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF,
 **para** evitar entregar algo que não atenda ao que se espera.
 
 **Critérios de aceite:**
-- Lista de dúvidas elaborada: raio de proximidade de 100 metros (pelo menos ou no máximo), banco em nuvem (RNF06), divisão do Terminal de Acesso entre ESP32 e celular (tela e NFC), e quem administra locais e autorizações (aplicativo móvel ou frontend).
+- Lista de dúvidas elaborada: raio de proximidade de 100 metros (pelo menos ou no máximo), banco em nuvem (RNF06), leitor NFC no ESP32 e não no terminal (já decidido pelo professor), e quem administra locais e autorizações (aplicativo móvel ou frontend).
 - Respostas registradas e refletidas nos requisitos e no backlog.
 - Itens ainda em aberto mantidos no registro de decisões.
 

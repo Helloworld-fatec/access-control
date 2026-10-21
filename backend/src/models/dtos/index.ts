@@ -7,3 +7,4 @@ export * from "./location.dto.js";
 export * from "./terminal.dto.js";
 export * from "./authorization.dto.js";
 export * from "./access-log.dto.js";
+export * from "./access.dto.js";
