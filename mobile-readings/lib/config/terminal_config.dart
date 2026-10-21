@@ -17,10 +17,10 @@ class TerminalConfig {
   final bool simulationMode;
 
   const TerminalConfig({
-    this.backendHost = '10.0.2.2',
+    this.backendHost = 'localhost',
     this.backendPort = 3000,
     this.useHttps = false,
-    this.mqttHost = '10.0.2.2',
+    this.mqttHost = 'localhost',
     this.mqttPort = 1883,
     this.mqttUsername = '',
     this.mqttPassword = '',
@@ -179,7 +179,7 @@ class LocalConfigStorage implements ConfigStorage {
       mqttUsername: prefs.getString(_kMqttUsername) ?? defaults.mqttUsername,
       mqttPassword: mqttPassword,
       terminalId: prefs.getString(_kTerminalId) ?? defaults.terminalId,
-      apiKey: apiKey,
+      apiKey: apiKey.isNotEmpty ? apiKey : defaults.apiKey,
       inactivityTimeoutSeconds:
           prefs.getInt(_kInactivitySeconds) ?? defaults.inactivityTimeoutSeconds,
       faceSimilarityThreshold:

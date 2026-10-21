@@ -322,8 +322,9 @@ class TerminalScreen extends StatelessWidget {
                     ),
                   ],
 
-                  // Controles auxiliares quando o Modo de Simulação estiver ativo
-                  if (controller.config.simulationMode) ...[
+                  // Controles auxiliares quando o Modo de Simulação estiver ativo ou sem hardware NFC (ex.: navegador)
+                  if (controller.config.simulationMode ||
+                      nfcStatus != NfcHardwareStatus.available) ...[
                     const SizedBox(height: 20),
                     const Divider(),
                     const Text(

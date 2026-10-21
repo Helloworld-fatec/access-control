@@ -191,10 +191,18 @@ class TerminalApiClient {
         try {
           body = jsonDecode(response.body) as Map<String, dynamic>;
         } catch (_) {}
+        final errObj = body?['error'];
+        final errMsg = body?['message']?.toString() ??
+            (errObj is Map ? errObj['message']?.toString() : null) ??
+            'Acesso não autorizado.';
+        final errCode = body?['reason']?.toString() ??
+            body?['code']?.toString() ??
+            (errObj is Map ? errObj['code']?.toString() : null) ??
+            'FORBIDDEN';
         return AccessResult(
           decision: AccessDecision.denied,
-          message: body?['message']?.toString() ?? 'Acesso não autorizado.',
-          reasonCode: body?['code']?.toString() ?? 'FORBIDDEN',
+          message: errMsg,
+          reasonCode: errCode,
         );
       }
 
