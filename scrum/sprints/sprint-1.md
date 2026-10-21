@@ -41,6 +41,40 @@ Meta definida com o Product Owner: a Sprint 1 é a base. A entrega final do proj
 
 A preencher pelos responsáveis: mobile-readings (Nick), mobile-registry (Ryan), mobile-user (Bruno), device-esp32 (Bruna), frontend (Pedro).
 
+### mobile-readings e backend de leitura (Nicolas)
+
+**Épico 2 — `mobile-readings` (App Terminal de Acesso):**
+
+| US | Task | Etapa |
+|---|---|---|
+| US-01 | Estrutura base do projeto Flutter em camadas (`config`, `models`, `services`, `state`, `screens`) | concluído |
+| US-02 | Tela de configuração do terminal com persistência (`shared_preferences` e `flutter_secure_storage`) | concluído |
+| US-03 | Cliente HTTP único com autenticação por `x-api-key`, timeout e retry automático | concluído |
+| US-04 | Máquina de estados do terminal (`Repouso`, `Escuta`, `Validando`, `Liberado`, `Negado`) | concluído |
+| US-05 | Serviço MQTT assinando o tópico `terminal/{id}/presence` no broker Mosquitto | concluído |
+| US-06 | Fallback automático de presença por polling HTTP (`GET /terminals/{id}/status`) | concluído |
+| US-07 | Exibição e renovação automática do QR Code rotativo a cada 10s | concluído |
+| US-08 | Invalidação imediata do QR Code em falha de conexão ("QR indisponível") | concluído |
+| US-09 | Leitura nativa de tag NFC e padronização do UID em hexadecimal maiúsculo | concluído |
+| US-10 | Envio da tag NFC (`POST /access/nfc`) com bloqueio de leituras repetidas (*cooldown*) | concluído |
+| US-11 | Feedback visual acessível de acesso liberado (verde) e negado (vermelho) | concluído |
+| US-12 | Comportamento seguro *fail-closed* sem conexão com o backend | concluído |
+| US-13 | Modo de repouso e desligamento de recursos fora do estado de escuta | concluído |
+| US-14 | Execução como terminal dedicado (orientação fixa e `wakelock_plus`) | concluído |
+| US-15 / US-17 | Serviço de sincronização de embeddings faciais em memória e cálculo de similaridade | concluído |
+| US-20 | Interface de alto contraste com instruções claras de uso | concluído |
+| US-21 | Testes automatizados unitários e de widget (11 testes passando + `flutter analyze`) | concluído |
+
+**Épico 5 — `backend` (Rotas de suporte ao Terminal de Acesso):**
+
+| US | Task | Etapa |
+|---|---|---|
+| US-09 | Middleware `requireTerminalAuth` para validação de `apiKey` (SHA-256) do terminal | concluído |
+| US-11 | Rota `GET /api/terminals/:id/qr` gerando token assinado (HMAC-SHA256) e `QrNonce` anti-replay | concluído |
+| US-12 | Núcleo de decisão de acesso e rota `POST /api/access/nfc` com registro em `AccessLog` | concluído |
+| US-14 | Rotas `GET /api/terminals/:id/faces` e `POST /api/access/face` | concluído |
+| US-16 | Rota `GET /api/terminals/:id/status` para consulta de presença e estado online | concluído |
+
 ## Impedimentos e riscos
 
 Ver [RISCOS.md](../RISCOS.md).
