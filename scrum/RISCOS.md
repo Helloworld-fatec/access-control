@@ -21,8 +21,8 @@ Origem: `docs/access-control-visao-geral.docx`, PDF do desafio e imagens de arqu
 |---|---|---|---|---|
 | R1 | Wi-Fi da apresentação sem internet ou instável | Roteador/hotspot próprio, testar com aparelhos reais, avisar sobre dados móveis | Bruno | aberto |
 | R2 | Contrato da API muda e quebra os três clientes | Publicar especificação OpenAPI versionada | Bruno / Pedro | aberto |
-| R3 | Embeddings faciais incompatíveis entre mobile-registry e mobile-readings | Pacote Dart comum para extração | Ryan / Nick | aberto |
-| R4 | Código duplicado entre os três apps Flutter | Pacote Dart interno compartilhado | Ryan / Nick / Bruno | aberto |
+| R3 | Embeddings faciais incompatíveis entre mobile-registry e mobile-readings | Pacote Dart comum para extração | Ryan / Nicolas | aberto |
+| R4 | Código duplicado entre os três apps Flutter | Pacote Dart interno compartilhado | Ryan / Nicolas / Bruno | aberto |
 | R5 | Sem pipeline de CI com testes o projeto não é aceito (RP10) | Pipeline mínimo (build, lint, testes) já na Sprint 1 | Bruno | aberto |
 | R6 | Alimentação da trava e HC-SR04 instáveis na bancada | Fonte separada, diodo de flyback, testar antes de integrar | Bruna | aberto |
 | R7 | Precisão do GPS em ambiente fechado | Enviar `accuracy`, calibrar raio no local | Bruno | aberto |
