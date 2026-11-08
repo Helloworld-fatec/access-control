@@ -6,7 +6,7 @@
 |---|---|---|
 | Product Owner | Bruno | Prioriza o backlog e decide o escopo de cada sprint. O prof. Leandro Toss Hoffmann é o *focal point* do desafio. |
 | Scrum Master | Suelen | Facilita as cerimônias, mantém o quadro e remove impedimentos. |
-| Time de desenvolvimento | Nicolas, Ryan, Bruno, Bruna, Pedro | O Bruno também desenvolve (mobile-user e backend). |
+| Time de desenvolvimento | Nicolas, Ryan, Bruno, Bruna, Pedro, Alicia | O Bruno também desenvolve (mobile-user e backend). |
 
 ## Responsável por serviço
 
@@ -19,6 +19,8 @@
 | backend | Bruno e Pedro |
 | frontend | Pedro |
 | integração | Bruno e Suelen |
+| diagrama de caso de uso | Alicia |
+| testes do backend | Alicia |
 | SCRUM (docs/scrum) | Suelen |
 
 O responsável por um serviço responde pelo andamento das histórias do respectivo épico no quadro e pela demonstração dele na Sprint Review.

@@ -134,6 +134,7 @@ sequenceDiagram
 | Nicolas Kauê | Dev Team | mobile-readings |
 | Ryan Tinel | Dev Team | mobile-registry |
 | Bruna Rodrigues | Dev Team | device-esp32 |
+| Alicia Silva Dias | Dev Team | diagrama de caso de uso e testes do backend |
 
 ---
 
