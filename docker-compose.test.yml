@@ -1,0 +1,17 @@
+services:
+  postgres-test:
+    image: postgres:17-alpine
+    container_name: access-control-pg-test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-access_control_test}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - access_control_pgdata_test:/var/lib/postgresql/data
+
+volumes:
+  access_control_pgdata_test:
+    name: access_control_pgdata_test

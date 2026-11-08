@@ -24,3 +24,12 @@ terminalRoutes.post("/", h(terminals.createTerminal));
 terminalRoutes.get("/:id", h(terminals.getTerminal));
 terminalRoutes.put("/:id", h(terminals.updateTerminal));
 terminalRoutes.delete("/:id", h(terminals.deleteTerminal));
+
+// Operação do Terminal de Acesso (mobile-readings)
+terminalRoutes.get("/:id/qr", requireTerminalAuth, h(terminals.getTerminalQr));
+terminalRoutes.get("/:id/status", h(terminals.getTerminalStatus));
+terminalRoutes.get(
+  "/:id/faces",
+  requireTerminalAuth,
+  h(terminals.getTerminalFaces),
+);
