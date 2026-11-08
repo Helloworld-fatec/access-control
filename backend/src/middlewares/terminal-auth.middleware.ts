@@ -39,6 +39,13 @@ export async function authenticateTerminal(
       return;
     }
 
+    if (req.params.id && req.params.id !== terminal.id) {
+      res.status(403).json({
+        error: { code: "TERMINAL_FORBIDDEN", message: "Credencial não pertence a este terminal" },
+      });
+      return;
+    }
+
     req.terminal = { id: terminal.id, locationId: terminal.locationId };
     await prisma.terminal.update({
       where: { id: terminal.id },
