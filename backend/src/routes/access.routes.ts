@@ -1,10 +1,18 @@
-// backend/src/routes/access.routes.ts
 import { Router } from "express";
 import { asyncHandler as h } from "../middlewares/error.middleware.js";
-import { requireTerminalAuth } from "../middlewares/terminal-auth.middleware.js";
-import * as access from "../controllers/access.controller.js";
+import { authenticate } from "../middlewares/auth.middleware.js";
+import { rateLimit } from "../middlewares/rate-limit.middleware.js";
+import * as qrAccess from "../controllers/qr-access.controller.js";
 
 export const accessRoutes = Router();
 
-accessRoutes.post("/nfc", requireTerminalAuth, h(access.validateNfcAccess));
-accessRoutes.post("/face", requireTerminalAuth, h(access.validateFaceAccess));
+accessRoutes.post(
+  "/qr/consume",
+  authenticate,
+  rateLimit({
+    windowMs: 60_000,
+    max: 20,
+    key: (req) => `user:${req.auth?.userId ?? "unknown"}:ip:${req.ip}`,
+  }),
+  h(qrAccess.consumeQr),
+);

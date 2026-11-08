@@ -215,7 +215,7 @@ export async function updateTerminal(req: Request, res: Response) {
 export async function deleteTerminal(req: Request, res: Response) {
   const { id } = idParamSchema.parse(req.params);
 
-  const logs = await prisma.accessLog.count({ where: { terminalId: id } });
+  const logs = await prisma.accesslog.count({ where: { terminalId: id } });
   if (logs > 0) {
     throw new AppError(
       409,

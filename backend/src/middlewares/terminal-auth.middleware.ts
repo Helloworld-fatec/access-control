@@ -1,33 +1,52 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
-import { prisma } from '../config/prisma.js';
-import { hashApiKey } from "../controllers/terminals.controller.js";
-import { AppError, asyncHandler } from "./error.middleware.js";
+import { prisma } from "../config/prisma.js";
 
-export const requireTerminalAuth = asyncHandler(
-    async (req: Request, res: Response, next: NextFunction) => {
-        const bearer = req.header("authorization")?.replace(/^Bearer\s+/i, "").trim();
-        const apiKey = (req.header("x-api-key")?.trim() || bearer || "");
+declare global {
+  namespace Express {
+    interface Request {
+      terminal?: { id: string; locationId: string };
+    }
+  }
+}
 
-        if (!apiKey) {
-            throw new AppError(401, "Chave do terminal obrigatória", "TERMINAL_UNAUTHORIZED");
-        }
+export async function authenticateTerminal(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  const apiKey = req.get("x-terminal-key");
+  if (!apiKey || !/^[\x21-\x7E]{24,200}$/.test(apiKey)) {
+    res.status(401).json({
+      error: { code: "TERMINAL_UNAUTHORIZED", message: "Credencial do terminal obrigatória" },
+    });
+    return;
+  }
 
-        const terminalId = req.params.id ?? req.body?.terminalId;
-        if (!terminalId || typeof terminalId !== "string") {
-            throw new AppError(400, "Identificador do terminal ausente", "TERMINAL_ID_REQUIRED");
-        }
+  try {
+    const apiKeyHash = createHash("sha256").update(apiKey).digest("hex");
+    const terminal = await prisma.terminal.findFirst({
+      where: { apiKeyHash },
+      select: { id: true, locationId: true, apiKeyHash: true },
+    });
 
-        const terminal = await prisma.terminal.findUnique({ where: { id: terminalId } });
-        if (!terminal || terminal.apiKeyHash !== hashApiKey(apiKey)) {
-            throw new AppError(401, "Credencial de terminal inválida", "TERMINAL_UNAUTHORIZED");
-        }
+    const suppliedHash = Buffer.from(apiKeyHash, "hex");
+    const storedHash = terminal ? Buffer.from(terminal.apiKeyHash, "hex") : Buffer.alloc(32);
+    if (!terminal || !timingSafeEqual(suppliedHash, storedHash)) {
+      res.status(401).json({
+        error: { code: "TERMINAL_UNAUTHORIZED", message: "Credencial do terminal inválida" },
+      });
+      return;
+    }
 
-        await prisma.terminal.update({
-            where: { id: terminal.id },
-            data: { lastSeenAt: new Date(), online: true },
-        });
-
-        res.locals.terminal = terminal;
-        next();
-    },
-);
+    req.terminal = { id: terminal.id, locationId: terminal.locationId };
+    await prisma.terminal.update({
+      where: { id: terminal.id },
+      data: { lastSeenAt: new Date() },
+      select: { id: true },
+    });
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
