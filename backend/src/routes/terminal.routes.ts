@@ -18,18 +18,18 @@ terminalRoutes.post(
   h(qrAccess.issueQr),
 );
 
+// Operações do equipamento autenticadas pela API key do próprio terminal.
+terminalRoutes.get("/:id/qr", authenticateTerminal, h(terminals.getTerminalQr));
+terminalRoutes.get("/:id/status", authenticateTerminal, h(terminals.getTerminalStatus));
+terminalRoutes.get(
+  "/:id/faces",
+  authenticateTerminal,
+  h(terminals.getTerminalFaces),
+);
+
 terminalRoutes.use(authenticate, requireAdmin);
 terminalRoutes.get("/", h(terminals.listTerminals));
 terminalRoutes.post("/", h(terminals.createTerminal));
 terminalRoutes.get("/:id", h(terminals.getTerminal));
 terminalRoutes.put("/:id", h(terminals.updateTerminal));
 terminalRoutes.delete("/:id", h(terminals.deleteTerminal));
-
-// Operação do Terminal de Acesso (mobile-readings)
-terminalRoutes.get("/:id/qr", requireTerminalAuth, h(terminals.getTerminalQr));
-terminalRoutes.get("/:id/status", h(terminals.getTerminalStatus));
-terminalRoutes.get(
-  "/:id/faces",
-  requireTerminalAuth,
-  h(terminals.getTerminalFaces),
-);

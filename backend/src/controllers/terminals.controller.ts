@@ -31,7 +31,7 @@ export const hashApiKey = (apiKey: string) =>
 // GET /terminals
 export async function listTerminals(req: Request, res: Response) {
   const q = listTerminalsQuerySchema.parse(req.query);
-  const where: Prisma.TerminalWhereInput = q.locationId
+  const where: Prisma.terminalWhereInput = q.locationId
     ? { locationId: q.locationId }
     : {};
 
@@ -77,10 +77,10 @@ export async function getTerminalQr(req: Request, res: Response) {
 
   // Limpa nonces já vencidos deste terminal e grava novos (anti-replay)
   await prisma.$transaction([
-    prisma.qrNonce.deleteMany({
+    prisma.qrnonce.deleteMany({
       where: { terminalId: id, expiresAt: { lt: new Date(now) } },
     }),
-    prisma.qrNonce.create({
+    prisma.qrnonce.create({
       data: { nonce, terminalId: id, expiresAt },
     }),
   ]);
@@ -139,7 +139,7 @@ export async function getTerminalFaces(req: Request, res: Response) {
   });
   if (!terminal) throw notFound();
 
-  const templates = await prisma.faceTemplate.findMany({
+  const templates = await prisma.facetemplate.findMany({
     where: {
       user: {
         active: true,
