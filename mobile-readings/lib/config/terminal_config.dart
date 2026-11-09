@@ -37,8 +37,18 @@ class TerminalConfig {
     return '$scheme://$backendHost:$backendPort/api';
   }
 
-  /// Tópico MQTT de presença assinado pelo terminal (US-05).
-  String get mqttPresenceTopic => 'terminal/$terminalId/presence';
+  /// Tópico MQTT oficial de presença assinado pelo terminal (docs/contrato-mqtt.md).
+  String get mqttPresenceTopic => 'access/v1/terminals/$terminalId/presence';
+
+  /// Tópico MQTT legado de presença (retrocompatibilidade).
+  String get mqttPresenceLegacyTopic => 'terminal/$terminalId/presence';
+
+  /// Tópico MQTT oficial de decisão/resultado de acesso (docs/contrato-mqtt.md).
+  String get mqttDecisionTopic =>
+      'access/v1/terminals/$terminalId/access/decision';
+
+  /// Tópico MQTT legado de resultado de acesso (retrocompatibilidade).
+  String get mqttResultLegacyTopic => 'terminal/$terminalId/result';
 
   TerminalConfig copyWith({
     String? backendHost,

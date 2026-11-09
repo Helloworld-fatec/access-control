@@ -52,6 +52,7 @@ class TerminalApiClient {
     final key = _config.apiKey.trim();
     if (key.isNotEmpty) {
       headers['x-api-key'] = key;
+      headers['x-terminal-key'] = key;
       headers['Authorization'] = 'Bearer $key';
     }
     return headers;
