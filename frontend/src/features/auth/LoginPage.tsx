@@ -15,7 +15,7 @@ type Values = z.infer<typeof schema>;
 export default function LoginPage() {
   const { user, login, notice } = useAuth();
   const nav = useNavigate();
-  const from = (useLocation().state as { from?: string } | null)?.from ?? "/usuarios";
+  const from = (useLocation().state as { from?: string } | null)?.from ?? "/painel";
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, formState } = useForm<Values>({ resolver: zodResolver(schema) });

@@ -1,5 +1,20 @@
 // Camada única de acesso à API (US-02): token, erros e 401 centralizados.
-const BASE = (import.meta.env.VITE_API_URL as string | undefined) || "/api";
+// Endereço da API: /api por padrão (proxy). Pode ser trocado sem rebuild pelo
+// arquivo config.json, servido junto com o front (US-17).
+let base = (import.meta.env.VITE_API_URL as string | undefined) || "/api";
+export const setApiBase = (b: string) => {
+  base = b.replace(/\/+$/, "");
+};
+export async function loadRuntimeConfig(): Promise<void> {
+  try {
+    const r = await fetch("/config.json", { cache: "no-store" });
+    if (!r.ok) return;
+    const c = (await r.json()) as { apiUrl?: unknown };
+    if (typeof c.apiUrl === "string" && c.apiUrl.trim()) setApiBase(c.apiUrl.trim());
+  } catch {
+    /* sem config.json (ou inválido): mantém o padrão */
+  }
+}
 
 let accessToken: string | null = null;
 let unauthorizedHandler: (() => void) | null = null;
@@ -57,7 +72,7 @@ async function raw(path: string, opts: Options): Promise<Response> {
 
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}${toQuery(opts.query)}`, {
+    res = await fetch(`${base}${path}${toQuery(opts.query)}`, {
       method: opts.method ?? "GET",
       headers,
       body,

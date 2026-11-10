@@ -1,5 +1,6 @@
 // Modo demonstração (npm run dev:mock): responde a /api/* com dados em memória,
 // sem backend. Só é carregado quando VITE_MOCK=true; não vai para a build normal.
+import { todayInSaoPaulo } from "./format";
 import type { AccessLog, Location, Role, User } from "./types";
 
 interface MUser extends User { face: boolean; tags: { id: string; uid: string; active: boolean; createdAt: string }[] }
@@ -77,6 +78,62 @@ const authOut = (a: MAuth) => {
   };
 };
 const termOut = (t: MTerminal) => ({ ...t, location: locations.find((l) => l.id === t.locationId) });
+// ---- Painel: dados de demonstração, gerados de forma estável a partir da data ----
+const hashStr = (s: string) => {
+  let h = 2166136261;
+  for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return h >>> 0;
+};
+const rng = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+const HOUR_WEIGHT = [0, 0, 0, 0, 0, 1, 3, 8, 14, 10, 7, 6, 9, 8, 6, 6, 7, 12, 15, 11, 6, 3, 1, 0];
+const currentHourSP = () =>
+  Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hourCycle: "h23", timeZone: "America/Sao_Paulo" }).format(new Date()));
+
+function hourly(date: string) {
+  const r = rng(hashStr(date));
+  const limit = date === todayInSaoPaulo() ? currentHourSP() : 23;
+  return HOUR_WEIGHT.map((w, hour) => {
+    const total = hour > limit ? 0 : Math.round(w * (0.8 + r() * 0.6));
+    const denied = Math.round(total * (0.08 + r() * 0.15));
+    return { hour, granted: total - denied, denied };
+  });
+}
+function split(total: number, weights: number[]) {
+  const parts = weights.map((w) => Math.floor(total * w));
+  parts[0] += total - parts.reduce((a, b) => a + b, 0);
+  return parts;
+}
+function summarize(date: string, hours: ReturnType<typeof hourly>) {
+  const granted = hours.reduce((a, h) => a + h.granted, 0);
+  const denied = hours.reduce((a, h) => a + h.denied, 0);
+  const total = granted + denied;
+  const [qr, nfc, face] = split(total, [0.45, 0.3, 0.25]);
+  const reasons = split(denied, [0.35, 0.25, 0.2, 0.12, 0.08]);
+  const list = auths.map(authOut);
+  return {
+    date, granted, denied, denialRate: total ? denied / total : 0,
+    byMethod: { QR: qr, NFC: nfc, FACE: face },
+    authorizations: {
+      active: list.filter((a) => a.status === "ACTIVE").length,
+      expiringSoon: list.filter((a) => a.status === "ACTIVE" && a.endDate <= day(7)).length,
+      canceled: list.filter((a) => a.status === "CANCELED").length,
+    },
+    topDenialReasons: REASONS.map((reason, i) => ({ reason, count: reasons[i] })).filter((x) => x.count > 0).sort((a, b) => b.count - a.count),
+  };
+}
+const terminalStatus = (t: MTerminal) => {
+  const last = t.lastPresenceAt ? new Date(t.lastPresenceAt).getTime() : 0;
+  const recent = Date.now() - last <= 5000;
+  const lastLog = logs.find((l) => l.terminalId === t.id);
+  const opened = Boolean(lastLog && lastLog.result === "GRANTED" && Date.now() - new Date(lastLog.createdAt).getTime() <= 5000);
+  return { id: t.id, online: t.online, presence: recent, presenceActive: recent, lastPresenceAt: t.lastPresenceAt, lastSeenAt: t.lastSeenAt, lock: opened ? "UNLOCKED" : "LOCKED" };
+};
+
 const need = (b: Record<string, unknown>, field: string, msg: string) => {
   if (typeof b[field] !== "string" || !(b[field] as string).trim()) throw bad(field, msg);
 };
@@ -86,10 +143,10 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
   const ok = (body: unknown, status = 200) => ({ status, body });
   const none = { status: 204 };
 
-  if (res === "auth" && rid === "login" && method === "POST") {
+  if (res === "login" && method === "POST") {
     const u = users.find((x) => x.email === String(b.email ?? "").trim().toLowerCase() && x.active && x.role === "ADMIN");
     if (!u) throw new HttpErr(401, "INVALID_CREDENTIALS", "E-mail ou senha incorretos. (Demonstração: use admin@teste.com)");
-    return ok({ accessToken: "mock-token", user: publicUser(u) });
+    return ok({ accessToken: "mock-token", tokenType: "Bearer", expiresIn: "1h", user: publicUser(u) });
   }
 
   if (res === "users") {
@@ -163,6 +220,7 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
       return ok({ ...termOut(t), apiKey: `demo_${id()}${id()}` }, 201);
     }
     const t = find(terminals, rid, "Terminal");
+    if (sub === "status") return ok(terminalStatus(t));
     if (method === "DELETE") { terminals.splice(terminals.indexOf(t), 1); return none; }
     if (b.name) t.name = String(b.name).trim();
     if (b.locationId) t.locationId = String(b.locationId);
@@ -188,11 +246,19 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
       return ok(authOut(a), 201);
     }
     const a = find(auths, rid, "Autorização");
+    if (!sub && method === "GET") return ok({ ...authOut(a), createdAt: iso(60 * 24 * 7), canceledAt: a.canceled ? iso(30) : null });
     if (sub === "cancel") {
       if (a.canceled) throw new HttpErr(409, "CONFLICT", "Esta autorização já foi cancelada.");
       a.canceled = true;
       return ok(authOut(a));
     }
+  }
+
+  if (res === "dashboard" && (rid === "summary" || rid === "accesses-by-hour")) {
+    const date = q.get("date") || todayInSaoPaulo();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw bad("date", "Data inválida (use AAAA-MM-DD)");
+    const hours = hourly(date);
+    return ok(rid === "summary" ? summarize(date, hours) : hours);
   }
 
   if (res === "access-logs" && !rid) {
@@ -211,7 +277,27 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
   throw new HttpErr(404, "NOT_FOUND", `Rota não encontrada: ${method} /${path.join("/")}`);
 }
 
-export function installMock() {
+/** Gera um acesso novo de tempos em tempos, para o painel mostrar a atualização automática. */
+function startLiveEvents() {
+  const people = ["u2", "u3", "u5"];
+  const timer = setInterval(() => {
+    const n = Math.random();
+    const granted = n < 0.75;
+    const t = terminals[0];
+    const nowIso = new Date().toISOString();
+    logs.unshift({
+      id: id(), userId: people[Math.floor(Math.random() * people.length)], terminalId: t.id,
+      method: (["QR", "NFC", "FACE"] as const)[Math.floor(Math.random() * 3)], result: granted ? "GRANTED" : "DENIED",
+      reason: granted ? null : REASONS[Math.floor(Math.random() * REASONS.length)], nfcUid: null, createdAt: nowIso,
+    });
+    t.lastPresenceAt = nowIso;
+    t.lastSeenAt = nowIso;
+  }, 8000);
+  return () => clearInterval(timer);
+}
+
+export function installMock(options: { live?: boolean } = {}) {
+  if (options.live ?? true) startLiveEvents();
   const realFetch = window.fetch.bind(window);
   window.fetch = async (input, init) => {
     const href = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
