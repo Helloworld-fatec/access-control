@@ -63,7 +63,7 @@ async function evaluateUserAccess(params: EvaluateAccessParams) {
   });
 
   if (!user) {
-    await prisma.accesslog.create({
+    await prisma.accessLog.create({
       data: {
         userId: null,
         terminalId,
@@ -82,7 +82,7 @@ async function evaluateUserAccess(params: EvaluateAccessParams) {
   }
 
   if (!user.active) {
-    await prisma.accesslog.create({
+    await prisma.accessLog.create({
       data: {
         userId: user.id,
         terminalId,
@@ -109,7 +109,7 @@ async function evaluateUserAccess(params: EvaluateAccessParams) {
   });
 
   if (authorizations.length === 0) {
-    await prisma.accesslog.create({
+    await prisma.accessLog.create({
       data: {
         userId: user.id,
         terminalId,
@@ -175,7 +175,7 @@ async function evaluateUserAccess(params: EvaluateAccessParams) {
       continue;
     }
 
-    await prisma.accesslog.create({
+    await prisma.accessLog.create({
       data: {
         userId: user.id,
         terminalId,
@@ -195,7 +195,7 @@ async function evaluateUserAccess(params: EvaluateAccessParams) {
     };
   }
 
-  await prisma.accesslog.create({
+  await prisma.accessLog.create({
     data: {
       userId: user.id,
       terminalId,
@@ -226,12 +226,12 @@ export async function validateNfcAccess(req: Request, res: Response) {
     throw new AppError(404, "Terminal não encontrado", "TERMINAL_NOT_FOUND");
   }
 
-  const tag = await prisma.nfctag.findUnique({
+  const tag = await prisma.nfcTag.findUnique({
     where: { uid: dto.uid },
   });
 
   if (!tag || !tag.active) {
-    await prisma.accesslog.create({
+    await prisma.accessLog.create({
       data: {
         userId: tag?.userId ?? null,
         terminalId: terminal.id,
