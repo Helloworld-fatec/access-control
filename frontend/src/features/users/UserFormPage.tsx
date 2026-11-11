@@ -9,6 +9,7 @@ import { applyApiErrors } from "../../shared/forms";
 import type { Role, User, UserDetail } from "../../shared/types";
 import { ROLE_LABEL } from "../../shared/format";
 import { Field, PageHeader, QueryState } from "../../shared/ui";
+import { useToast } from "../../shared/toast";
 
 const FIELDS = ["name", "email", "document", "phone", "role", "password"];
 
@@ -31,6 +32,7 @@ export default function UserFormPage() {
   const editing = Boolean(id);
   const nav = useNavigate();
   const qc = useQueryClient();
+  const toast = useToast();
   const [formError, setFormError] = useState<string | null>(null);
 
   const existing = useQuery({
@@ -63,6 +65,7 @@ export default function UserFormPage() {
       qc.invalidateQueries({ queryKey: ["users"] });
       qc.invalidateQueries({ queryKey: ["user", u.id] });
       qc.invalidateQueries({ queryKey: ["options"] });
+      toast(editing ? "Usuário atualizado." : "Usuário criado.");
       nav(`/usuarios/${u.id}`);
     },
   });

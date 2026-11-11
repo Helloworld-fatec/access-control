@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,7 +7,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { api } from "../../shared/api";
 import { applyApiErrors } from "../../shared/forms";
 import { useLocationOptions, useUserOptions } from "../../shared/lookups";
-import { useAuth } from "../auth/AuthContext";
+import { useToast } from "../../shared/toast";
 import type { AuthStatus, Authorization, Paginated } from "../../shared/types";
 import { formatDateOnly, locationLabel, STATUS_LABEL } from "../../shared/format";
 import { Badge, ConfirmDialog, Field, Modal, PageHeader, Pagination, QueryState } from "../../shared/ui";
@@ -29,7 +30,7 @@ const FIELDS = ["userId", "locationId", "startDate", "endDate", "startTime", "en
 
 function CreateForm({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
-  const { user: admin } = useAuth();
+  const toast = useToast();
   const users = useUserOptions();
   const locations = useLocationOptions();
   const [formError, setFormError] = useState<string | null>(null);
@@ -41,11 +42,12 @@ function CreateForm({ onClose }: { onClose: () => void }) {
     mutationFn: (v: Values) =>
       api("/authorizations", {
         method: "POST",
-        // createdById sai daqui quando o backend passar a ler o administrador do token.
-        body: { ...v, maxUses: v.maxUses ? Number(v.maxUses) : null, createdById: admin!.id },
+        // O administrador que cria é identificado pelo token (o backend preenche createdById).
+        body: { ...v, maxUses: v.maxUses ? Number(v.maxUses) : null },
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["authorizations"] });
+      toast("Autorização criada.");
       onClose();
     },
   });
@@ -97,7 +99,7 @@ function CreateForm({ onClose }: { onClose: () => void }) {
 
 export default function AuthorizationsPage() {
   const qc = useQueryClient();
-  const { user: admin } = useAuth();
+  const toast = useToast();
   const users = useUserOptions();
   const locations = useLocationOptions();
   const [page, setPage] = useState(1);
@@ -118,9 +120,10 @@ export default function AuthorizationsPage() {
     enabled: !invalidRange,
   });
   const cancel = useMutation({
-    mutationFn: (id: string) => api(`/authorizations/${id}/cancel`, { method: "PATCH", body: { canceledById: admin!.id } }),
+    mutationFn: (id: string) => api(`/authorizations/${id}/cancel`, { method: "PATCH", body: {} }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["authorizations"] });
+      toast("Autorização cancelada.");
       setCanceling(null);
     },
   });
@@ -164,7 +167,7 @@ export default function AuthorizationsPage() {
                 <tbody>
                   {q.data.data.map((a) => (
                     <tr key={a.id}>
-                      <td>{a.user?.name ?? "—"}</td>
+                      <td><Link to={`/autorizacoes/${a.id}`}>{a.user?.name ?? "Ver detalhe"}</Link></td>
                       <td>{locationLabel(a.location)}</td>
                       <td>{formatDateOnly(a.startDate)} a {formatDateOnly(a.endDate)}</td>
                       <td>{a.startTime} às {a.endTime}</td>

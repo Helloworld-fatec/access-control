@@ -2,6 +2,7 @@ import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./features/auth/AuthContext";
 
 const NAV = [
+  { to: "/painel", label: "Painel" },
   { to: "/usuarios", label: "Usuários" },
   { to: "/locais", label: "Locais" },
   { to: "/terminais", label: "Terminais" },

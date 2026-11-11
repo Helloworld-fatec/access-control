@@ -70,6 +70,10 @@ export interface Authorization {
   usedCount: number;
   remainingUses: number | null;
   status: AuthStatus;
+  createdById?: string;
+  createdAt?: string;
+  canceledAt?: string | null;
+  canceledById?: string | null;
   location?: Location;
   user?: { id: string; name: string };
 }
@@ -85,4 +89,30 @@ export interface AccessLog {
   createdAt: string;
   user?: { id: string; name: string } | null;
   terminal?: { id: string; name: string };
+}
+
+// Painel (US-15, US-16). Os endpoints /dashboard/* ainda não existem no backend: por ora só o modo demonstração os simula.
+export interface DashboardSummary {
+  date: string;
+  granted: number;
+  denied: number;
+  /** fração de 0 a 1 */
+  denialRate: number;
+  byMethod: Record<Method, number>;
+  authorizations: { active: number; expiringSoon: number; canceled: number };
+  topDenialReasons: { reason: string; count: number }[];
+}
+export interface HourBucket {
+  hour: number;
+  granted: number;
+  denied: number;
+}
+/** Resposta de GET /terminals/{id}/status. `lock` ainda não existe no backend. */
+export interface TerminalStatus {
+  id: string;
+  online: boolean;
+  presenceActive: boolean;
+  lastPresenceAt: string | null;
+  lastSeenAt: string | null;
+  lock?: "LOCKED" | "UNLOCKED";
 }

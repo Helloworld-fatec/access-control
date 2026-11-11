@@ -45,13 +45,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     setNotice(null);
     try {
-      const r = await api<{ accessToken: string; user: User }>("/auth/login", { method: "POST", body: { email, password } });
+      const r = await api<{ accessToken: string; user: User }>("/login", { method: "POST", body: { email, password } });
       if (r.user.role !== "ADMIN") throw new ApiError(403, "FORBIDDEN", "Apenas administradores podem entrar neste sistema.");
       setAccessToken(r.accessToken);
       setUser(r.user);
       setDevMode(false);
     } catch (e) {
-      // Backend ainda sem /auth/login (404): entra como o administrador cadastrado com esse e-mail.
+      // Backend antigo, sem POST /login (404): entra como o administrador cadastrado com esse e-mail.
       if (!(DEV_AUTH && e instanceof ApiError && e.status === 404)) throw e;
       const list = await api<Paginated<User>>("/users", { query: { role: "ADMIN", active: true, pageSize: 100 } });
       const found = list.data.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
