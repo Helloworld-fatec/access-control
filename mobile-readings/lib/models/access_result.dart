@@ -27,6 +27,7 @@ class AccessResult {
         (json['result'] ?? json['status'] ?? '').toString().toUpperCase();
     final allowed = json['allowed'] == true ||
         json['granted'] == true ||
+        json['authorized'] == true ||
         rawResult == 'GRANTED' ||
         rawResult == 'APPROVED' ||
         rawResult == 'ALLOWED';

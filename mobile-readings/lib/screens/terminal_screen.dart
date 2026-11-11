@@ -355,6 +355,12 @@ class TerminalScreen extends StatelessWidget {
                           icon: const Icon(Icons.close),
                           label: const Text('Simular Tag Negada'),
                         ),
+                        FilledButton.tonalIcon(
+                          key: const Key('btn_sim_face_valid'),
+                          onPressed: controller.simulateFaceAccess,
+                          icon: const Icon(Icons.face),
+                          label: const Text('Simular Reconhecimento Facial'),
+                        ),
                       ],
                     ),
                   ],

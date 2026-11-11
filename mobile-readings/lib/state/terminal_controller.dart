@@ -309,6 +309,17 @@ class TerminalController extends ChangeNotifier {
     );
   }
 
+  /// Simula identificação facial autorizada para validação e demonstração (US-18).
+  Future<void> simulateFaceAccess() async {
+    if (_state != TerminalState.listening) return;
+    await _processCredentialValidation(
+      () => _apiClient.validateFaceAccess(
+        userId: 'demo-face-user',
+        confidence: 0.94,
+      ),
+    );
+  }
+
   Future<void> _processCredentialValidation(
     Future<AccessResult> Function() validationCall,
   ) async {
