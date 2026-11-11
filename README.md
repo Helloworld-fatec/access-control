@@ -157,7 +157,7 @@ O projeto é desenvolvido em **3 sprints**, com papéis definidos, backlog prior
 | Sprint | Documentação |
 |---|---|
 | Sprint 1 | [scrum/sprints/sprint-1.md](./scrum/sprints/sprint-1.md) |
-| Sprint 2 | Em breve |
+| Sprint 2 | [scrum/sprints/sprint-2.md](./scrum/sprints/sprint-2.md) |
 | Sprint 3 | Em breve |
 
 ---
