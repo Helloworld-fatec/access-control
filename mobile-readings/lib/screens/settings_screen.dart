@@ -21,10 +21,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   late final TextEditingController _backendHostCtrl;
   late final TextEditingController _backendPortCtrl;
-  late final TextEditingController _mqttHostCtrl;
-  late final TextEditingController _mqttPortCtrl;
-  late final TextEditingController _mqttUserCtrl;
-  late final TextEditingController _mqttPasswordCtrl;
   late final TextEditingController _terminalIdCtrl;
   late final TextEditingController _apiKeyCtrl;
   late final TextEditingController _inactivityCtrl;
@@ -33,7 +29,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _useHttps;
   late bool _simulationMode;
   bool _obscureApiKey = true;
-  bool _obscureMqttPassword = true;
   bool _saving = false;
 
   @override
@@ -42,10 +37,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final cfg = widget.controller.config;
     _backendHostCtrl = TextEditingController(text: cfg.backendHost);
     _backendPortCtrl = TextEditingController(text: cfg.backendPort.toString());
-    _mqttHostCtrl = TextEditingController(text: cfg.mqttHost);
-    _mqttPortCtrl = TextEditingController(text: cfg.mqttPort.toString());
-    _mqttUserCtrl = TextEditingController(text: cfg.mqttUsername);
-    _mqttPasswordCtrl = TextEditingController(text: cfg.mqttPassword);
     _terminalIdCtrl = TextEditingController(text: cfg.terminalId);
     _apiKeyCtrl = TextEditingController(text: cfg.apiKey);
     _inactivityCtrl =
@@ -61,10 +52,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _backendHostCtrl.dispose();
     _backendPortCtrl.dispose();
-    _mqttHostCtrl.dispose();
-    _mqttPortCtrl.dispose();
-    _mqttUserCtrl.dispose();
-    _mqttPasswordCtrl.dispose();
     _terminalIdCtrl.dispose();
     _apiKeyCtrl.dispose();
     _inactivityCtrl.dispose();
@@ -76,14 +63,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _saving = true);
+    final prevCfg = widget.controller.config;
     final updated = TerminalConfig(
       backendHost: _backendHostCtrl.text.trim(),
       backendPort: int.parse(_backendPortCtrl.text.trim()),
       useHttps: _useHttps,
-      mqttHost: _mqttHostCtrl.text.trim(),
-      mqttPort: int.parse(_mqttPortCtrl.text.trim()),
-      mqttUsername: _mqttUserCtrl.text.trim(),
-      mqttPassword: _mqttPasswordCtrl.text,
+      mqttHost: prevCfg.mqttHost,
+      mqttPort: prevCfg.mqttPort,
+      mqttUsername: prevCfg.mqttUsername,
+      mqttPassword: prevCfg.mqttPassword,
       terminalId: _terminalIdCtrl.text.trim(),
       apiKey: _apiKeyCtrl.text.trim(),
       inactivityTimeoutSeconds: int.parse(_inactivityCtrl.text.trim()),
@@ -198,83 +186,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       setState(() => _obscureApiKey = !_obscureApiKey),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            const Divider(),
-            const Text(
-              'Broker MQTT (Mosquitto)',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: TextFormField(
-                    key: const Key('field_mqtt_host'),
-                    controller: _mqttHostCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Endereço do Broker MQTT',
-                      hintText: '192.168.1.100',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: TerminalConfig.validateHost,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: TextFormField(
-                    key: const Key('field_mqtt_port'),
-                    controller: _mqttPortCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Porta MQTT',
-                      hintText: '1883',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: TerminalConfig.validatePort,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    key: const Key('field_mqtt_user'),
-                    controller: _mqttUserCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Usuário MQTT (opcional)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    key: const Key('field_mqtt_password'),
-                    controller: _mqttPasswordCtrl,
-                    obscureText: _obscureMqttPassword,
-                    decoration: InputDecoration(
-                      labelText: 'Senha MQTT (opcional)',
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureMqttPassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                        ),
-                        onPressed: () => setState(
-                          () => _obscureMqttPassword = !_obscureMqttPassword,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
             ),
             const SizedBox(height: 16),
             const Divider(),

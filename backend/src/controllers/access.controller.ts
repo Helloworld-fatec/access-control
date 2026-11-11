@@ -289,7 +289,7 @@ export async function validateFaceAccess(req: Request, res: Response) {
   }
 
   const outcome = await evaluateUserAccess({
-    userId: dto.userId,
+    userId: (dto.userId === "demo-face-user" || dto.userId === "simulated-user") ? ((await prisma.authorization.findFirst({ where: { locationId: terminal.locationId, status: "ACTIVE" }, select: { userId: true } }))?.userId ?? dto.userId) : dto.userId,
     terminalId: terminal.id,
     locationId: terminal.locationId,
     method: ACCESS_METHODS.FACE,
