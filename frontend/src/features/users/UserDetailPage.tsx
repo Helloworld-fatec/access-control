@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, apiBlob } from "../../shared/api";
 import type { Authorization, Paginated, UserDetail } from "../../shared/types";
-import { formatDateOnly, formatDateTime, locationLabel, normalizeUid, ROLE_LABEL, STATUS_LABEL } from "../../shared/format";
+import { formatDateOnly, formatDateTime, locationLabel, maskDocument, normalizeUid, ROLE_LABEL, STATUS_LABEL } from "../../shared/format";
+import { useToast } from "../../shared/toast";
 import { Badge, ConfirmDialog, errorMessage, PageHeader, QueryState } from "../../shared/ui";
 
 type Confirm = { kind: "status" } | { kind: "tag"; tagId: string; uid: string } | { kind: "face" } | null;
@@ -11,6 +12,7 @@ type Confirm = { kind: "status" } | { kind: "tag"; tagId: string; uid: string } 
 export default function UserDetailPage() {
   const { id } = useParams();
   const qc = useQueryClient();
+  const toast = useToast();
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [uid, setUid] = useState("");
   const [tagError, setTagError] = useState<string | null>(null);
@@ -49,7 +51,10 @@ export default function UserDetailPage() {
 
   const toggle = useMutation({
     mutationFn: () => api(`/users/${id}/status`, { method: "PATCH", body: { active: !user.data!.active } }),
-    onSuccess: refresh,
+    onSuccess: () => {
+      toast(user.data!.active ? "Usuário desativado." : "Usuário reativado.");
+      refresh();
+    },
   });
   const removeTag = useMutation({
     mutationFn: (tagId: string) => api(`/users/${id}/tags/${tagId}`, { method: "DELETE" }),
@@ -64,6 +69,7 @@ export default function UserDetailPage() {
     onSuccess: () => {
       setUid("");
       setTagError(null);
+      toast("Tag vinculada.");
       refresh();
     },
     onError: (e) => setTagError(errorMessage(e)),
@@ -91,7 +97,7 @@ export default function UserDetailPage() {
                 <div><dt>Perfil</dt><dd>{ROLE_LABEL[u.role]}</dd></div>
                 <div><dt>Situação</dt><dd><Badge tone={u.active ? "ok" : "muted"}>{u.active ? "Ativo" : "Inativo"}</Badge></dd></div>
                 <div><dt>E-mail</dt><dd>{u.email}</dd></div>
-                <div><dt>Documento</dt><dd>{u.document ?? "—"}</dd></div>
+                <div><dt>Documento</dt><dd title="Documento parcialmente oculto">{u.document ? maskDocument(u.document) : "—"}</dd></div>
                 <div><dt>Telefone</dt><dd>{u.phone ?? "—"}</dd></div>
                 <div><dt>Cadastrado em</dt><dd>{formatDateTime(u.createdAt)}</dd></div>
               </dl>
