@@ -84,8 +84,54 @@ Fonte: planilha Sprint-Backlog, uma aba por pessoa. A pontuação de cada tarefa
 
 Data: 11/11/2026, 19h30.
 
-Feedback do professor: a registrar depois da review.
+### 7.1 Feedback do professor
+
+| Ponto | Registro |
+|---|---|
+| Avaliação geral | O professor considerou a entrega da Sprint 2 bacana |
+| Diagrama de caso de uso | O diagrama precisa ser refeito. A versão atual está em `scrum/DIAGRAMA DE CASO DE USO.jpeg` (PR #18). Refazer fica com a Alicia, responsável pela US-12 |
+
+### 7.2 Impedimentos apresentados
+
+Cada integrante apresentou os seus impedimentos, que estão na seção 6: a compilação lenta do mobile-registry (Ryan) e o RC522 com possível falha na soldagem, junto com o GPS ainda sem teste (Bruna). A avaliação do professor sobre o RC522 ainda não foi registrada.
 
 ## 8. Retrospectiva
 
-A registrar depois da review.
+### 8.1 Registro do time
+
+Itens apontados pelo time na Review 2 e na daily seguinte, cada um com o contexto que o sustenta.
+
+**O que deu certo**
+
+| Item do time | Contexto |
+|---|---|
+| Entrega da Sprint 2 | A sprint foi entregue e apresentada na Review 2, e o professor considerou a entrega bacana (seção 7.1) |
+
+**O que melhorar**
+
+| Item do time | Contexto |
+|---|---|
+| Organização das tasks | Foi tema da daily. As tarefas ficavam em uma planilha com uma aba por pessoa, e as abas da Alicia e da Suelen ficaram sem tarefas da Sprint 2 (seção 6, item 5). O time decidiu usar o Notion, em vez da planilha, para organizar as tarefas |
+| Tempo | Foi tema da daily. Os PRs #22, #23 e #24 e o #25 entraram na `main` entre 19h24 e 19h27 do dia da review, repetindo o ponto da Sprint 1. O mobile-registry também perdeu tempo com a compilação lenta (seção 6, item 3) |
+| Diagrama de caso de uso | O professor pediu que o diagrama seja refeito (seção 7.1) |
+
+**Impedimentos da sprint**
+
+| Impedimento | Quem | Situação |
+|---|---|---|
+| Compilação extremamente lenta do mobile-registry | Ryan | Aberto |
+| RC522 com possível falha na soldagem | Bruna | Aguarda a avaliação do professor |
+| GPS ainda sem teste | Bruna | Passa para a Sprint 3 |
+
+### 8.2 Ações de melhoria para a Sprint 3
+
+Proposta da Scrum Master a partir do registro do time, **a validar** na próxima retrospectiva.
+
+| Item | Ação | Responsável | Como acompanhar |
+|---|---|---|---|
+| Organização das tasks | Usar o Notion (banco "Backlog do Projeto") como fonte das tarefas, no lugar da planilha. As tarefas da Sprint 3 são criadas lá no planning, cada uma com responsável, dificuldade, prioridade e etapa | Suelen e cada integrante | Notion atualizado a cada daily |
+| Tempo | Abrir PRs menores durante a sprint e mesclar até 48 horas antes da review | Todos | PRs mesclados até 23/11, 19h30 |
+| Diagrama de caso de uso | Refazer o diagrama conforme o feedback do professor | Alicia | Novo diagrama em PR antes da Review 3 |
+| Compilação lenta | Investigar como reduzir o tempo de compilação do mobile-registry | Ryan | Relato na daily |
+| RC522 | Levar ao professor a avaliação da possível falha na soldagem | Bruna e Suelen | Resposta registrada na daily |
+| Contrato MQTT | Validar o contrato em reunião com firmware, terminal de leitura e backend, e definir se vale a arquitetura ou o contrato | Bruno, Bruna e Nicolas | Decisão registrada em `docs/` |
