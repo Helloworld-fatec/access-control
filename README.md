@@ -250,6 +250,21 @@ npm run build
 npm start
 ```
 
+### Stack Docker (frontend, backend e PostgreSQL)
+
+Na raiz do repositório, copie `.env.example` para `.env` e ajuste as credenciais locais. A chave JWT precisa ter pelo menos 32 caracteres.
+
+```bash
+docker compose up --build
+```
+
+- Painel web: `http://localhost:8888`
+- API via Nginx: `http://localhost:8888/api/health`
+- API direta: `http://localhost:3333/api/health`
+- PostgreSQL: `localhost:5432`
+
+O Compose aplica as migrações do Prisma antes de iniciar a API e mantém o banco e as fotos em volumes nomeados. Para parar os serviços sem apagar os dados, execute `docker compose down`. Para remover também os volumes persistentes, execute `docker compose down -v`.
+
 #### Endpoints disponíveis
 
 Todas as rotas ficam sob o prefixo `/api`.

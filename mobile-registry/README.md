@@ -87,4 +87,4 @@ flutter analyze
 flutter test --coverage
 ```
 
-O workflow `.github/workflows/mobile-registry-ci.yml` roda análise, testes e build do APK a cada push/PR (RNF08/RNF10).
+O workflow `.github/workflows/mobile-registry-ci-cd.yml` roda análise, testes e build do APK em PRs para `stage` e `main`. Em PR para `main`, o APK de debug fica disponível como artefato por 14 dias. A publicação na Google Play permanece comentada até configurar assinatura e credenciais.

@@ -1,0 +1,11 @@
+# Variáveis locais e segredos
+.env
+
+# Dependências e saídas locais
+node_modules/
+dist/
+coverage/
+
+# Uploads e dados de desenvolvimento
+backend/photos/
+.pgdata-test/

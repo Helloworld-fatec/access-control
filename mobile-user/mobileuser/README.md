@@ -1,17 +1,21 @@
-# mobileuser
+# mobile-user
 
-A new Flutter project.
+Aplicativo Flutter para usuários do sistema de controle de acesso.
 
-## Getting Started
+## Executar localmente
 
-This project is a starting point for a Flutter application.
+```bash
+cd mobile-user/mobileuser
+flutter pub get
+flutter run
+```
 
-A few resources to get you started if this is your first Flutter project:
+## Análise, testes e build Android
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+flutter analyze
+flutter test --coverage
+flutter build apk --debug
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+O workflow `.github/workflows/mobile-user-ci-cd.yml` roda esses passos em PRs para `stage` e `main`. Em PR para `main`, o APK de debug é disponibilizado como artefato do GitHub Actions por 14 dias. Os passos de publicação nas lojas permanecem comentados e exigem assinatura e credenciais próprias.

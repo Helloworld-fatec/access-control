@@ -1,0 +1,36 @@
+name: Backend lint
+
+on:
+  pull_request:
+    branches:
+      - stage
+      - main
+      # - develop # habilitar quando a branch entrar no fluxo
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-lint-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      # O deploy do backend é automático no Render, conforme a branch
+      # configurada no serviço; este workflow só executa o lint.

@@ -63,3 +63,5 @@ flutter run
 flutter analyze
 flutter test
 ```
+
+O workflow `.github/workflows/mobile-readings-ci-cd.yml` executa análise, testes e build APK em PRs para `stage` e `main`. Em PR para `main`, o APK de debug fica disponível como artefato do Actions por 14 dias. A publicação nas lojas permanece comentada até configurar assinatura, IDs e credenciais.

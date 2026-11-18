@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-access_control}
+      POSTGRES_USER: ${POSTGRES_USER:-access_control}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - access_control_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "3333"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-access_control}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-access_control}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET no arquivo .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-10}
+      MAX_PHOTO_BYTES: ${MAX_PHOTO_BYTES:-102400}
+      PHOTOS_DIR: /app/photos
+    ports:
+      - "3333:3333"
+    volumes:
+      - access_control_photos:/app/photos
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3333/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8888:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  access_control_pgdata:
+    name: access_control_pgdata
+  access_control_photos:
+    name: access_control_photos
