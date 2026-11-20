@@ -32,6 +32,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   late bool _useHttps;
   late bool _simulationMode;
+  late bool _voiceAccessibility;
+  late bool _kioskMode;
+  late bool _preferFaceAuth;
   bool _obscureApiKey = true;
   bool _obscureMqttPassword = true;
   bool _saving = false;
@@ -55,6 +58,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     _useHttps = cfg.useHttps;
     _simulationMode = cfg.simulationMode;
+    _voiceAccessibility = cfg.voiceAccessibilityEnabled;
+    _kioskMode = cfg.kioskModeEnabled;
+    _preferFaceAuth = cfg.preferFaceAuth;
   }
 
   @override
@@ -91,6 +97,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _faceThresholdCtrl.text.trim().replaceAll(',', '.'),
       ),
       simulationMode: _simulationMode,
+      voiceAccessibilityEnabled: _voiceAccessibility,
+      kioskModeEnabled: _kioskMode,
+      preferFaceAuth: _preferFaceAuth,
     );
 
     await widget.controller.updateConfig(updated);
@@ -279,7 +288,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 16),
             const Divider(),
             const Text(
-              'Parâmetros de Operação',
+              'Parâmetros de Operação e Biometria (US-19)',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
@@ -314,6 +323,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                ActionChip(
+                  label: const Text('0.65 (Tolerante)'),
+                  onPressed: () =>
+                      setState(() => _faceThresholdCtrl.text = '0.65'),
+                ),
+                ActionChip(
+                  label: const Text('0.75 (Recomendado)'),
+                  onPressed: () =>
+                      setState(() => _faceThresholdCtrl.text = '0.75'),
+                ),
+                ActionChip(
+                  label: const Text('0.85 (Alta Precisão)'),
+                  onPressed: () =>
+                      setState(() => _faceThresholdCtrl.text = '0.85'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const Text(
+              'Acessibilidade e Operação Dedicada',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Sinalização por Voz e Resposta Tátil (US-20)'),
+              subtitle: const Text(
+                'Emite anúncios falados e vibrações para pessoas com deficiência visual.',
+              ),
+              value: _voiceAccessibility,
+              onChanged: (v) => setState(() => _voiceAccessibility = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Modo Terminal Dedicado (Kiosk / Wakelock) (US-14)'),
+              subtitle: const Text(
+                'Mantém o display sempre ativo e a orientação vertical fixa.',
+              ),
+              value: _kioskMode,
+              onChanged: (v) => setState(() => _kioskMode = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Priorizar Câmera Facial ao Acordar (US-16)'),
+              subtitle: const Text(
+                'Abre diretamente o leitor facial ao detectar presença.',
+              ),
+              value: _preferFaceAuth,
+              onChanged: (v) => setState(() => _preferFaceAuth = v),
             ),
             const SizedBox(height: 24),
             SizedBox(

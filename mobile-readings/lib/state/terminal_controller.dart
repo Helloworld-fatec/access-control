@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../config/terminal_config.dart';
 import '../models/access_result.dart';
 import '../models/qr_token.dart';
+import '../services/accessibility_service.dart';
 import '../services/api_client.dart';
 import '../services/face_sync_service.dart';
 import '../services/mqtt_presence_service.dart';
@@ -36,6 +37,7 @@ class TerminalController extends ChangeNotifier {
   final PresenceMqttService _mqttService;
   final FaceSyncService _faceService;
   final NfcCooldownGuard _nfcCooldownGuard;
+  AccessibilityService _accessibilityService;
 
   final Duration qrRefreshInterval;
   final Duration presencePollingInterval;
@@ -49,6 +51,8 @@ class TerminalController extends ChangeNotifier {
   bool _isFaceSyncLoading = false;
   bool _faceModeEnabled = false;
   bool _isReaderBusy = false;
+  bool _isE2eDemoRunning = false;
+  String? _e2eDemoStep;
   String? _faceSyncMessage;
   NfcHardwareStatus _nfcHardwareStatus = NfcHardwareStatus.available;
   AccessResult? _lastAccessResult;
@@ -67,6 +71,7 @@ class TerminalController extends ChangeNotifier {
     required NfcReaderService nfcService,
     required PresenceMqttService mqttService,
     FaceSyncService? faceService,
+    AccessibilityService? accessibilityService,
     NfcCooldownGuard? nfcCooldownGuard,
     TerminalConfig initialConfig = const TerminalConfig(),
     this.qrRefreshInterval = const Duration(seconds: 10),
@@ -77,8 +82,13 @@ class TerminalController extends ChangeNotifier {
         _nfcService = nfcService,
         _mqttService = mqttService,
         _faceService = faceService ?? FaceSyncService(),
+        _accessibilityService = accessibilityService ??
+            AccessibilityService(
+              enabled: initialConfig.voiceAccessibilityEnabled,
+            ),
         _nfcCooldownGuard = nfcCooldownGuard ?? NfcCooldownGuard(),
-        _config = initialConfig;
+        _config = initialConfig,
+        _faceModeEnabled = initialConfig.preferFaceAuth;
 
   // ───────────── Getters de Estado ─────────────
 
@@ -93,6 +103,8 @@ class TerminalController extends ChangeNotifier {
   AccessResult? get lastAccessResult => _lastAccessResult;
   String? get statusMessage => _statusMessage;
   bool get isReaderBusy => _isReaderBusy;
+  bool get isE2eDemoRunning => _isE2eDemoRunning;
+  String? get e2eDemoStep => _e2eDemoStep;
   FaceSyncService get faceService => _faceService;
   int get faceEmbeddingsCount => _faceService.authorizedEmbeddings.length;
   bool get isFaceSyncLoading => _isFaceSyncLoading;
@@ -118,6 +130,10 @@ class TerminalController extends ChangeNotifier {
 
   Future<void> initialize() async {
     _config = await _configStorage.load();
+    _accessibilityService = AccessibilityService(
+      enabled: _config.voiceAccessibilityEnabled,
+    );
+    _faceModeEnabled = _config.preferFaceAuth;
     _apiClient.updateConfig(_config);
     _nfcHardwareStatus = await _nfcService.checkAvailability();
     _notifySafely();
@@ -128,6 +144,9 @@ class TerminalController extends ChangeNotifier {
   /// Atualiza e aplica imediatamente as configurações sem reiniciar o app (US-02).
   Future<void> updateConfig(TerminalConfig newConfig) async {
     _config = newConfig;
+    _accessibilityService = AccessibilityService(
+      enabled: newConfig.voiceAccessibilityEnabled,
+    );
     await _configStorage.save(newConfig);
     _apiClient.updateConfig(newConfig);
 
@@ -172,6 +191,10 @@ class TerminalController extends ChangeNotifier {
       config: _config,
       onPresenceDetected: onPresenceDetected,
       onConnectionChanged: _handleMqttConnectionChanged,
+      onReaderBusyChanged: (busy) {
+        setReaderBusy(busy);
+        unawaited(_accessibilityService.notifyReaderBusy(busy));
+      },
     );
   }
 
@@ -243,9 +266,13 @@ class TerminalController extends ChangeNotifier {
     _lastAccessResult = null;
     _statusMessage = null;
     _state = TerminalState.listening;
+    if (_config.preferFaceAuth) {
+      _faceModeEnabled = true;
+    }
     _resetInactivityTimer();
     _startQrPolling();
     unawaited(_startNfcInListening());
+    unawaited(_accessibilityService.notifyTerminalAwake());
     _notifySafely();
   }
 
@@ -382,6 +409,7 @@ class TerminalController extends ChangeNotifier {
     if (lightLevel < 0.35) {
       _statusMessage =
           'Iluminação insuficiente no enquadramento. Posicione-se sob luz mais clara.';
+      unawaited(_accessibilityService.notifyLowLightWarning());
       _notifySafely();
       return;
     }
@@ -447,6 +475,45 @@ class TerminalController extends ChangeNotifier {
     if (_state != TerminalState.listening) return;
     _statusMessage =
         'Iluminação insuficiente no enquadramento. Posicione-se sob luz mais clara.';
+    unawaited(_accessibilityService.notifyLowLightWarning());
+    _notifySafely();
+  }
+
+  /// Ensaio de demonstração final e teste de integração E2E (US-22).
+  /// Executa o fluxo automatizado completo:
+  /// 1. Sensor de presença detecta aproximação (MQTT) -> acorda terminal
+  /// 2. Ativação de leitura (câmera frontal / enquadramento facial)
+  /// 3. Validação de credencial e regras de autorização no backend
+  /// 4. Liberação de acesso e acionamento da trava eletromecânica / relé
+  Future<void> runE2eDemo() async {
+    if (_isE2eDemoRunning) return;
+    _isE2eDemoRunning = true;
+    _e2eDemoStep = '1/4: Detecção de presença via MQTT...';
+    _notifySafely();
+
+    // 1. Desperta o terminal como se o sensor PIR/MQTT tivesse detectado alguém
+    onPresenceDetected();
+    _notifySafely();
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+
+    // 2. Ativa a câmera frontal e viewfinder biométrico
+    _e2eDemoStep = '2/4: Captura biométrica facial em tempo real...';
+    _faceModeEnabled = true;
+    _notifySafely();
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+
+    // 3. Validação no backend
+    _e2eDemoStep = '3/4: Validação no backend REST...';
+    _notifySafely();
+    await simulateFaceAccess();
+
+    // 4. Acesso concedido e trava liberada
+    _e2eDemoStep = '4/4: Trava eletromecânica liberada (relé 3s)!';
+    _notifySafely();
+
+    await Future<void>.delayed(const Duration(seconds: 3));
+    _isE2eDemoRunning = false;
+    _e2eDemoStep = null;
     _notifySafely();
   }
 
@@ -466,8 +533,9 @@ class TerminalController extends ChangeNotifier {
     _lastAccessResult = result;
 
     if (result.isGranted) {
-      // Estado Liberado -> volta para Repouso após resultDisplayDuration (US-04, US-11)
+      // Estado Liberado -> volta para Repouso após resultDisplayDuration (US-04, US-11, US-20)
       _state = TerminalState.granted;
+      unawaited(_accessibilityService.notifyAccessGranted(result.userName));
       _notifySafely();
       _resultReturnTimer = Timer(resultDisplayDuration, () {
         if (_state == TerminalState.granted) {
@@ -475,8 +543,9 @@ class TerminalController extends ChangeNotifier {
         }
       });
     } else {
-      // Estado Negado (ou indisponível US-12) -> volta para Escuta após resultDisplayDuration (US-04, US-11)
+      // Estado Negado (ou indisponível US-12, US-20) -> volta para Escuta após resultDisplayDuration
       _state = TerminalState.denied;
+      unawaited(_accessibilityService.notifyAccessDenied(result.message));
       _notifySafely();
       _resultReturnTimer = Timer(resultDisplayDuration, () {
         if (_state == TerminalState.denied) {

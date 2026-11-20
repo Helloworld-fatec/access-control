@@ -153,6 +153,26 @@ class TerminalScreen extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 48,
+                child: FilledButton.icon(
+                  key: const Key('btn_run_e2e_demo'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF31566A),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed:
+                      controller.isE2eDemoRunning ? null : controller.runE2eDemo,
+                  icon: const Icon(Icons.play_circle_outline),
+                  label: Text(
+                    controller.isE2eDemoRunning
+                        ? (controller.e2eDemoStep ?? 'Executando ensaio...')
+                        : 'Ensaio E2E Completo (US-22)',
+                    style: const TextStyle(fontSize: 15),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -204,6 +224,41 @@ class TerminalScreen extends StatelessWidget {
                               'Leitor ocupado gravando tag NFC. Aguarde um instante...',
                               style: TextStyle(
                                 color: Color(0xFF856404),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  // Banner de progresso do Ensaio E2E Automatizado (US-22)
+                  if (controller.isE2eDemoRunning) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0F7FA),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF80DEEA)),
+                      ),
+                      child: Row(
+                        children: [
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2.5),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              controller.e2eDemoStep ??
+                                  'Ensaio E2E em andamento...',
+                              style: const TextStyle(
+                                color: Color(0xFF006064),
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
@@ -302,144 +357,11 @@ class TerminalScreen extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // Moldura Viewfinder simulando Câmera Frontal Ativa (US-16)
-        Container(
-          width: double.infinity,
-          height: 290,
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A2129),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF31566A), width: 3),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 8,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Fundo simulando captura de câmera
-              Positioned.fill(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(13),
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      gradient: RadialGradient(
-                        center: Alignment(0, -0.1),
-                        radius: 0.9,
-                        colors: [Color(0xFF2C394B), Color(0xFF0F141C)],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // Moldura oval guia para alinhamento da face (US-16)
-              Container(
-                width: 170,
-                height: 230,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(85),
-                  border: Border.all(
-                    color: const Color(0xFF4DD0E1),
-                    width: 2.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF4DD0E1).withValues(alpha: 0.2),
-                      blurRadius: 16,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.face_retouching_natural,
-                    size: 88,
-                    color: Colors.white24,
-                  ),
-                ),
-              ),
-
-              // Indicador de nível de iluminação no canto superior (US-19)
-              Positioned(
-                top: 12,
-                left: 12,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.wb_sunny, color: Colors.amberAccent, size: 16),
-                      SizedBox(width: 6),
-                      Text(
-                        'Iluminação ideal',
-                        style: TextStyle(color: Colors.white, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Indicador de modo local e limiar no canto superior direito
-              Positioned(
-                top: 12,
-                right: 12,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Text(
-                    'Limiar: $thresholdPct%',
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                ),
-              ),
-
-              // Indicador de status de embeddings sincronizados em RAM (US-15)
-              Positioned(
-                bottom: 12,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF31566A).withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.memory, color: Colors.white, size: 14),
-                      const SizedBox(width: 6),
-                      Text(
-                        controller.isFaceSyncLoading
-                            ? 'Sincronizando biometrias...'
-                            : '$ramCount biometrias ativas em RAM',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+        // Moldura Viewfinder com Varredura Laser Animada (US-16, US-17, US-19)
+        FaceCameraViewfinder(
+          ramCount: ramCount,
+          thresholdPct: thresholdPct,
+          isSyncing: controller.isFaceSyncLoading,
         ),
 
         const SizedBox(height: 16),
@@ -757,6 +679,45 @@ class TerminalScreen extends StatelessWidget {
                   ),
                   textAlign: TextAlign.center,
                 ),
+                const SizedBox(height: 28),
+                // Feedback de Abertura de Trava / Relé (US-22)
+                Container(
+                  key: const Key('relay_lock_feedback_box'),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white38),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_open, color: Colors.white, size: 28),
+                      SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Trava Solenoide / Relé',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          Text(
+                            'Circuito liberado por 3 segundos',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -810,6 +771,220 @@ class TerminalScreen extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Viewfinder simulado com varredura laser animada em tempo real (US-16, US-17, US-19).
+class FaceCameraViewfinder extends StatefulWidget {
+  final int ramCount;
+  final String thresholdPct;
+  final bool isSyncing;
+
+  const FaceCameraViewfinder({
+    super.key,
+    required this.ramCount,
+    required this.thresholdPct,
+    required this.isSyncing,
+  });
+
+  @override
+  State<FaceCameraViewfinder> createState() => _FaceCameraViewfinderState();
+}
+
+class _FaceCameraViewfinderState extends State<FaceCameraViewfinder>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animCtrl;
+  late final Animation<double> _scanAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+    _scanAnimation = Tween<double>(begin: 0.08, end: 0.92).animate(
+      CurvedAnimation(parent: _animCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _animCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 290,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A2129),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF31566A), width: 3),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Fundo simulando captura de câmera
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(13),
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment(0, -0.1),
+                    radius: 0.9,
+                    colors: [Color(0xFF2C394B), Color(0xFF0F141C)],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Moldura oval guia para alinhamento da face (US-16)
+          Container(
+            width: 170,
+            height: 230,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(85),
+              border: Border.all(
+                color: const Color(0xFF4DD0E1),
+                width: 2.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF4DD0E1).withValues(alpha: 0.2),
+                  blurRadius: 16,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(85),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Center(
+                    child: Icon(
+                      Icons.face_retouching_natural,
+                      size: 88,
+                      color: Colors.white24,
+                    ),
+                  ),
+                  // Linha animada de laser de varredura biométrica (US-16, US-17)
+                  AnimatedBuilder(
+                    animation: _scanAnimation,
+                    builder: (context, _) {
+                      return Positioned(
+                        top: 230 * _scanAnimation.value - 2,
+                        left: 8,
+                        right: 8,
+                        child: Container(
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4DD0E1),
+                            borderRadius: BorderRadius.circular(2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF4DD0E1)
+                                    .withValues(alpha: 0.8),
+                                blurRadius: 8,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Indicador de nível de iluminação no canto superior (US-19)
+          Positioned(
+            top: 12,
+            left: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.wb_sunny, color: Colors.amberAccent, size: 16),
+                  SizedBox(width: 6),
+                  Text(
+                    'Iluminação ideal',
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Indicador de modo local e limiar no canto superior direito
+          Positioned(
+            top: 12,
+            right: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Text(
+                'Limiar: ${widget.thresholdPct}%',
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ),
+
+          // Indicador de status de embeddings sincronizados em RAM (US-15)
+          Positioned(
+            bottom: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFF31566A).withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.memory, color: Colors.white, size: 14),
+                  const SizedBox(width: 6),
+                  Text(
+                    widget.isSyncing
+                        ? 'Sincronizando biometrias...'
+                        : '${widget.ramCount} biometrias ativas em RAM',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

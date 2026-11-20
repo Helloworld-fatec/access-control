@@ -15,6 +15,9 @@ class TerminalConfig {
   final int inactivityTimeoutSeconds;
   final double faceSimilarityThreshold;
   final bool simulationMode;
+  final bool voiceAccessibilityEnabled;
+  final bool kioskModeEnabled;
+  final bool preferFaceAuth;
 
   const TerminalConfig({
     this.backendHost = '192.168.15.25',
@@ -29,6 +32,9 @@ class TerminalConfig {
     this.inactivityTimeoutSeconds = 30,
     this.faceSimilarityThreshold = 0.75,
     this.simulationMode = false,
+    this.voiceAccessibilityEnabled = true,
+    this.kioskModeEnabled = true,
+    this.preferFaceAuth = false,
   });
 
   /// URL base da API do backend (já com prefixo /api).
@@ -50,6 +56,12 @@ class TerminalConfig {
   /// Tópico MQTT legado de resultado de acesso (retrocompatibilidade).
   String get mqttResultLegacyTopic => 'terminal/$terminalId/result';
 
+  /// Tópico MQTT para sinalização de gravação remota de tag NFC (US-10).
+  String get mqttNfcWritingTopic => 'access/v1/terminals/$terminalId/nfc/writing';
+
+  /// Tópico MQTT legado de gravação remota de tag NFC (US-10).
+  String get mqttNfcWritingLegacyTopic => 'terminal/$terminalId/nfc/writing';
+
   TerminalConfig copyWith({
     String? backendHost,
     int? backendPort,
@@ -63,6 +75,9 @@ class TerminalConfig {
     int? inactivityTimeoutSeconds,
     double? faceSimilarityThreshold,
     bool? simulationMode,
+    bool? voiceAccessibilityEnabled,
+    bool? kioskModeEnabled,
+    bool? preferFaceAuth,
   }) {
     return TerminalConfig(
       backendHost: backendHost ?? this.backendHost,
@@ -79,6 +94,10 @@ class TerminalConfig {
       faceSimilarityThreshold:
           faceSimilarityThreshold ?? this.faceSimilarityThreshold,
       simulationMode: simulationMode ?? this.simulationMode,
+      voiceAccessibilityEnabled:
+          voiceAccessibilityEnabled ?? this.voiceAccessibilityEnabled,
+      kioskModeEnabled: kioskModeEnabled ?? this.kioskModeEnabled,
+      preferFaceAuth: preferFaceAuth ?? this.preferFaceAuth,
     );
   }
 
@@ -155,6 +174,9 @@ class LocalConfigStorage implements ConfigStorage {
   static const _kInactivitySeconds = 'terminal_inactivity_seconds';
   static const _kFaceThreshold = 'terminal_face_threshold';
   static const _kSimulationMode = 'terminal_simulation_mode';
+  static const _kVoiceAccessibility = 'terminal_voice_accessibility';
+  static const _kKioskMode = 'terminal_kiosk_mode';
+  static const _kPreferFaceAuth = 'terminal_prefer_face_auth';
 
   static const _kSecureApiKey = 'terminal_api_key';
   static const _kSecureMqttPassword = 'terminal_mqtt_password';
@@ -196,6 +218,12 @@ class LocalConfigStorage implements ConfigStorage {
           prefs.getDouble(_kFaceThreshold) ?? defaults.faceSimilarityThreshold,
       simulationMode:
           prefs.getBool(_kSimulationMode) ?? defaults.simulationMode,
+      voiceAccessibilityEnabled:
+          prefs.getBool(_kVoiceAccessibility) ?? defaults.voiceAccessibilityEnabled,
+      kioskModeEnabled:
+          prefs.getBool(_kKioskMode) ?? defaults.kioskModeEnabled,
+      preferFaceAuth:
+          prefs.getBool(_kPreferFaceAuth) ?? defaults.preferFaceAuth,
     );
   }
 
@@ -212,6 +240,9 @@ class LocalConfigStorage implements ConfigStorage {
     await prefs.setInt(_kInactivitySeconds, config.inactivityTimeoutSeconds);
     await prefs.setDouble(_kFaceThreshold, config.faceSimilarityThreshold);
     await prefs.setBool(_kSimulationMode, config.simulationMode);
+    await prefs.setBool(_kVoiceAccessibility, config.voiceAccessibilityEnabled);
+    await prefs.setBool(_kKioskMode, config.kioskModeEnabled);
+    await prefs.setBool(_kPreferFaceAuth, config.preferFaceAuth);
 
     try {
       await _secureStorage.write(

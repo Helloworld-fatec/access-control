@@ -52,15 +52,18 @@ class _FakeMqttService implements PresenceMqttService {
 
   void Function()? triggerPresence;
   void Function(bool connected)? triggerConnectionChanged;
+  void Function(bool busy)? triggerReaderBusy;
 
   @override
   Future<void> connect({
     required TerminalConfig config,
     required void Function() onPresenceDetected,
     required void Function(bool connected) onConnectionChanged,
+    void Function(bool isBusy)? onReaderBusyChanged,
   }) async {
     triggerPresence = onPresenceDetected;
     triggerConnectionChanged = onConnectionChanged;
+    triggerReaderBusy = onReaderBusyChanged;
     onConnectionChanged(isConnected);
   }
 
@@ -200,6 +203,41 @@ void main() {
       expect(controller.isQrUnavailable, isTrue);
       expect(controller.currentQrToken, isNull);
     });
+
+    test('sinaliza leitor ocupado quando recebe evento MQTT de gravação (US-10)',
+        () async {
+      expect(controller.isReaderBusy, isFalse);
+
+      mqttService.triggerReaderBusy?.call(true);
+      expect(controller.isReaderBusy, isTrue);
+
+      mqttService.triggerReaderBusy?.call(false);
+      expect(controller.isReaderBusy, isFalse);
+    });
+
+    test('rejeita biometria com luz fraca com aviso acessível (US-19, US-20)',
+        () async {
+      controller.onPresenceDetected();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      await controller.evaluateCapturedFace([0.1, 0.2, 0.3], lightLevel: 0.2);
+      expect(controller.statusMessage, contains('Iluminação insuficiente'));
+    });
+
+    test('executa ensaio E2E completo até liberação de trava (US-22)', () async {
+      expect(controller.state, equals(TerminalState.idle));
+      mockHttp.grantAccess = true;
+
+      final demoFuture = controller.runE2eDemo();
+      expect(controller.isE2eDemoRunning, isTrue);
+
+      await Future<void>.delayed(const Duration(milliseconds: 1000));
+      expect(controller.state, equals(TerminalState.listening));
+      expect(controller.isFaceModeEnabled, isTrue);
+
+      await demoFuture;
+      expect(controller.isE2eDemoRunning, isFalse);
+    });
   });
 
   group('TerminalScreen — Testes de Widget (US-21)', () {
@@ -243,6 +281,8 @@ void main() {
 
       expect(find.byKey(const Key('view_state_granted')), findsOneWidget);
       expect(find.text('Acesso liberado'), findsOneWidget);
+      expect(find.byKey(const Key('relay_lock_feedback_box')), findsOneWidget);
+      expect(find.text('Trava Solenoide / Relé'), findsOneWidget);
 
       controller.dispose();
     });
