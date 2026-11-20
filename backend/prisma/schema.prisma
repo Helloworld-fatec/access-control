@@ -1,0 +1,188 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+
+// ───────────── Usuários e credenciais ─────────────
+
+model user {
+  id           String   @id @default(uuid())
+  name         String
+  document     String?  @unique
+  email        String   @unique
+  phone        String?
+  passwordHash String
+  role         String   // Validado pelo DTO com Zod
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  nfcTags        NfcTag[]
+  faceTemplate   FaceTemplate?
+  photo          UserPhoto?
+  authorizations authorization[] @relation("authorization_user")
+  createdAuths   authorization[] @relation("authorization_created_by")
+  canceledAuths  authorization[] @relation("authorization_canceled_by")
+  accessLogs     AccessLog[]
+
+  @@index([role, active])
+  @@map("users")
+}
+
+model NfcTag {
+  id        String   @id @default(uuid())
+  uid       String   @unique // hexadecimal em maiúsculas, padronizado
+  userId    String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user user @relation(fields: [userId], references: [id], onDelete: Cascade, map: "nfc_tags_user_id_fkey")
+
+  @@index([userId], map: "nfc_tags_user_id_idx")
+  @@map("nfc_tags")
+}
+
+model FaceTemplate {
+  id           String   @id @default(uuid())
+  userId       String   @unique(map: "face_templates_user_id_key")
+  embedding    Float[] // vetor (ex.: 128 floats), nunca a imagem
+  modelVersion String // invalida embeddings se o modelo mudar
+  consentAt    DateTime // aceite do termo (LGPD)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user user @relation(fields: [userId], references: [id], onDelete: Cascade, map: "face_templates_user_id_fkey")
+
+  @@map("face_templates")
+}
+
+model UserPhoto {
+  id        String   @id @default(uuid())
+  userId    String   @unique(map: "user_photos_user_id_key")
+  filePath  String // caminho relativo dentro de PHOTOS_DIR
+  mimeType  String   @default("image/jpeg")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  user user @relation(fields: [userId], references: [id], onDelete: Cascade, map: "user_photos_user_id_fkey")
+
+  @@map("user_photos")
+}
+
+// ───────────── Locais e terminais ─────────────
+
+model location {
+  id          String  @id @default(uuid())
+  building    String
+  entrance    String? // portaria
+  door        String?
+  turnstile   String? // catraca
+  description String?
+
+  terminals      terminal[]
+  authorizations authorization[]
+
+  @@unique([building, entrance, door, turnstile], map: "locations_building_entrance_door_turnstile_key")
+  @@map("locations")
+}
+
+model terminal {
+  id             String    @id @default(uuid())
+  name           String
+  locationId     String
+  latitude       Float // coordenada fixa (GPS simulado)
+  longitude      Float
+  qrSecret       String // segredo para assinar o token do QR
+  apiKeyHash     String // autentica o mobile-readings
+  online         Boolean   @default(false)
+  lastPresenceAt DateTime?
+  lastSeenAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  location   location   @relation(fields: [locationId], references: [id], map: "terminals_location_id_fkey")
+  accessLogs AccessLog[]
+  qrNonces   QrNonce[]
+
+  @@index([locationId], map: "terminals_location_id_idx")
+  @@map("terminals")
+}
+
+// ───────────── Autorizações ─────────────
+
+model authorization {
+  id           String   @id @default(uuid())
+  userId       String
+  locationId   String
+  startDate    DateTime @db.Date
+  endDate      DateTime @db.Date
+  startTime    String
+  endTime      String
+  maxUses      Int?
+  usedCount    Int      @default(0)
+  status       String   @default("ACTIVE")
+  createdById  String
+  canceledAt   DateTime?
+  canceledById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user       user     @relation("authorization_user", fields: [userId], references: [id], onDelete: Cascade, map: "authorizations_user_id_fkey")
+  location   location @relation(fields: [locationId], references: [id], map: "authorizations_location_id_fkey")
+  createdBy  user     @relation("authorization_created_by", fields: [createdById], references: [id], map: "authorizations_created_by_id_fkey")
+  canceledBy user?    @relation("authorization_canceled_by", fields: [canceledById], references: [id], map: "authorizations_canceled_by_id_fkey")
+  accessLogs AccessLog[]
+
+  @@index([userId, locationId, status], map: "authorizations_user_location_status_idx")
+  @@index([endDate], map: "authorizations_end_date_idx")
+  @@map("authorizations")
+}
+
+
+// ───────────── Histórico e anti-replay ─────────────
+
+model AccessLog {
+  id              String   @id @default(uuid())
+  userId          String?
+  terminalId      String
+  authorizationId String?
+  method          String
+  result          String
+  reason          String?
+  nfcUid          String?
+  confidence      Float?
+  distanceMeters  Float?
+  commandAcked    Boolean?
+  createdAt       DateTime @default(now())
+
+  user          user?          @relation(fields: [userId], references: [id], onDelete: SetNull, map: "access_logs_user_id_fkey")
+  terminal      terminal       @relation(fields: [terminalId], references: [id], map: "access_logs_terminal_id_fkey")
+  authorization authorization? @relation(fields: [authorizationId], references: [id], onDelete: SetNull, map: "access_logs_authorization_id_fkey")
+
+  @@index([createdAt], map: "access_logs_created_at_idx")
+  @@index([userId, createdAt], map: "access_logs_user_created_at_idx")
+  @@index([terminalId, createdAt], map: "access_logs_terminal_created_at_idx")
+  @@map("access_logs")
+}
+
+model QrNonce {
+  nonce      String   @id // SHA-256 do token QR; nunca guardar o token em claro
+  terminalId String
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  terminal terminal @relation(fields: [terminalId], references: [id], onDelete: Cascade, map: "qr_nonces_terminal_id_fkey")
+
+  @@index([expiresAt], map: "qr_nonces_expires_at_idx") // para limpeza periódica
+  @@map("qr_nonces")
+}
