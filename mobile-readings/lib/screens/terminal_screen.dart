@@ -1,3 +1,4 @@
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -776,7 +777,7 @@ class TerminalScreen extends StatelessWidget {
   }
 }
 
-/// Viewfinder simulado com varredura laser animada em tempo real (US-16, US-17, US-19).
+/// Viewfinder com integração de câmera frontal ao vivo e varredura laser animada (US-16, US-17, US-19).
 class FaceCameraViewfinder extends StatefulWidget {
   final int ramCount;
   final String thresholdPct;
@@ -797,6 +798,8 @@ class _FaceCameraViewfinderState extends State<FaceCameraViewfinder>
     with SingleTickerProviderStateMixin {
   late final AnimationController _animCtrl;
   late final Animation<double> _scanAnimation;
+  CameraController? _cameraController;
+  bool _isCameraReady = false;
 
   @override
   void initState() {
@@ -808,11 +811,48 @@ class _FaceCameraViewfinderState extends State<FaceCameraViewfinder>
     _scanAnimation = Tween<double>(begin: 0.08, end: 0.92).animate(
       CurvedAnimation(parent: _animCtrl, curve: Curves.easeInOut),
     );
+    _initFrontCamera();
+  }
+
+  Future<void> _initFrontCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) return;
+
+      // Procura preferencialmente a câmera frontal (selfie)
+      final frontCamera = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+
+      final controller = CameraController(
+        frontCamera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+
+      await controller.initialize();
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+
+      setState(() {
+        _cameraController = controller;
+        _isCameraReady = true;
+      });
+    } catch (_) {
+      // Fallback gracioso para ambientes de teste, emuladores ou sem permissão
+      if (mounted) {
+        setState(() => _isCameraReady = false);
+      }
+    }
   }
 
   @override
   void dispose() {
     _animCtrl.dispose();
+    _cameraController?.dispose();
     super.dispose();
   }
 
@@ -836,18 +876,39 @@ class _FaceCameraViewfinderState extends State<FaceCameraViewfinder>
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Fundo simulando captura de câmera
+          // Feed de Câmera Frontal ao Vivo ou Fundo Simulado (US-16)
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(13),
+              child: _isCameraReady && _cameraController != null
+                  ? FittedBox(
+                      fit: BoxFit.cover,
+                      child: SizedBox(
+                        width: _cameraController!.value.previewSize?.height ??
+                            100,
+                        height: _cameraController!.value.previewSize?.width ??
+                            100,
+                        child: CameraPreview(_cameraController!),
+                      ),
+                    )
+                  : Container(
+                      decoration: const BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment(0, -0.1),
+                          radius: 0.9,
+                          colors: [Color(0xFF2C394B), Color(0xFF0F141C)],
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+
+          // Máscara semitransparente escurecendo os cantos e destacando o enquadramento
           Positioned.fill(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(13),
               child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment(0, -0.1),
-                    radius: 0.9,
-                    colors: [Color(0xFF2C394B), Color(0xFF0F141C)],
-                  ),
-                ),
+                color: Colors.black.withValues(alpha: 0.25),
               ),
             ),
           ),
@@ -864,7 +925,7 @@ class _FaceCameraViewfinderState extends State<FaceCameraViewfinder>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF4DD0E1).withValues(alpha: 0.2),
+                  color: const Color(0xFF4DD0E1).withValues(alpha: 0.25),
                   blurRadius: 16,
                   spreadRadius: 2,
                 ),
@@ -875,13 +936,14 @@ class _FaceCameraViewfinderState extends State<FaceCameraViewfinder>
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  const Center(
-                    child: Icon(
-                      Icons.face_retouching_natural,
-                      size: 88,
-                      color: Colors.white24,
+                  if (!_isCameraReady)
+                    const Center(
+                      child: Icon(
+                        Icons.face_retouching_natural,
+                        size: 88,
+                        color: Colors.white24,
+                      ),
                     ),
-                  ),
                   // Linha animada de laser de varredura biométrica (US-16, US-17)
                   AnimatedBuilder(
                     animation: _scanAnimation,
