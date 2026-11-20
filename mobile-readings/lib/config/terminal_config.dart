@@ -17,15 +17,15 @@ class TerminalConfig {
   final bool simulationMode;
 
   const TerminalConfig({
-    this.backendHost = 'localhost',
+    this.backendHost = '192.168.15.25',
     this.backendPort = 3000,
     this.useHttps = false,
-    this.mqttHost = 'localhost',
+    this.mqttHost = '192.168.15.25',
     this.mqttPort = 1883,
     this.mqttUsername = '',
     this.mqttPassword = '',
-    this.terminalId = 'terminal-entrada-01',
-    this.apiKey = '',
+    this.terminalId = '633a2270-08c0-45dc-8e55-d9a6bc5c802d',
+    this.apiKey = 'terminal-key-secreta-2026-fatec',
     this.inactivityTimeoutSeconds = 30,
     this.faceSimilarityThreshold = 0.75,
     this.simulationMode = false,
