@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-/// Dados mínimos do usuário autenticado (retornados por `POST /auth/login`).
+/// Dados mínimos do usuário autenticado (retornados por `POST /login`).
 @immutable
 class AuthUser {
   const AuthUser({

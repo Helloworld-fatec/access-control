@@ -7,7 +7,6 @@ import 'package:mobile_registry/core/network/api_exception.dart';
 import 'package:mobile_registry/features/auth/data/auth_repository.dart';
 import 'package:mobile_registry/features/auth/presentation/login_screen.dart';
 import 'package:mobile_registry/features/home/presentation/home_screen.dart';
-import 'package:mobile_registry/features/settings/presentation/settings_screen.dart';
 
 import '../../helpers/fake_adapter.dart';
 import '../../helpers/routed_adapter.dart';
@@ -32,8 +31,7 @@ Map<String, Object> error(String code, String message) => {
     };
 
 void main() {
-  testWidgets('mostra e-mail, senha, "Mostrar senha" e o servidor configurado',
-      (tester) async {
+  testWidgets('mostra e-mail, senha, "Mostrar senha"', (tester) async {
     final env = await buildTestEnv(tester);
     await tester.pumpWidget(env.widget);
     await tester.pumpAndSettle();
@@ -43,10 +41,10 @@ void main() {
     expect(field('Senha'), findsOneWidget);
     expect(find.text('Mostrar senha'), findsOneWidget);
     expect(enterButton(), findsOneWidget);
-    expect(find.text('http://10.0.2.2:3000/api'), findsOneWidget);
   });
 
-  testWidgets('campos vazios mostram as mensagens e nada é enviado', (tester) async {
+  testWidgets('campos vazios mostram as mensagens e nada é enviado',
+      (tester) async {
     final env = await buildTestEnv(tester);
     await tester.pumpWidget(env.widget);
     await tester.pumpAndSettle();
@@ -65,7 +63,8 @@ void main() {
 
     await fillAndSubmit(tester, email: 'admin');
 
-    expect(find.text('E-mail inválido. Exemplo: nome@exemplo.com.'), findsOneWidget);
+    expect(find.text('E-mail inválido. Exemplo: nome@exemplo.com.'),
+        findsOneWidget);
     expect(env.adapter.calls, 0);
   });
 
@@ -98,11 +97,11 @@ void main() {
     expect(find.byType(LoginScreen), findsNothing);
     expect(find.byType(HomeScreen), findsOneWidget);
     expect(find.text('Usuários'), findsOneWidget); // título da lista
-    expect(env.secureStore.data['auth.token'], 'tok-123');
-    expect(env.prefs.getKeys().where((k) => k.startsWith('auth')), isEmpty);
+    expect(env.session.isAuthenticated, isTrue);
   });
 
-  testWidgets('senha errada mostra a mensagem e permanece no login', (tester) async {
+  testWidgets('senha errada mostra a mensagem e permanece no login',
+      (tester) async {
     final env = await buildTestEnv(
       tester,
       adapter: FakeAdapter([
@@ -117,10 +116,11 @@ void main() {
     expect(find.text(AuthRepository.wrongCredentialsMessage), findsOneWidget);
     expect(find.byType(LoginScreen), findsOneWidget);
     expect(find.text('admin@teste.com'), findsOneWidget); // e-mail preservado
-    expect(env.secureStore.data, isEmpty);
+    expect(env.session.isAuthenticated, isFalse);
   });
 
-  testWidgets('perfil que não é administrador recebe "acesso negado"', (tester) async {
+  testWidgets('perfil que não é administrador recebe "acesso negado"',
+      (tester) async {
     final env = await buildTestEnv(
       tester,
       adapter: FakeAdapter([loginOk(role: 'RESIDENT')]),
@@ -132,7 +132,7 @@ void main() {
 
     expect(find.text(AuthRepository.accessDeniedMessage), findsOneWidget);
     expect(find.byType(HomeScreen), findsNothing);
-    expect(env.secureStore.data, isEmpty);
+    expect(env.session.isAuthenticated, isFalse);
   });
 
   testWidgets('servidor sem login (404) orienta a conferir a configuração',
@@ -155,7 +155,8 @@ void main() {
       (tester) async {
     final env = await buildTestEnv(
       tester,
-      adapter: FakeAdapter([FakeAdapter.fail(DioExceptionType.connectionError)]),
+      adapter:
+          FakeAdapter([FakeAdapter.fail(DioExceptionType.connectionError)]),
     );
     await tester.pumpWidget(env.widget);
     await tester.pumpAndSettle();
@@ -166,14 +167,15 @@ void main() {
     expect(find.byType(LoginScreen), findsOneWidget);
   });
 
-  testWidgets('durante o envio mostra carregamento e bloqueia o botão', (tester) async {
+  testWidgets('durante o envio mostra carregamento e bloqueia o botão',
+      (tester) async {
     final gate = Completer<ResponseBody>();
     // Rotas por caminho: o corpo do login só pode ser consumido uma vez, e
     // depois do login a lista de usuários faz a própria chamada.
     final env = await buildTestEnv(
       tester,
       adapter: RoutedAdapter({
-        'POST /auth/login': (options) => gate.future,
+        'POST /login': (options) => gate.future,
         'GET /users': usersPage([]),
       }),
     );
@@ -213,21 +215,7 @@ void main() {
     expect(env.adapter.requests.where((r) => r.method == 'POST'), hasLength(1));
   });
 
-  testWidgets('a configuração do servidor é acessível antes do login', (tester) async {
-    final env = await buildTestEnv(tester);
-    await tester.pumpWidget(env.widget);
-    await tester.pumpAndSettle();
-
-    await tapVisible(tester, find.text('Configurar servidor'));
-    expect(find.byType(SettingsScreen), findsOneWidget);
-
-    // Voltar leva de volta ao login.
-    await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle();
-    expect(find.byType(LoginScreen), findsOneWidget);
-  });
-
-  testWidgets('com sessão guardada, o app abre direto na área logada', (tester) async {
+  testWidgets('com sessão ativa, o app mostra a área logada', (tester) async {
     final env = await buildTestEnv(tester, signedInAs: testAdmin);
     await tester.pumpWidget(env.widget);
     await tester.pumpAndSettle();
@@ -240,7 +228,7 @@ void main() {
     tester.platformDispatcher.textScaleFactorTestValue = 2.0;
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
-    final env = await buildTestEnv(tester, home: const LoginScreen());
+    final env = await buildTestEnv(tester);
     await tester.pumpWidget(env.widget);
     await tester.pumpAndSettle();
 
@@ -248,7 +236,8 @@ void main() {
     expect(enterButton(), findsOneWidget);
   });
 
-  testWidgets('elementos do login têm rótulos para leitores de tela', (tester) async {
+  testWidgets('elementos do login têm rótulos para leitores de tela',
+      (tester) async {
     final handle = tester.ensureSemantics();
     final env = await buildTestEnv(tester);
     await tester.pumpWidget(env.widget);

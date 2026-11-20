@@ -36,7 +36,7 @@ que encerra a sessão, tanto pelo botão Sair (`signOut()`) quanto pelo 401.
 - **Várias chamadas recusadas ao mesmo tempo** encerram a sessão uma única vez.
 - **Apaga primeiro, "sai" depois.** Assim, um login feito logo em seguida nunca é apagado por uma
   limpeza atrasada.
-- **Login e teste de conexão não contam como sessão expirada.** Um 401 em `POST /auth/login` é
+- **Login e teste de conexão não contam como sessão expirada.** Um 401 em `POST /login` é
   "senha errada" (US-04) e um 401 em `GET /health` não diz nada sobre o token.
 - **Falha na limpeza ao abrir o app não impede o app de abrir** (`restore()` ignora o erro e segue
   sem sessão).

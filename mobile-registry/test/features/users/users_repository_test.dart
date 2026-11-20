@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_registry/core/network/api_exception.dart';
-import 'package:mobile_registry/core/network/network_providers.dart';
 import 'package:mobile_registry/features/users/data/user_models.dart';
 import 'package:mobile_registry/features/users/data/users_repository.dart';
 
@@ -21,13 +20,15 @@ Future<ApiException> failureOf(Future<Object?> call) async {
 void main() {
   Future<(UsersRepository, FakeAdapter)> setup(List<FakeHandler> script) async {
     final adapter = FakeAdapter(script);
-    final container = await buildContainer(adapter: adapter, signedInAs: testAdmin);
-    return (container.read(usersRepositoryProvider), adapter);
+    final container = testSession(adapter: adapter, signedInAs: testAdmin);
+    return (UsersRepository(container.dio), adapter);
   }
 
   group('list', () {
     test('GET /users com paginação e sem filtros vazios', () async {
-      final (repo, adapter) = await setup([usersPage([userJson()])]);
+      final (repo, adapter) = await setup([
+        usersPage([userJson()])
+      ]);
 
       final page = await repo.list();
 
@@ -61,11 +62,14 @@ void main() {
     test('busca em branco não é enviada', () async {
       final (repo, adapter) = await setup([usersPage([])]);
       await repo.list(search: '   ');
-      expect(adapter.requests.single.uri.queryParameters.containsKey('search'), isFalse);
+      expect(adapter.requests.single.uri.queryParameters.containsKey('search'),
+          isFalse);
     });
 
     test('resposta fora do contrato vira mensagem simples', () async {
-      final (repo, _) = await setup([FakeAdapter.json(200, {'oops': true})]);
+      final (repo, _) = await setup([
+        FakeAdapter.json(200, {'oops': true})
+      ]);
       final e = await failureOf(repo.list());
       expect(e.message, UsersRepository.unexpectedResponseMessage);
     });
@@ -77,14 +81,16 @@ void main() {
     });
 
     test('erro de rede sai como ApiException de rede', () async {
-      final (repo, _) = await setup([FakeAdapter.fail(DioExceptionType.connectionError)]);
+      final (repo, _) =
+          await setup([FakeAdapter.fail(DioExceptionType.connectionError)]);
       final e = await failureOf(repo.list());
       expect(e.kind, ApiErrorKind.network);
       expect(e.message, ApiException.networkMessage);
     });
 
     test('500 não vaza texto técnico', () async {
-      final (repo, _) = await setup([apiError(500, 'INTERNAL_ERROR', 'stack trace')]);
+      final (repo, _) =
+          await setup([apiError(500, 'INTERNAL_ERROR', 'stack trace')]);
       final e = await failureOf(repo.list());
       expect(e.message, ApiException.serverMessage);
     });
@@ -92,14 +98,17 @@ void main() {
 
   group('get', () {
     test('GET /users/{id} devolve o detalhe', () async {
-      final (repo, adapter) = await setup([FakeAdapter.json(200, detailJson(tags: [tagJson()]))]);
+      final (repo, adapter) = await setup([
+        FakeAdapter.json(200, detailJson(tags: [tagJson()]))
+      ]);
       final d = await repo.get('u-1');
       expect(adapter.requests.single.uri.path, '/api/users/u-1');
       expect(d.nfcTags, hasLength(1));
     });
 
     test('404 usa a mensagem do servidor', () async {
-      final (repo, _) = await setup([apiError(404, 'USER_NOT_FOUND', 'Usuário não encontrado')]);
+      final (repo, _) = await setup(
+          [apiError(404, 'USER_NOT_FOUND', 'Usuário não encontrado')]);
       final e = await failureOf(repo.get('x'));
       expect(e.kind, ApiErrorKind.notFound);
       expect(e.message, 'Usuário não encontrado');
@@ -115,7 +124,8 @@ void main() {
     );
 
     test('POST /users com o corpo do backend', () async {
-      final (repo, adapter) = await setup([FakeAdapter.json(201, userJson(name: 'Ana Souza'))]);
+      final (repo, adapter) =
+          await setup([FakeAdapter.json(201, userJson(name: 'Ana Souza'))]);
 
       final created = await repo.create(newUser);
 
@@ -135,7 +145,10 @@ void main() {
       final (repo, _) = await setup([
         apiError(400, 'VALIDATION_ERROR', 'Dados inválidos', [
           {'path': 'email', 'message': 'E-mail inválido'},
-          {'path': 'password', 'message': 'Senha deve ter ao menos 6 caracteres'},
+          {
+            'path': 'password',
+            'message': 'Senha deve ter ao menos 6 caracteres'
+          },
         ]),
       ]);
       final e = await failureOf(repo.create(newUser));
@@ -147,16 +160,20 @@ void main() {
     });
 
     test('409 devolve a mensagem de conflito do servidor', () async {
-      final (repo, _) = await setup([apiError(409, 'USER_CONFLICT', 'E-mail ou documento já cadastrado')]);
+      final (repo, _) = await setup([
+        apiError(409, 'USER_CONFLICT', 'E-mail ou documento já cadastrado')
+      ]);
       final e = await failureOf(repo.create(newUser));
       expect(e.kind, ApiErrorKind.conflict);
       expect(e.message, 'E-mail ou documento já cadastrado');
     });
 
-    test('timeout de resposta não repete o POST (evita cadastro duplicado)', () async {
-      final adapter = FakeAdapter([FakeAdapter.fail(DioExceptionType.receiveTimeout)]);
-      final container = await buildContainer(adapter: adapter, signedInAs: testAdmin);
-      final e = await failureOf(container.read(usersRepositoryProvider).create(newUser));
+    test('timeout de resposta não repete o POST (evita cadastro duplicado)',
+        () async {
+      final adapter =
+          FakeAdapter([FakeAdapter.fail(DioExceptionType.receiveTimeout)]);
+      final container = testSession(adapter: adapter, signedInAs: testAdmin);
+      final e = await failureOf(UsersRepository(container.dio).create(newUser));
       expect(e.kind, ApiErrorKind.timeout);
       expect(adapter.calls, 1);
     });
@@ -164,7 +181,8 @@ void main() {
 
   group('update e setActive', () {
     test('PUT /users/{id} envia só o que mudou', () async {
-      final (repo, adapter) = await setup([FakeAdapter.json(200, userJson(name: 'Novo Nome'))]);
+      final (repo, adapter) =
+          await setup([FakeAdapter.json(200, userJson(name: 'Novo Nome'))]);
 
       final updated = await repo.update('u-1', {'name': 'Novo Nome'});
 
@@ -176,7 +194,8 @@ void main() {
     });
 
     test('PATCH /users/{id}/status envia {active}', () async {
-      final (repo, adapter) = await setup([FakeAdapter.json(200, userJson(active: false))]);
+      final (repo, adapter) =
+          await setup([FakeAdapter.json(200, userJson(active: false))]);
 
       final updated = await repo.setActive('u-1', active: false);
 
@@ -190,9 +209,9 @@ void main() {
 
   test('todas as chamadas levam o token do administrador', () async {
     final adapter = FakeAdapter([usersPage([])]);
-    final container = await buildContainer(adapter: adapter, signedInAs: testAdmin);
-    await container.read(tokenStoreProvider).write('tok-xyz');
-    await container.read(usersRepositoryProvider).list();
+    final container = testSession(adapter: adapter, signedInAs: testAdmin);
+    container.startSession(testAdmin, 'tok-xyz');
+    await UsersRepository(container.dio).list();
     expect(adapter.requests.single.headers['Authorization'], 'Bearer tok-xyz');
   });
 
@@ -201,7 +220,8 @@ void main() {
         (options) async => ResponseBody.fromString('', 204);
 
     test('addTag: POST /users/{id}/tags com o UID', () async {
-      final (repo, adapter) = await setup([FakeAdapter.json(201, tagJson(uid: '04A32F1B'))]);
+      final (repo, adapter) =
+          await setup([FakeAdapter.json(201, tagJson(uid: '04A32F1B'))]);
 
       final tag = await repo.addTag('u-1', '04A32F1B');
 
@@ -212,7 +232,9 @@ void main() {
       expect(tag.uid, '04A32F1B');
     });
 
-    test('addTag: UID repetido (409) mostra mensagem fixa, sem texto do servidor', () async {
+    test(
+        'addTag: UID repetido (409) mostra mensagem fixa, sem texto do servidor',
+        () async {
       final (repo, _) = await setup([
         apiError(409, 'TAG_CONFLICT', 'Tag já vinculada a Fulano de Tal'),
       ]);
@@ -232,7 +254,8 @@ void main() {
       expect(e.fieldErrors, {'uid': 'UID inválido'});
     });
 
-    test('removeTag: DELETE /users/{id}/tags/{tagId} (204 sem corpo)', () async {
+    test('removeTag: DELETE /users/{id}/tags/{tagId} (204 sem corpo)',
+        () async {
       final (repo, adapter) = await setup([noContent()]);
 
       await repo.removeTag('u-1', 't-1');
@@ -242,8 +265,10 @@ void main() {
       expect(request.uri.path, '/api/users/u-1/tags/t-1');
     });
 
-    test('removeTag: tag que já não existe (404) conta como removida', () async {
-      final (repo, _) = await setup([apiError(404, 'TAG_NOT_FOUND', 'Tag não encontrada')]);
+    test('removeTag: tag que já não existe (404) conta como removida',
+        () async {
+      final (repo, _) =
+          await setup([apiError(404, 'TAG_NOT_FOUND', 'Tag não encontrada')]);
       await repo.removeTag('u-1', 't-1'); // não lança
     });
 
@@ -253,13 +278,15 @@ void main() {
       expect(e.message, ApiException.serverMessage);
     });
 
-    test('replaceTag: vincula a NOVA primeiro e só depois remove a antiga', () async {
+    test('replaceTag: vincula a NOVA primeiro e só depois remove a antiga',
+        () async {
       final (repo, adapter) = await setup([
         FakeAdapter.json(201, tagJson(id: 't-2', uid: '04B1C2D3')),
         noContent(),
       ]);
 
-      final result = await repo.replaceTag(userId: 'u-1', oldTagId: 't-1', newUid: '04B1C2D3');
+      final result = await repo.replaceTag(
+          userId: 'u-1', oldTagId: 't-1', newUid: '04B1C2D3');
 
       expect(adapter.requests.map((r) => r.method), ['POST', 'DELETE']);
       expect(adapter.requests[0].uri.path, '/api/users/u-1/tags');
@@ -268,7 +295,8 @@ void main() {
       expect(result.oldTagRemoved, isTrue);
     });
 
-    test('replaceTag: se a nova der conflito, a antiga NÃO é removida', () async {
+    test('replaceTag: se a nova der conflito, a antiga NÃO é removida',
+        () async {
       final (repo, adapter) = await setup([apiError(409, 'TAG_CONFLICT', 'x')]);
 
       final e = await failureOf(
@@ -279,13 +307,16 @@ void main() {
       expect(adapter.calls, 1); // só o POST; nenhum DELETE
     });
 
-    test('replaceTag: nova vinculada mas remoção falhou é informado, sem perder a nova', () async {
+    test(
+        'replaceTag: nova vinculada mas remoção falhou é informado, sem perder a nova',
+        () async {
       final (repo, _) = await setup([
         FakeAdapter.json(201, tagJson(id: 't-2', uid: '04B1C2D3')),
         apiError(500, 'INTERNAL_ERROR', 'x'),
       ]);
 
-      final result = await repo.replaceTag(userId: 'u-1', oldTagId: 't-1', newUid: '04B1C2D3');
+      final result = await repo.replaceTag(
+          userId: 'u-1', oldTagId: 't-1', newUid: '04B1C2D3');
 
       expect(result.added.id, 't-2');
       expect(result.oldTagRemoved, isFalse);

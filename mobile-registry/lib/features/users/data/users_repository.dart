@@ -1,8 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exception.dart';
-import '../../../core/network/network_providers.dart';
 import 'user_models.dart';
 
 /// Resultado de substituir uma tag: a nova sempre foi vinculada; a remoção da
@@ -70,9 +70,39 @@ class UsersRepository {
         UserSummary.fromJson,
       );
 
+  Future<void> delete(String id) async {
+    await _dio.delete<dynamic>('/users/$id');
+  }
+
+  Future<void> saveFace(String id, Uint8List photo) async {
+    await _dio.post<dynamic>(
+      '/users/$id/face',
+      data: FormData.fromMap({
+        'consent': 'true',
+        'photo': MultipartFile.fromBytes(
+          photo,
+          filename: 'photo.jpg',
+          contentType: DioMediaType('image', 'jpeg'),
+        ),
+      }),
+    );
+  }
+
+  Future<String> linkNfcCredential(String id, String codeHex) => _call(
+        () => _dio.put<dynamic>(
+          '/users/$id/nfc-credential',
+          data: {'codeHex': codeHex},
+        ),
+        (json) => switch (json['status']) {
+          final String status => status,
+          _ => throw const FormatException('Estado NFC inválido'),
+        },
+      );
+
   /// `PATCH /users/{id}/status`: ativa ou desativa (o histórico é preservado).
   Future<UserSummary> setActive(String id, {required bool active}) => _call(
-        () => _dio.patch<dynamic>('/users/$id/status', data: {'active': active}),
+        () =>
+            _dio.patch<dynamic>('/users/$id/status', data: {'active': active}),
         UserSummary.fromJson,
       );
 
@@ -152,7 +182,3 @@ class UsersRepository {
     }
   }
 }
-
-final usersRepositoryProvider = Provider<UsersRepository>(
-  (ref) => UsersRepository(ref.watch(dioProvider)),
-);

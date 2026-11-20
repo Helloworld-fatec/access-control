@@ -20,6 +20,7 @@ Dio createApiClient({
       connectTimeout: const Duration(seconds: 8),
       receiveTimeout: const Duration(seconds: 15),
       responseType: ResponseType.json,
+      followRedirects: false,
       headers: const {'Accept': 'application/json'},
     ),
   );

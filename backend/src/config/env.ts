@@ -12,7 +12,9 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, "JWT_SECRET deve ter ao menos 32 caracteres"),
   JWT_EXPIRES_IN: z.string().default("1h"),
   /** Limite do upload (100 KB: folga sobre os ~50 KB da foto reduzida). */
-  MAX_PHOTO_BYTES: z.coerce.number().int().positive().default(100 * 1024),
+  MAX_PHOTO_BYTES: z.coerce.number().int().positive().max(102_400).default(102_400),
+  FACE_RECOGNITION_URL: z.url({ protocol: /^https?$/ }).default("http://127.0.0.1:8000"),
+  FACE_RECOGNITION_TIMEOUT_MS: z.coerce.number().int().positive().max(60_000).default(5_000),
 });
 
 const parsed = envSchema.safeParse(process.env);

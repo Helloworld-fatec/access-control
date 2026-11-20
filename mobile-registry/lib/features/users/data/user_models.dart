@@ -146,7 +146,7 @@ class UserSummary {
 
   @override
   int get hashCode => Object.hash(
-        id, name, email, role, active, document, phone, hasFace, nfcTagCount);
+      id, name, email, role, active, document, phone, hasFace, nfcTagCount);
 }
 
 /// Tag NFC vinculada a um usuário.
@@ -175,12 +175,14 @@ class UserDetail {
     required this.hasFace,
     required this.hasPhoto,
     required this.nfcTags,
+    this.nfcCredentialStatus,
   });
 
   final UserSummary user;
   final bool hasFace;
   final bool hasPhoto;
   final List<NfcTag> nfcTags;
+  final String? nfcCredentialStatus;
 
   factory UserDetail.fromJson(Map<String, dynamic> json) {
     final rawTags = json['nfcTags'];
@@ -197,6 +199,10 @@ class UserDetail {
       hasFace: hasFace,
       hasPhoto: _requiredBool(json, 'hasPhoto'),
       nfcTags: tags,
+      nfcCredentialStatus: json['nfcCredential'] == null
+          ? null
+          : _requiredString(
+              _asMap(json['nfcCredential'], 'Credencial NFC'), 'status'),
     );
   }
 
@@ -206,6 +212,7 @@ class UserDetail {
         hasFace: hasFace,
         hasPhoto: hasPhoto,
         nfcTags: List.unmodifiable(tags),
+        nfcCredentialStatus: nfcCredentialStatus,
       );
 
   UserDetail withUser(UserSummary updated) => UserDetail(
@@ -213,6 +220,7 @@ class UserDetail {
         hasFace: hasFace,
         hasPhoto: hasPhoto,
         nfcTags: nfcTags,
+        nfcCredentialStatus: nfcCredentialStatus,
       );
 }
 

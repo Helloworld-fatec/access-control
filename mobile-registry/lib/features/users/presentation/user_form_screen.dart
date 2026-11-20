@@ -1,57 +1,59 @@
 import 'dart:async';
+import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_exception.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_buttons.dart';
 import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/status_message.dart';
-import '../../auth/application/auth_providers.dart';
-import '../../nfc/presentation/nfc_capture_dialog.dart';
-import '../application/users_list_controller.dart';
+import '../data/face_camera.dart';
 import '../data/user_models.dart';
 import '../data/users_repository.dart';
-import 'form_notice.dart';
-import 'user_credentials_section.dart';
 import 'user_data_fields.dart';
 import 'user_form_model.dart';
 
-/// Edição de um usuário (US-09), com ativação e desativação (US-10) e gestão
-/// das tags NFC (US-12). O cadastro novo é o assistente `NewUserWizardScreen`.
-class UserFormScreen extends ConsumerStatefulWidget {
-  const UserFormScreen({super.key, required this.userId});
+class UserFormScreen extends StatefulWidget {
+  const UserFormScreen({
+    super.key,
+    this.userId,
+    required this.repository,
+    required this.capturePhoto,
+    required this.onChanged,
+  });
 
-  final String userId;
+  final String? userId;
+  final UsersRepository repository;
+  final FacePhotoCapture capturePhoto;
+  final Future<void> Function() onChanged;
 
   @override
-  ConsumerState<UserFormScreen> createState() => _UserFormScreenState();
+  State<UserFormScreen> createState() => _UserFormScreenState();
 }
 
-class _UserFormScreenState extends ConsumerState<UserFormScreen> {
+class _UserFormScreenState extends State<UserFormScreen> {
   final _model = UserFormModel();
-  bool _showPassword = false;
-
-  UserDetail? _detail;
-  bool _loadingDetail = true;
+  final _random = Random.secure();
+  UserSummary? _user;
+  Uint8List? _photo;
+  String? _nfcCode;
+  String? _nfcStatus;
+  String? _notice;
+  String? _faceError;
+  String? _nfcError;
   String? _loadError;
-
-  bool _saving = false;
-  bool _changingStatus = false;
-  bool _tagBusy = false;
-
-  /// Aviso do formulário e da situação.
-  FormNotice? _notice;
-
-  /// Aviso das tags (aparece junto da seção, que fica mais abaixo na tela).
-  FormNotice? _tagNotice;
+  bool _hasFace = false;
+  bool _consent = false;
+  bool _busy = false;
+  bool _loading = false;
+  bool _showPassword = false;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_loadDetail());
+    final id = widget.userId;
+    if (id != null) _load(id);
   }
 
   @override
@@ -60,425 +62,336 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
     super.dispose();
   }
 
-  // ---------------------------------------------------------------- carregar
-
-  Future<void> _loadDetail() async {
+  Future<void> _load(String id) async {
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
-      final detail = await ref.read(usersRepositoryProvider).get(widget.userId);
+      final detail = await widget.repository.get(id);
       if (!mounted) return;
-      _model.fill(detail.user);
       setState(() {
-        _detail = detail;
-        _loadingDetail = false;
-        _loadError = null;
+        _user = detail.user;
+        _model.fill(detail.user);
+        _hasFace = detail.hasFace;
+        _nfcStatus = detail.nfcCredentialStatus;
       });
-    } catch (e) {
+    } catch (error) {
+      if (mounted) setState(() => _loadError = userMessageFor(error));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _capture() async {
+    setState(() {
+      _busy = true;
+      _faceError = null;
+    });
+    try {
+      final photo = await widget.capturePhoto();
+      if (!mounted || photo == null) return;
+      setState(() {
+        _photo = photo;
+        _consent = false;
+      });
+    } on FormatException catch (error) {
+      if (mounted) setState(() => _faceError = error.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _faceError = 'Não foi possível abrir a câmera.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  String _newNfcCode() =>
+      _random.nextInt(1 << 24).toRadixString(16).padLeft(6, '0').toUpperCase();
+
+  Future<void> _linkNfc(UsersRepository repository, String id) async {
+    try {
+      String status;
+      try {
+        status = await repository.linkNfcCredential(
+          id,
+          _nfcCode ??= _newNfcCode(),
+        );
+      } catch (error) {
+        if (ApiException.from(error).code != 'NFC_CODE_CONFLICT' || !mounted) {
+          rethrow;
+        }
+        status =
+            await repository.linkNfcCredential(id, _nfcCode = _newNfcCode());
+      }
       if (!mounted) return;
       setState(() {
-        _loadingDetail = false;
-        _loadError = userMessageFor(e);
+        _nfcStatus = status;
+        _nfcCode = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final api = ApiException.from(error);
+      setState(() {
+        _nfcError = api.message;
+        if (api.code == 'NFC_CODE_CONFLICT') _nfcCode = null;
       });
     }
   }
 
-  void _retryLoad() {
-    setState(() {
-      _loadingDetail = true;
-      _loadError = null;
-    });
-    unawaited(_loadDetail());
+  Future<void> _saveFace(UsersRepository repository, String id) async {
+    final photo = _photo;
+    if (photo == null || !_consent) return;
+    try {
+      await repository.saveFace(id, photo);
+      if (!mounted) return;
+      setState(() {
+        _hasFace = true;
+        _photo = null;
+        _consent = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final api = ApiException.from(error);
+      setState(() {
+        _faceError = switch (api.code) {
+          'NO_FACE' => 'Nenhum rosto foi encontrado. Tire outra foto.',
+          'MULTIPLE_FACES' => 'A foto deve conter apenas um rosto.',
+          'CORRUPT_IMAGE' ||
+          'UNSUPPORTED_IMAGE_TYPE' =>
+            'A foto precisa ser um JPEG válido. Tire outra foto.',
+          'IMAGE_DIMENSIONS_TOO_LARGE' =>
+            'A foto excede o limite de dimensões.',
+          _ => api.message,
+        };
+      });
+    }
   }
 
-  // ----------------------------------------------------------------- salvar
-
-  Future<void> _submit() async {
-    // Os erros apontados pelo backend só saem quando o usuário edita o
-    // campo: o servidor recusou aquele valor.
-    setState(() => _notice = null);
-    if (!_model.formKey.currentState!.validate()) {
-      setState(() {
-        _notice = const FormNotice(StatusKind.error, FormNotice.checkFields);
-      });
+  Future<void> _save() async {
+    if (_busy || !_model.formKey.currentState!.validate()) return;
+    if (_photo != null && !_consent) {
+      setState(
+          () => _faceError = 'Confirme o consentimento ou descarte a foto.');
       return;
     }
     FocusScope.of(context).unfocus();
-    await _saveEdit();
-  }
-
-  Future<void> _saveEdit() async {
-    final changes = _model.changesFrom(_detail!.user);
-    if (changes.isEmpty) {
-      setState(() {
-        _notice = const FormNotice(
-          StatusKind.info,
-          'Nenhuma alteração para salvar.',
-        );
-      });
-      return;
-    }
-
-    // Alterações só são salvas após confirmação (US-09).
-    final confirmed = await showConfirmDialog(
-      context,
-      title: 'Salvar as alterações?',
-      message: 'Os dados de ${_detail!.user.name} serão atualizados.',
-      confirmLabel: 'Salvar',
-    );
-    if (!confirmed || !mounted) return;
-
-    setState(() => _saving = true);
-    try {
-      await ref.read(usersRepositoryProvider).update(widget.userId, changes);
-      _refreshList();
-      if (!mounted) return;
-      _showMessage('Alterações salvas.');
-      context.pop();
-    } catch (e) {
-      if (!mounted) return;
-      final outcome = _model.applyApiError(ApiException.from(e));
-      setState(() {
-        _saving = false;
-        _notice = FormNotice(StatusKind.error, outcome.message);
-      });
-      // Faz os erros apontados pelo backend aparecerem sob os campos.
-      _model.formKey.currentState?.validate();
-    }
-  }
-
-  void _refreshList() => unawaited(ref.read(usersListProvider.notifier).refresh());
-
-  /// Mostra uma mensagem rápida, substituindo a anterior (sem formar fila).
-  void _showMessage(String text) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(text)));
-  }
-
-  // ------------------------------------------------------- ativar/desativar
-
-  Future<void> _changeStatus({required bool activate}) async {
-    final user = _detail!.user;
-
-    if (!activate) {
-      final confirmed = await showConfirmDialog(
-        context,
-        title: 'Desativar ${user.name}?',
-        message: 'O usuário deixará de ter acesso. O histórico de acessos '
-            'é preservado e você pode reativá-lo quando quiser.',
-        confirmLabel: 'Desativar',
-        destructive: true,
-      );
-      if (!confirmed || !mounted) return;
-    }
-
     setState(() {
-      _changingStatus = true;
+      _busy = true;
       _notice = null;
+      _faceError = null;
+      _nfcError = null;
     });
+    final repository = widget.repository;
     try {
-      final updated = await ref
-          .read(usersRepositoryProvider)
-          .setActive(user.id, active: activate);
-      _refreshList();
-      if (!mounted) return;
-      setState(() {
-        _detail = _detail!.withUser(updated);
-        _changingStatus = false;
-      });
-      _showMessage(activate ? 'Usuário reativado.' : 'Usuário desativado.');
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _changingStatus = false;
-        _notice = FormNotice(StatusKind.error, userMessageFor(e));
-      });
-    }
-  }
-
-  // --------------------------------------------------------------- tags NFC
-
-  /// Roda uma operação de tag com bloqueio de botões e tratamento de erro.
-  Future<void> _runTagAction(Future<void> Function() action) async {
-    setState(() {
-      _tagBusy = true;
-      _tagNotice = null;
-    });
-    try {
-      await action();
-      _refreshList();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _tagNotice = FormNotice(StatusKind.error, userMessageFor(e)));
-    } finally {
-      if (mounted) setState(() => _tagBusy = false);
-    }
-  }
-
-  void _tagInfo(String message) {
-    setState(() => _tagNotice = FormNotice(StatusKind.info, message));
-  }
-
-  Future<void> _linkTag() async {
-    final uid = await showNfcCaptureDialog(context, title: 'Vincular tag NFC');
-    if (uid == null || !mounted) return;
-    if (_detail!.nfcTags.any((t) => t.uid == uid)) {
-      _tagInfo('Esta tag já está vinculada a este usuário.');
-      return;
-    }
-    await _runTagAction(() async {
-      final tag = await ref.read(usersRepositoryProvider).addTag(widget.userId, uid);
-      if (!mounted) return;
-      setState(() => _detail = _detail!.withTags([..._detail!.nfcTags, tag]));
-      _showMessage('Tag vinculada.');
-    });
-  }
-
-  Future<void> _replaceTag(NfcTag old) async {
-    final uid = await showNfcCaptureDialog(
-      context,
-      title: 'Substituir tag NFC',
-      instruction: 'Aproxime a NOVA tag da parte de trás do celular e espere '
-          'um instante.',
-      confirmLabel: 'Usar a nova tag',
-    );
-    if (uid == null || !mounted) return;
-
-    if (uid == old.uid) {
-      _tagInfo('Esta já é a tag atual deste usuário.');
-      return;
-    }
-    if (_detail!.nfcTags.any((t) => t.uid == uid)) {
-      _tagInfo('Esta tag já está vinculada a este usuário.');
-      return;
-    }
-
-    final confirmed = await showConfirmDialog(
-      context,
-      title: 'Substituir a tag?',
-      message: 'A tag ${old.uid} deixará de funcionar e a tag $uid passará '
-          'a valer para ${_detail!.user.name}.',
-      confirmLabel: 'Substituir',
-      destructive: true,
-    );
-    if (!confirmed || !mounted) return;
-
-    await _runTagAction(() async {
-      final result = await ref.read(usersRepositoryProvider).replaceTag(
-            userId: widget.userId,
-            oldTagId: old.id,
-            newUid: uid,
-          );
-      if (!mounted) return;
-      final tags = [
-        for (final t in _detail!.nfcTags)
-          if (t.id != old.id || !result.oldTagRemoved) t,
-        result.added,
-      ];
-      setState(() {
-        _detail = _detail!.withTags(tags);
-        if (!result.oldTagRemoved) {
-          _tagNotice = FormNotice(
-            StatusKind.error,
-            'A nova tag foi vinculada, mas não foi possível remover a antiga '
-            '(${result.removeError!.message}). Remova a tag antiga '
-            'manualmente.',
+      var user = _user;
+      final created = user == null;
+      try {
+        if (user == null) {
+          user = await repository.create(_model.toNewUser());
+        } else {
+          final changes = _model.changesFrom(user);
+          if (changes.isNotEmpty) {
+            user = await repository.update(user.id, changes);
+          }
+        }
+      } catch (error) {
+        if (mounted) {
+          final result = _model.applyApiError(ApiException.from(error));
+          _model.formKey.currentState?.validate();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Dados do usuário: ${result.message}')),
           );
         }
+        return;
+      }
+      if (!mounted) return;
+      final savedUser = user;
+      setState(() {
+        _user = savedUser;
+        _model.password.clear();
+        _model.serverErrors.clear();
+        _notice = created ? 'Usuário criado.' : 'Dados do usuário salvos.';
       });
-      if (result.oldTagRemoved) _showMessage('Tag substituída.');
-    });
+      unawaited(widget.onChanged());
+      if (created) await _linkNfc(repository, savedUser.id);
+      if (mounted) await _saveFace(repository, savedUser.id);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
-  Future<void> _removeTag(NfcTag tag) async {
+  Future<void> _retryNfc() async {
+    setState(() {
+      _busy = true;
+      _nfcError = null;
+    });
+    try {
+      await _linkNfc(widget.repository, _user!.id);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _retryFace() async {
+    setState(() {
+      _busy = true;
+      _faceError = null;
+    });
+    try {
+      await _saveFace(widget.repository, _user!.id);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _delete() async {
     final confirmed = await showConfirmDialog(
       context,
-      title: 'Remover a tag?',
-      message: 'A tag ${tag.uid} será desvinculada de ${_detail!.user.name}. '
-          'A pessoa deixará de entrar com ela.',
-      confirmLabel: 'Remover',
+      title: 'Excluir usuário?',
+      message: 'O cadastro e as credenciais deste usuário serão excluídos.',
+      confirmLabel: 'Excluir',
       destructive: true,
     );
-    if (!confirmed || !mounted) return;
-
-    await _runTagAction(() async {
-      await ref.read(usersRepositoryProvider).removeTag(widget.userId, tag.id);
+    if (!mounted || !confirmed) return;
+    setState(() => _busy = true);
+    try {
+      await widget.repository.delete(_user!.id);
       if (!mounted) return;
-      setState(() {
-        _detail = _detail!.withTags([
-          for (final t in _detail!.nfcTags)
-            if (t.id != tag.id) t,
-        ]);
-      });
-      _showMessage('Tag removida.');
-    });
+      unawaited(widget.onChanged());
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (mounted) {
+        setState(() => _busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Exclusão: ${userMessageFor(error)}')),
+        );
+      }
+    }
   }
-
-  // ------------------------------------------------------------------ build
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Editar usuário')),
-      body: SafeArea(child: _buildBody()),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_loadingDetail) {
-      return Center(
-        child: Semantics(
-          liveRegion: true,
-          label: 'Carregando usuário',
-          child: const CircularProgressIndicator(strokeWidth: 4),
+    final editing = _user != null || widget.userId != null;
+    return PopScope(
+      canPop: !_busy,
+      child: Scaffold(
+        appBar:
+            AppBar(title: Text(editing ? 'Editar usuário' : 'Novo usuário')),
+        body: SafeArea(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _loadError != null
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          StatusMessage(
+                              kind: StatusKind.error, message: _loadError!),
+                          TextButton(
+                            onPressed: () => _load(widget.userId!),
+                            child: const Text('Tentar novamente'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : _form(editing),
         ),
-      );
-    }
-    if (_loadError != null) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            StatusMessage(kind: StatusKind.error, message: _loadError!),
-            const SizedBox(height: 16),
-            AppPrimaryButton(
-              label: 'Tentar novamente',
-              icon: Icons.refresh,
-              onPressed: _retryLoad,
-            ),
-          ],
-        ),
-      );
-    }
-    return _buildForm();
-  }
-
-  Widget _buildForm() {
-    final detail = _detail!;
-    return SingleChildScrollView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Form(
-            key: _model.formKey,
-            child: UserDataFields(
-              model: _model,
-              isEdit: true,
-              original: detail.user,
-              readOnly: _saving,
-              showPassword: _showPassword,
-              onShowPasswordChanged: (v) => setState(() => _showPassword = v),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_notice != null) ...[
-            StatusMessage(kind: _notice!.kind, message: _notice!.message),
-            const SizedBox(height: 16),
-          ],
-          AppPrimaryButton(
-            label: 'Salvar alterações',
-            icon: Icons.save,
-            isLoading: _saving,
-            onPressed: (_changingStatus || _tagBusy) ? null : _submit,
-          ),
-          const SizedBox(height: 32),
-          _StatusSection(
-            detail: detail,
-            isSelf: ref.watch(authProvider).user?.id == detail.user.id,
-            busy: _changingStatus,
-            onChange: (activate) => _changeStatus(activate: activate),
-          ),
-          const SizedBox(height: 24),
-          UserCredentialsSection(
-            detail: detail,
-            busy: _tagBusy,
-            notice: _tagNotice?.message,
-            noticeKind: _tagNotice?.kind ?? StatusKind.error,
-            onLink: _linkTag,
-            onReplace: _replaceTag,
-            onRemove: _removeTag,
-          ),
-        ],
       ),
     );
   }
-}
 
-/// Situação do usuário e botão de ativar/desativar (US-10).
-class _StatusSection extends StatelessWidget {
-  const _StatusSection({
-    required this.detail,
-    required this.isSelf,
-    required this.busy,
-    required this.onChange,
-  });
-
-  final UserDetail detail;
-  final bool isSelf;
-  final bool busy;
-  final ValueChanged<bool> onChange;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context).textTheme;
-    final active = detail.user.active;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Semantics(
-          header: true,
-          child: Text('Situação', style: theme.titleLarge),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                ExcludeSemantics(
-                  child: Icon(
-                    active ? Icons.check_circle_outline : Icons.block,
-                    color: active ? AppColors.primary : AppColors.accent,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    active
-                        ? 'Usuário ativo. Pode acessar normalmente.'
-                        : 'Usuário inativo. Não tem acesso, mas o histórico foi preservado.',
-                    style: theme.bodyLarge,
-                  ),
-                ),
-              ],
+  Widget _form(bool editing) {
+    final photo = _photo;
+    return Form(
+      key: _model.formKey,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_notice case final String message)
+              StatusMessage(kind: StatusKind.success, message: message),
+            UserDataFields(
+              model: _model,
+              isEdit: editing,
+              readOnly: _busy,
+              showPassword: _showPassword,
+              onShowPasswordChanged: (value) =>
+                  setState(() => _showPassword = value),
+              original: _user,
             ),
-          ),
+            const Divider(),
+            Text(_hasFace ? 'Rosto cadastrado' : 'Rosto sem cadastro'),
+            if (photo != null) ...[
+              Image.memory(photo,
+                  height: 160,
+                  fit: BoxFit.contain,
+                  semanticLabel: 'Prévia da foto'),
+              CheckboxListTile(
+                value: _consent,
+                onChanged: _busy
+                    ? null
+                    : (value) => setState(() => _consent = value ?? false),
+                title: const Text('O usuário consentiu com o cadastro facial'),
+              ),
+              TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => setState(() {
+                          _photo = null;
+                          _faceError = null;
+                          _consent = false;
+                        }),
+                child: const Text('Descartar foto'),
+              ),
+            ],
+            if (_faceError case final String message)
+              StatusMessage(kind: StatusKind.error, message: 'Foto: $message'),
+            if (_user != null &&
+                photo != null &&
+                _consent &&
+                _faceError != null)
+              TextButton(
+                onPressed: _busy ? null : _retryFace,
+                child: const Text('Tentar foto novamente'),
+              ),
+            AppSecondaryButton(
+              label: photo == null ? 'Tirar foto' : 'Refazer foto',
+              icon: Icons.camera_alt,
+              onPressed: _busy ? null : _capture,
+            ),
+            const Divider(),
+            Text(switch (_nfcStatus) {
+              'PENDING' => 'NFC pendente de gravação',
+              final String status => 'NFC: $status',
+              null => editing
+                  ? 'NFC sem código vinculado'
+                  : 'O código NFC será gerado ao salvar.',
+            }),
+            if (_nfcError case final String message)
+              StatusMessage(kind: StatusKind.error, message: 'NFC: $message'),
+            if (_user != null && _nfcStatus == null)
+              TextButton(
+                onPressed: _busy ? null : _retryNfc,
+                child: Text(_nfcError == null
+                    ? 'Vincular código NFC'
+                    : 'Tentar NFC novamente'),
+              ),
+            const SizedBox(height: 20),
+            AppPrimaryButton(
+              label: 'Salvar usuário',
+              isLoading: _busy,
+              onPressed: _busy ? null : _save,
+            ),
+            if (_user != null)
+              TextButton(
+                onPressed: _busy ? null : _delete,
+                child: const Text('Excluir usuário'),
+              ),
+          ],
         ),
-        const SizedBox(height: 12),
-        if (active && isSelf)
-          Text(
-            'Você não pode desativar a própria conta.',
-            style: theme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-          )
-        else if (active)
-          AppSecondaryButton(
-            label: 'Desativar usuário',
-            icon: Icons.block,
-            isLoading: busy,
-            onPressed: () => onChange(false),
-          )
-        else
-          AppPrimaryButton(
-            label: 'Reativar usuário',
-            icon: Icons.restore,
-            isLoading: busy,
-            onPressed: () => onChange(true),
-          ),
-      ],
+      ),
     );
   }
 }

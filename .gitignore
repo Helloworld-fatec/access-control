@@ -1,4 +1,5 @@
 # Variáveis locais e segredos
+local/
 .env
 
 # Dependências e saídas locais

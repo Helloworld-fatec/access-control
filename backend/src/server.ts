@@ -11,14 +11,14 @@ ensurePhotosDir();
 const server = app.listen(env.PORT, "0.0.0.0", (err?: Error) => {
   if (err) return; // no Express 5 o callback também recebe o erro; ele é tratado em server.on("error")
   console.log(`Servidor rodando na porta ${env.PORT}`);
-  console.log(`Health check: http://localhost:${env.PORT}/health`);
+  console.log(`Health check: http://localhost:${env.PORT}/api/health`);
   console.log(`Pasta de fotos: ${env.PHOTOS_DIR}`);
 });
 
 // Mantém nonces expirados por 24 horas para permitir auditoria de leituras atrasadas.
 const qrNonceCleanup = setInterval(() => {
   const retentionCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  void prisma.qrNonce
+  void prisma.qrnonce
     .deleteMany({ where: { expiresAt: { lt: retentionCutoff } } })
     .catch((error) => console.error("Falha ao limpar QR codes expirados:", error));
 }, 60 * 60 * 1000);

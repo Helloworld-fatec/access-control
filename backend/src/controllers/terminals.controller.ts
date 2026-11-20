@@ -139,7 +139,7 @@ export async function getTerminalFaces(req: Request, res: Response) {
   });
   if (!terminal) throw notFound();
 
-  const templates = await prisma.faceTemplate.findMany({
+  const templates = await prisma.facetemplate.findMany({
     where: {
       user: {
         active: true,

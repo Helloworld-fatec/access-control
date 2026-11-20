@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import 'retry_interceptor.dart';
+
 /// Aplica a URL base *atual* (configurável pelo usuário) a cada requisição.
 class BaseUrlInterceptor extends Interceptor {
   BaseUrlInterceptor(this._baseUrl);
@@ -8,7 +10,9 @@ class BaseUrlInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    options.baseUrl = _baseUrl();
+    if (options.extra[RetryInterceptor.retryingKey] != true) {
+      options.baseUrl = _baseUrl();
+    }
     handler.next(options);
   }
 }
@@ -27,7 +31,10 @@ class AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    if (options.extra[skipAuthKey] != true && _readToken != null) {
+    // A retentativa conserva a origem e o Bearer da requisição original.
+    if (options.extra[RetryInterceptor.retryingKey] != true &&
+        options.extra[skipAuthKey] != true &&
+        _readToken != null) {
       final token = await _readToken();
       if (token != null && token.isNotEmpty) {
         options.headers['Authorization'] = 'Bearer $token';

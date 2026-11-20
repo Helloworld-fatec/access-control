@@ -8,7 +8,7 @@ RUN apk add --no-cache openssl \
     && adduser -S -G app app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
 COPY prisma ./prisma
 COPY prisma7.config.ts tsconfig.json ./

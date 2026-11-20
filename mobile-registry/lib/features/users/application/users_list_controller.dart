@@ -1,7 +1,6 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/network/api_exception.dart';
-import '../../auth/application/auth_providers.dart';
 import '../data/user_models.dart';
 import '../data/users_repository.dart';
 
@@ -80,7 +79,10 @@ class UsersListState {
 }
 
 /// Controla a lista de usuários (US-06): carrega, busca, filtra e pagina.
-class UsersListController extends Notifier<UsersListState> {
+class UsersListController extends ValueNotifier<UsersListState> {
+  UsersListController(this._repository) : super(const UsersListState());
+
+  final UsersRepository _repository;
   static const int pageSize = 20;
 
   /// Identifica a requisição "vigente". Respostas de requisições antigas
@@ -88,32 +90,25 @@ class UsersListController extends Notifier<UsersListState> {
   int _request = 0;
 
   @override
-  UsersListState build() {
-    // Ao trocar de sessão (login/logout) a lista começa do zero: nunca mostra
-    // dados de outro administrador.
-    final userId = ref.watch(authProvider.select((s) => s.user?.id));
+  void dispose() {
     _request++;
-    if (userId == null) return const UsersListState();
-
-    Future<void>.microtask(() {
-      if (ref.mounted) load();
-    });
-    return const UsersListState(loading: true);
+    super.dispose();
   }
 
   /// Carrega a primeira página com os filtros atuais.
   Future<void> load() async {
     final id = ++_request;
-    state = state.copyWith(loading: true, error: null, moreError: null);
+    value = value.copyWith(
+        loading: true, loadingMore: false, error: null, moreError: null);
     try {
-      final page = await ref.read(usersRepositoryProvider).list(
-            pageSize: pageSize,
-            search: state.search,
-            role: state.role,
-            active: state.active,
-          );
-      if (!ref.mounted || id != _request) return;
-      state = state.copyWith(
+      final page = await _repository.list(
+        pageSize: pageSize,
+        search: value.search,
+        role: value.role,
+        active: value.active,
+      );
+      if (id != _request) return;
+      value = value.copyWith(
         items: page.items,
         page: page.page,
         totalPages: page.totalPages,
@@ -121,8 +116,8 @@ class UsersListController extends Notifier<UsersListState> {
         loading: false,
       );
     } catch (e) {
-      if (!ref.mounted || id != _request) return;
-      state = state.copyWith(loading: false, error: userMessageFor(e));
+      if (id != _request) return;
+      value = value.copyWith(loading: false, error: userMessageFor(e));
     }
   }
 
@@ -131,22 +126,22 @@ class UsersListController extends Notifier<UsersListState> {
 
   /// Carrega a página seguinte e a acrescenta à lista.
   Future<void> loadMore() async {
-    if (state.loading || state.loadingMore || !state.hasMore) return;
+    if (value.loading || value.loadingMore || !value.hasMore) return;
     final id = _request;
-    state = state.copyWith(loadingMore: true, moreError: null);
+    value = value.copyWith(loadingMore: true, moreError: null);
     try {
-      final next = await ref.read(usersRepositoryProvider).list(
-            page: state.page + 1,
-            pageSize: pageSize,
-            search: state.search,
-            role: state.role,
-            active: state.active,
-          );
-      if (!ref.mounted || id != _request) return;
-      final known = state.items.map((u) => u.id).toSet();
-      state = state.copyWith(
+      final next = await _repository.list(
+        page: value.page + 1,
+        pageSize: pageSize,
+        search: value.search,
+        role: value.role,
+        active: value.active,
+      );
+      if (id != _request) return;
+      final known = value.items.map((u) => u.id).toSet();
+      value = value.copyWith(
         items: [
-          ...state.items,
+          ...value.items,
           ...next.items.where((u) => !known.contains(u.id)),
         ],
         page: next.page,
@@ -155,29 +150,29 @@ class UsersListController extends Notifier<UsersListState> {
         loadingMore: false,
       );
     } catch (e) {
-      if (!ref.mounted || id != _request) return;
-      state = state.copyWith(loadingMore: false, moreError: userMessageFor(e));
+      if (id != _request) return;
+      value = value.copyWith(loadingMore: false, moreError: userMessageFor(e));
     }
   }
 
   Future<void> setSearch(String text) {
     final term = text.trim();
-    if (term == state.search) return Future<void>.value();
+    if (term == value.search) return Future<void>.value();
     return _applyFilters(search: term);
   }
 
   Future<void> setRole(UserRole? role) {
-    if (role == state.role) return Future<void>.value();
+    if (role == value.role) return Future<void>.value();
     return _applyFilters(role: role, changeRole: true);
   }
 
   Future<void> setActive(bool? active) {
-    if (active == state.active) return Future<void>.value();
+    if (active == value.active) return Future<void>.value();
     return _applyFilters(active: active, changeActive: true);
   }
 
   Future<void> clearFilters() {
-    if (!state.hasFilters) return Future<void>.value();
+    if (!value.hasFilters) return Future<void>.value();
     return _applyFilters(
       search: '',
       role: null,
@@ -195,20 +190,15 @@ class UsersListController extends Notifier<UsersListState> {
     bool changeActive = false,
   }) {
     // Esvazia a lista na hora: não mostra resultados do filtro anterior.
-    state = state.copyWith(
+    value = value.copyWith(
       items: const [],
       page: 1,
       totalPages: 1,
       total: 0,
       search: search,
-      role: changeRole ? role : state.role,
-      active: changeActive ? active : state.active,
+      role: changeRole ? role : value.role,
+      active: changeActive ? active : value.active,
     );
     return load();
   }
 }
-
-final usersListProvider =
-    NotifierProvider<UsersListController, UsersListState>(
-  UsersListController.new,
-);

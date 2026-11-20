@@ -1,10 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_buttons.dart';
 import '../../../core/widgets/status_message.dart';
@@ -13,14 +10,18 @@ import '../data/user_models.dart';
 import 'user_card.dart';
 
 /// Lista de usuários com busca, filtros e "carregar mais" (US-06).
-class UsersListView extends ConsumerStatefulWidget {
-  const UsersListView({super.key});
+class UsersListView extends StatefulWidget {
+  const UsersListView(
+      {super.key, required this.controller, required this.onOpen});
+
+  final UsersListController controller;
+  final ValueChanged<String> onOpen;
 
   @override
-  ConsumerState<UsersListView> createState() => _UsersListViewState();
+  State<UsersListView> createState() => _UsersListViewState();
 }
 
-class _UsersListViewState extends ConsumerState<UsersListView> {
+class _UsersListViewState extends State<UsersListView> {
   static const Duration _searchDelay = Duration(milliseconds: 400);
 
   final _search = TextEditingController();
@@ -33,7 +34,7 @@ class _UsersListViewState extends ConsumerState<UsersListView> {
   @override
   void initState() {
     super.initState();
-    _search.text = ref.read(usersListProvider).search;
+    _search.text = widget.controller.value.search;
   }
 
   @override
@@ -47,7 +48,7 @@ class _UsersListViewState extends ConsumerState<UsersListView> {
     setState(() {}); // mostra/esconde o botão de limpar
     _debounce?.cancel();
     _debounce = Timer(_searchDelay, () {
-      ref.read(usersListProvider.notifier).setSearch(text);
+      widget.controller.setSearch(text);
     });
   }
 
@@ -55,21 +56,25 @@ class _UsersListViewState extends ConsumerState<UsersListView> {
     _debounce?.cancel();
     _search.clear();
     setState(() {});
-    ref.read(usersListProvider.notifier).setSearch('');
+    widget.controller.setSearch('');
   }
 
   void _clearAll() {
     _debounce?.cancel();
     _search.clear();
     setState(() {});
-    ref.read(usersListProvider.notifier).clearFilters();
+    widget.controller.clearFilters();
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(usersListProvider);
-    final controller = ref.read(usersListProvider.notifier);
+    return ValueListenableBuilder(
+      valueListenable: widget.controller,
+      builder: (context, state, _) => _buildList(state, widget.controller),
+    );
+  }
 
+  Widget _buildList(UsersListState state, UsersListController controller) {
     return RefreshIndicator(
       onRefresh: controller.refresh,
       child: ListView(
@@ -129,7 +134,8 @@ class _UsersListViewState extends ConsumerState<UsersListView> {
         ),
         if (_filtersOpen) ...[
           const SizedBox(height: 16),
-          Text('Perfil', style: theme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+          Text('Perfil',
+              style: theme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -149,7 +155,8 @@ class _UsersListViewState extends ConsumerState<UsersListView> {
             ],
           ),
           const SizedBox(height: 12),
-          Text('Situação', style: theme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+          Text('Situação',
+              style: theme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -231,7 +238,7 @@ class _UsersListViewState extends ConsumerState<UsersListView> {
       for (final user in state.items) ...[
         UserCard(
           user: user,
-          onTap: () => context.push(AppRoutes.userDetail(user.id)),
+          onTap: () => widget.onOpen(user.id),
         ),
         const SizedBox(height: 12),
       ],
@@ -405,7 +412,8 @@ class _EmptyBlock extends StatelessWidget {
         child: Column(
           children: [
             const ExcludeSemantics(
-              child: Icon(Icons.people_outline, size: 64, color: AppColors.primary),
+              child: Icon(Icons.people_outline,
+                  size: 64, color: AppColors.primary),
             ),
             const SizedBox(height: 12),
             Text(

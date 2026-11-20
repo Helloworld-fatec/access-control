@@ -29,6 +29,7 @@ model user {
   updatedAt    DateTime @updatedAt
 
   nfcTags        nfctag[]
+  nfcCredential  nfccredential?
   faceTemplate   facetemplate?
   photo          userphoto?
   authorizations authorization[] @relation("authorization_user")
@@ -51,6 +52,17 @@ model nfctag {
 
   @@index([userId], map: "nfc_tags_user_id_idx")
   @@map("nfc_tags")
+}
+
+model nfccredential {
+  userId    String   @id
+  codeHex   String   @unique @db.VarChar(6)
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+
+  user user @relation(fields: [userId], references: [id], onDelete: Cascade, map: "nfc_credentials_user_id_fkey")
+
+  @@map("nfc_credentials")
 }
 
 model facetemplate {

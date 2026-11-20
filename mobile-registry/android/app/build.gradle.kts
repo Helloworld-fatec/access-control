@@ -19,8 +19,7 @@ android {
         applicationId = "br.fatec.accesscontrol.mobile_registry"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // flutter_secure_storage exige API 23 ou superior.
-        minSdk = maxOf(flutter.minSdkVersion, 23)
+        minSdk = maxOf(flutter.minSdkVersion, 24)
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
