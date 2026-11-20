@@ -433,6 +433,14 @@ class TerminalController extends ChangeNotifier {
     }
   }
 
+  /// Submete uma foto real tirada pela câmera para reconhecimento no backend e serviço Python (US-18).
+  Future<void> validateCapturedPhoto(List<int> photoBytes) async {
+    if (_state != TerminalState.listening) return;
+    await _processCredentialValidation(
+      () => _apiClient.validateFacePhoto(photoBytes),
+    );
+  }
+
   /// Simula identificação facial autorizada (US-17, US-18).
   /// Se houver embeddings em memória, calcula o score via cosseno com vetor real.
   Future<void> simulateFaceAccess() async {

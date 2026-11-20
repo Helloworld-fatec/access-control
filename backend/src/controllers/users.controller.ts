@@ -7,6 +7,7 @@ import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
 import { removePhotoFile, resolvePhotoPath } from "../config/photos.js";
 import { AppError } from "../middlewares/error.middleware.js";
+import { enrollUserInFaceService } from "../services/face-service.client.js";
 import {
   createNfcTagSchema,
   createUserSchema,
@@ -216,6 +217,13 @@ export async function upsertFace(req: Request, res: Response) {
     // Só apaga a foto antiga depois de o banco apontar para a nova.
     if (file && user.photo && user.photo.filePath !== file.filename) {
       await removePhotoFile(user.photo.filePath);
+    }
+
+    if (file) {
+      try {
+        const photoBuffer = fs.readFileSync(file.path);
+        void enrollUserInFaceService(id, user.name, photoBuffer);
+      } catch (_) {}
     }
 
     res.status(201).json({ hasFace: true, hasPhoto: Boolean(file || user.photo) });

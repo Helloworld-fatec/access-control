@@ -10,6 +10,8 @@ import 'settings_screen.dart';
 /// Reflete diretamente o estado atual do [TerminalController].
 class TerminalScreen extends StatelessWidget {
   final TerminalController controller;
+  static final GlobalKey<FaceCameraViewfinderState> _viewfinderKey =
+      GlobalKey<FaceCameraViewfinderState>();
 
   const TerminalScreen({
     super.key,
@@ -360,14 +362,17 @@ class TerminalScreen extends StatelessWidget {
 
         // Moldura Viewfinder com Varredura Laser Animada (US-16, US-17, US-19)
         FaceCameraViewfinder(
+          key: _viewfinderKey,
           ramCount: ramCount,
           thresholdPct: thresholdPct,
           isSyncing: controller.isFaceSyncLoading,
+          onPhotoCaptured: controller.validateCapturedPhoto,
+          onFallbackTriggered: controller.simulateFaceAccess,
         ),
 
         const SizedBox(height: 16),
 
-        // Botões de Ação e Simulação Facial (US-17, US-18, US-19)
+        // Botões de Ação e Reconhecimento Facial (US-16, US-17, US-18, US-19)
         Wrap(
           spacing: 10,
           runSpacing: 10,
@@ -378,11 +383,16 @@ class TerminalScreen extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF2E7D32),
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
-              onPressed: controller.simulateFaceAccess,
-              icon: const Icon(Icons.check_circle_outline),
-              label: const Text('Identificar Face Autorizada'),
+              onPressed: () {
+                _viewfinderKey.currentState?.captureAndValidate();
+              },
+              icon: const Icon(Icons.face_unlock_rounded),
+              label: const Text(
+                'Validar Biometria Facial',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
             OutlinedButton.icon(
               key: const Key('btn_sim_face_denied'),
@@ -782,24 +792,54 @@ class FaceCameraViewfinder extends StatefulWidget {
   final int ramCount;
   final String thresholdPct;
   final bool isSyncing;
+  final Future<void> Function(List<int> bytes)? onPhotoCaptured;
+  final VoidCallback? onFallbackTriggered;
 
   const FaceCameraViewfinder({
     super.key,
     required this.ramCount,
     required this.thresholdPct,
     required this.isSyncing,
+    this.onPhotoCaptured,
+    this.onFallbackTriggered,
   });
 
   @override
-  State<FaceCameraViewfinder> createState() => _FaceCameraViewfinderState();
+  State<FaceCameraViewfinder> createState() => FaceCameraViewfinderState();
 }
 
-class _FaceCameraViewfinderState extends State<FaceCameraViewfinder>
+class FaceCameraViewfinderState extends State<FaceCameraViewfinder>
     with SingleTickerProviderStateMixin {
   late final AnimationController _animCtrl;
   late final Animation<double> _scanAnimation;
   CameraController? _cameraController;
   bool _isCameraReady = false;
+  bool _isCapturing = false;
+
+  bool get isCapturing => _isCapturing;
+
+  Future<void> captureAndValidate() async {
+    if (_isCapturing) return;
+    setState(() => _isCapturing = true);
+
+    try {
+      if (_cameraController != null && _cameraController!.value.isInitialized) {
+        final image = await _cameraController!.takePicture();
+        final bytes = await image.readAsBytes();
+        if (widget.onPhotoCaptured != null) {
+          await widget.onPhotoCaptured!(bytes);
+        }
+      } else {
+        widget.onFallbackTriggered?.call();
+      }
+    } catch (_) {
+      widget.onFallbackTriggered?.call();
+    }
+
+    if (mounted) {
+      setState(() => _isCapturing = false);
+    }
+  }
 
   @override
   void initState() {

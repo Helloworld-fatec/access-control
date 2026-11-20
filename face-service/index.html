@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reconhecimento facial HOG</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Reconhecimento facial com HOG</h1>
+    <p>Envie uma foto, extraia o embedding HOG e compare com a webcam em tempo real.</p>
+  </header>
+
+  <main>
+    <!-- 1. Foto de referência -->
+    <section class="card">
+      <h2><span class="step">1</span> Foto de referência</h2>
+      <label class="drop" id="drop">
+        <input type="file" id="file" accept="image/*" hidden>
+        <span>Clique ou arraste uma foto aqui</span>
+      </label>
+
+      <div class="preview" id="preview" hidden>
+        <div class="thumb">
+          <canvas id="photo"></canvas>
+          <small>Rosto detectado</small>
+        </div>
+        <div class="thumb">
+          <img id="hogImg" alt="Visualização HOG">
+          <small>Visualização do HOG</small>
+        </div>
+      </div>
+      <p class="status" id="enrollStatus"></p>
+    </section>
+
+    <!-- 2. Webcam -->
+    <section class="card">
+      <h2><span class="step">2</span> Webcam</h2>
+      <div class="controls">
+        <button id="camBtn" disabled>Abrir webcam</button>
+        <label class="thr">
+          Limiar: <b id="thrVal">0.55</b>
+          <input type="range" id="thr" min="0.20" max="0.90" step="0.01" value="0.55">
+        </label>
+      </div>
+
+      <div class="video-wrap" id="videoWrap">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <div class="banner" id="banner">Aguardando…</div>
+      </div>
+      <p class="status" id="camStatus">Cadastre uma foto para habilitar a webcam.</p>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

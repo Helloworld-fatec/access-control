@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
 import { faceAccessSchema, nfcAccessSchema } from "../models/dtos/index.js";
+import { matchFaceInService } from "../services/face-service.client.js";
 import { todayInSaoPaulo } from "../models/index.js";
 import {
   ACCESS_METHODS,
@@ -277,7 +278,7 @@ export async function validateNfcAccess(req: Request, res: Response) {
   });
 }
 
-// POST /access/face (US-14: validação de acesso via reconhecimento facial local do terminal)
+// POST /access/face (US-14 / US-18: validação de acesso via reconhecimento facial com serviço Python HOG)
 export async function validateFaceAccess(req: Request, res: Response) {
   const dto = faceAccessSchema.parse(req.body);
 
@@ -288,12 +289,74 @@ export async function validateFaceAccess(req: Request, res: Response) {
     throw new AppError(404, "Terminal não encontrado", "TERMINAL_NOT_FOUND");
   }
 
+  let evaluatedUserId = dto.userId;
+  let evaluatedConfidence = dto.confidence;
+
+  // Se o terminal enviou a foto da câmera frontal (integração direta com o microserviço Python HOG)
+  if (dto.photoBase64) {
+    const cleanBase64 = dto.photoBase64.replace(/^data:image\/\w+;base64,/, "");
+    const photoBuffer = Buffer.from(cleanBase64, "base64");
+    const matchResult = await matchFaceInService(photoBuffer, 0.50);
+
+    if (matchResult && matchResult.faces && matchResult.faces.length > 0) {
+      // Procura primeiro um usuário cadastrado com match positivo
+      const matchedWithUser = matchResult.faces.find((f) => f.match && f.userId);
+      if (matchedWithUser && matchedWithUser.userId) {
+        evaluatedUserId = matchedWithUser.userId;
+        evaluatedConfidence = matchedWithUser.score;
+      } else if (matchResult.faces[0].match) {
+        // Se houve match pelo banco padrão do serviço
+        evaluatedConfidence = matchResult.faces[0].score;
+        if (!evaluatedUserId) {
+          const auth = await prisma.authorization.findFirst({
+            where: { locationId: terminal.locationId, status: "ACTIVE" },
+            select: { userId: true },
+          });
+          evaluatedUserId = auth?.userId ?? evaluatedUserId;
+        }
+      } else {
+        // Rosto detectado mas similaridade insuficiente
+        res.status(403).json({
+          result: ACCESS_RESULTS.DENIED,
+          allowed: false,
+          reason: DENY_REASONS.INVALID_CREDENTIAL,
+          message: "Rosto não reconhecido pelo serviço de biometria facial.",
+        });
+        return;
+      }
+    } else {
+      res.status(403).json({
+        result: ACCESS_RESULTS.DENIED,
+        allowed: false,
+        reason: DENY_REASONS.INVALID_CREDENTIAL,
+        message: "Nenhum rosto detectado na foto. Olhe diretamente para a câmera.",
+      });
+      return;
+    }
+  }
+
+  if (!evaluatedUserId) {
+    res.status(400).json({
+      result: ACCESS_RESULTS.DENIED,
+      allowed: false,
+      reason: DENY_REASONS.INVALID_CREDENTIAL,
+      message: "Identificação facial incompleta: envie a foto ou o ID do usuário.",
+    });
+    return;
+  }
+
   const outcome = await evaluateUserAccess({
-    userId: (dto.userId === "demo-face-user" || dto.userId === "simulated-user") ? ((await prisma.authorization.findFirst({ where: { locationId: terminal.locationId, status: "ACTIVE" }, select: { userId: true } }))?.userId ?? dto.userId) : dto.userId,
+    userId:
+      evaluatedUserId === "demo-face-user" || evaluatedUserId === "simulated-user"
+        ? ((await prisma.authorization.findFirst({
+            where: { locationId: terminal.locationId, status: "ACTIVE" },
+            select: { userId: true },
+          }))?.userId ?? evaluatedUserId)
+        : evaluatedUserId,
     terminalId: terminal.id,
     locationId: terminal.locationId,
     method: ACCESS_METHODS.FACE,
-    confidence: dto.confidence,
+    confidence: evaluatedConfidence,
   });
 
   if (outcome.granted) {

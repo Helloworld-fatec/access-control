@@ -42,19 +42,38 @@ async function start() {
     console.log('[Dev] Banco de dados já está ativo na porta 5433.');
   }
 
+  let faceProcess = null;
+  const isFaceRunning = await checkPort(8000);
+  if (!isFaceRunning) {
+    const faceServiceScript = path.resolve('../face-service/server.py');
+    if (fs.existsSync(faceServiceScript)) {
+      console.log('[Dev] Iniciando serviço de Visão Facial Python HOG na porta 8000...');
+      faceProcess = spawn('python', [faceServiceScript, '8000'], {
+        stdio: 'inherit',
+        shell: true,
+      });
+    }
+  } else {
+    console.log('[Dev] Serviço Facial Python HOG já está ativo na porta 8000.');
+  }
+
   const tsx = spawn('npx', ['tsx', 'watch', 'src/server.ts'], {
     stdio: 'inherit',
     shell: true,
   });
 
-  process.on('SIGINT', () => {
+  const cleanup = () => {
+    if (faceProcess) {
+      try {
+        faceProcess.kill();
+      } catch (_) {}
+    }
     tsx.kill('SIGINT');
     process.exit(0);
-  });
-  process.on('SIGTERM', () => {
-    tsx.kill('SIGTERM');
-    process.exit(0);
-  });
+  };
+
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
 }
 
 start();

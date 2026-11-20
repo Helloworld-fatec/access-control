@@ -9,11 +9,13 @@ export const nfcAccessSchema = z.object({
 
 export const faceAccessSchema = z.object({
   terminalId: z.string().uuid("terminalId inválido"),
-  userId: z.string().uuid("userId inválido"),
+  userId: z.string().optional(),
   confidence: z
     .number()
     .min(0, "Confiança mínima é 0")
-    .max(1, "Confiança máxima é 1"),
+    .max(1, "Confiança máxima é 1")
+    .optional(),
+  photoBase64: z.string().optional(),
 });
 
 export type NfcAccessDto = z.infer<typeof nfcAccessSchema>;

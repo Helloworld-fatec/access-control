@@ -3,6 +3,7 @@
 import { env } from "./config/env.js";
 import { prisma } from "./config/prisma.js";
 import { ensurePhotosDir } from "./config/photos.js";
+import { syncDatabasePhotosToFaceService } from "./services/face-service.client.js";
 import { app } from "./index.js";
 
 // Cria a pasta de fotos se ela ainda não existir (nenhum erro se já existir).
@@ -13,6 +14,7 @@ const server = app.listen(env.PORT, "0.0.0.0", (err?: Error) => {
   console.log(`Servidor rodando na porta ${env.PORT}`);
   console.log(`Health check: http://localhost:${env.PORT}/health`);
   console.log(`Pasta de fotos: ${env.PHOTOS_DIR}`);
+  void syncDatabasePhotosToFaceService();
 });
 
 // Mantém nonces expirados por 24 horas para permitir auditoria de leituras atrasadas.
