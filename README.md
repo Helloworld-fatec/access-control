@@ -158,7 +158,7 @@ O projeto é desenvolvido em **3 sprints**, com papéis definidos, backlog prior
 |---|---|
 | Sprint 1 | [scrum/sprints/sprint-1.md](./scrum/sprints/sprint-1.md) |
 | Sprint 2 | [scrum/sprints/sprint-2.md](./scrum/sprints/sprint-2.md) |
-| Sprint 3 | Em breve |
+| Sprint 3 | [scrum/sprints/sprint-3.md](./scrum/sprints/sprint-3.md) |
 
 ---
 
@@ -207,7 +207,7 @@ O projeto é desenvolvido em **3 sprints**, com papéis definidos, backlog prior
 
 ## 🚀 Como Rodar
 
-> A entrega final executa **localmente com Docker Compose** (backend, banco, broker MQTT e frontend). As instruções completas serão publicadas quando o ambiente estiver pronto. Por enquanto, o backend pode ser executado isoladamente para desenvolvimento.
+> A entrega final executa **localmente com Docker Compose** (backend, banco, broker MQTT e frontend). Esse ambiente ainda não existe: por enquanto, cada serviço sobe separadamente. O passo a passo de todos os serviços está em [docs/como-executar.md](./docs/como-executar.md), e abaixo está o resumo do backend.
 
 ### Backend (ambiente de desenvolvimento)
 
@@ -225,6 +225,8 @@ Edite o `.env`:
 | Variável | Obrigatória | Padrão | Descrição |
 |---|---|---|---|
 | `DATABASE_URL` | Sim | — | Conexão com o PostgreSQL, por exemplo `postgresql://USUARIO:SENHA@localhost:5432/NOME_DO_BANCO?schema=public` |
+| `JWT_SECRET` | Sim | — | Segredo do login (JWT), com pelo menos 32 caracteres |
+| `JWT_EXPIRES_IN` | Não | `1h` | Validade do token de login |
 | `PORT` | Não | `3000` | Porta da API |
 | `PHOTOS_DIR` | Não | `photos` | Pasta onde as fotos reduzidas são gravadas (criada automaticamente) |
 | `MAX_PHOTO_BYTES` | Não | `102400` | Tamanho máximo da foto enviada, em bytes (100 KB) |
@@ -234,7 +236,7 @@ Edite o `.env`:
 npm install
 npx prisma generate
 npx prisma migrate deploy
-npm run dev
+npx tsx src/server.ts
 ```
 
 A API sobe em `http://localhost:3000`. Para conferir:
@@ -243,12 +245,7 @@ A API sobe em `http://localhost:3000`. Para conferir:
 curl http://localhost:3000/api/health
 ```
 
-Para execução em produção:
-
-```bash
-npm run build
-npm start
-```
+O `package.json` do backend ainda não tem os scripts `dev`, `build` e `start`, por isso o servidor sobe com `npx tsx`.
 
 #### Endpoints disponíveis
 
@@ -257,13 +254,15 @@ Todas as rotas ficam sob o prefixo `/api`.
 | Recurso | Rota base |
 |---|---|
 | Saúde da API | `/api/health` |
+| Login | `/api/login` |
+| Acesso (QR, NFC e rosto) | `/api/access` |
 | Usuários | `/api/users` |
 | Locais de acesso | `/api/locations` |
 | Terminais | `/api/terminals` |
 | Autorizações | `/api/authorizations` |
 | Histórico de acessos | `/api/access-logs` |
 
-> A autenticação e a decisão de acesso por QR Code e NFC ainda estão em desenvolvimento.
+> Rotas, parâmetros e limitações conhecidas em [docs/api.md](./docs/api.md).
 
 ---
 
@@ -276,6 +275,14 @@ Todas as rotas ficam sob o prefixo `/api`.
 | Visão geral do projeto | [docs/access-control-visao-geral.docx](./docs/access-control-visao-geral.docx) |
 | Product Backlog | [scrum/BACKLOG.md](./scrum/BACKLOG.md) |
 | Sprint 1 | [scrum/sprints/sprint-1.md](./scrum/sprints/sprint-1.md) |
+| Sprint 2 | [scrum/sprints/sprint-2.md](./scrum/sprints/sprint-2.md) |
+| Sprint 3 | [scrum/sprints/sprint-3.md](./scrum/sprints/sprint-3.md) |
+| Como executar | [docs/como-executar.md](./docs/como-executar.md) |
+| Documentação da API | [docs/api.md](./docs/api.md) |
+| Matriz de requisitos | [docs/matriz-requisitos.md](./docs/matriz-requisitos.md) |
+| Contrato MQTT | [docs/contrato-mqtt.md](./docs/contrato-mqtt.md) |
+| Evidências da Sprint 2 | [docs/evidencias-sprint-2.md](./docs/evidencias-sprint-2.md) |
+| Riscos e decisões | [scrum/RISCOS.md](./scrum/RISCOS.md) |
 
 ---
 

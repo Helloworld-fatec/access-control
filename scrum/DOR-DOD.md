@@ -20,7 +20,7 @@ Uma história só é concluída quando:
 - [ ] os testes automatizados passam no pipeline de CI;
 - [ ] a documentação afetada foi atualizada;
 - [ ] o funcionamento é demonstrável na Sprint Review;
-- [ ] a etapa na planilha e no quadro foi atualizada para `concluído`.
+- [ ] a etapa no Notion foi atualizada para `Concluída`.
 
 ## Por que isso importa para o desafio
 

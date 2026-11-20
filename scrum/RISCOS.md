@@ -20,10 +20,10 @@ Origem: `docs/access-control-visao-geral.docx`, PDF do desafio e imagens de arqu
 | ID | Risco | Mitigação | Dono | Status |
 |---|---|---|---|---|
 | R1 | Wi-Fi da apresentação sem internet ou instável | Roteador/hotspot próprio, testar com aparelhos reais, avisar sobre dados móveis | Bruno | aberto |
-| R2 | Contrato da API muda e quebra os três clientes | Publicar especificação OpenAPI versionada | Bruno / Pedro | aberto |
+| R2 | Contrato da API muda e quebra os três clientes | Publicar especificação OpenAPI versionada. Hoje as rotas estão descritas em [`docs/api.md`](../docs/api.md), sem OpenAPI | Bruno / Pedro | aberto |
 | R3 | Embeddings faciais incompatíveis entre mobile-registry e mobile-readings | Pacote Dart comum para extração | Ryan / Nicolas | aberto |
 | R4 | Código duplicado entre os três apps Flutter | Pacote Dart interno compartilhado | Ryan / Nicolas / Bruno | aberto |
-| R5 | Sem pipeline de CI com testes o projeto não é aceito (RP10) | Pipeline mínimo (build, lint, testes) já na Sprint 1 | Bruno | aberto |
+| R5 | Sem pipeline de CI com testes o projeto não é aceito (RP10) | Pipeline mínimo (build, lint, testes). Em 15/11 só o mobile-registry tem workflow; os demais serviços ficam para a Sprint 3 | Bruno / Suelen | aberto |
 | R6 | Alimentação da trava e HC-SR04 instáveis na bancada | Fonte separada, diodo de flyback, testar antes de integrar | Bruna | aberto |
 | R7 | Precisão do GPS em ambiente fechado | Enviar `accuracy`, calibrar raio no local | Bruno | aberto |
 | R8 | Escopo grande (cerca de 170 histórias) para 3 sprints | Priorizar Must por sprint, adiar Could | Suelen | aberto |
@@ -33,3 +33,9 @@ Origem: `docs/access-control-visao-geral.docx`, PDF do desafio e imagens de arqu
 | R12 | Um único ESP32 lê e grava: durante a gravação o acesso por NFC fica indisponível por alguns segundos | Janela de gravação curta, com tempo limite; acesso por QR segue funcionando | Bruna / Bruno | aberto |
 | R13 | O escopo do device-esp32 aumentou (leitor, gravador e publicação do código) | Priorizar a leitura e o comando de abertura; gravação em seguida; simulador MQTT como plano B | Bruna / Suelen | aberto |
 | R14 | Tag copiada com o código dentro seria aceita como a original | Revogar a tag no backend; avaliar conferir também o UID | Bruno | aberto |
+| R15 | O leitor RC522 do terminal físico tem possível falha na soldagem | Levar a avaliação ao professor; manter o teste isolado que funcionou e o firmware com a leitura desativada até a revisão | Bruna / Suelen | aberto |
+| R16 | A compilação do mobile-registry é extremamente lenta e atrasa os testes | Investigar como reduzir o tempo de compilação e relatar na daily | Ryan | aberto |
+| R17 | A integração backend e ESP32 por MQTT só existe no contrato (rascunho); o backend simula a publicação | Validar o contrato em reunião e implementar a publicação no backend e o consumo no firmware | Bruno / Bruna / Nicolas | aberto |
+| R18 | O acesso por QR não valida a proximidade e usa dois formatos de token | Unificar o QR, enviar a localização do app e calcular a distância no backend | Bruno | aberto |
+| R19 | As rotas de usuários, locais e histórico não exigem login | Exigir o JWT de administrador nessas rotas | Bruno / Pedro | aberto |
+| R20 | O QR exibido no OLED ainda não é lido direto pela câmera do celular | Ajustar o QR Code do display e testar com mais de um aparelho | Bruna | aberto |
