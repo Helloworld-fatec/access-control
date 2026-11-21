@@ -23,6 +23,7 @@ class MosquittoPresenceService implements PresenceMqttService {
     required TerminalConfig config,
     required void Function() onPresenceDetected,
     required void Function(bool connected) onConnectionChanged,
+    void Function(bool isBusy)? onReaderBusyChanged,
   }) async {
     await disconnect();
 
@@ -92,18 +93,27 @@ class MosquittoPresenceService implements PresenceMqttService {
     if (client.connectionStatus?.state == MqttConnectionState.connected) {
       _connected = true;
       onConnectionChanged(true);
-      final topic = config.mqttPresenceTopic;
-      client.subscribe(topic, MqttQos.atLeastOnce);
+
+      final presenceTopic = config.mqttPresenceTopic;
+      final writingTopic = config.mqttNfcWritingTopic;
+
+      client.subscribe(presenceTopic, MqttQos.atLeastOnce);
+      client.subscribe(writingTopic, MqttQos.atLeastOnce);
 
       _subscription = client.updates?.listen((messages) {
         for (final msg in messages) {
-          if (msg.topic != topic) continue;
           final recMess = msg.payload as MqttPublishMessage;
           final payload = MqttPublishPayload.bytesToStringAsString(
             recMess.payload.message,
           );
-          if (_isPresencePayloadActive(payload)) {
-            onPresenceDetected();
+
+          if (msg.topic == presenceTopic) {
+            if (_isPresencePayloadActive(payload)) {
+              onPresenceDetected();
+            }
+          } else if (msg.topic == writingTopic) {
+            final isBusy = _isWritingPayloadBusy(payload);
+            onReaderBusyChanged?.call(isBusy);
           }
         }
       });
@@ -111,6 +121,31 @@ class MosquittoPresenceService implements PresenceMqttService {
       _connected = false;
       onConnectionChanged(false);
     }
+  }
+
+  /// Interpreta payload do tópico de gravação de tag NFC (US-10).
+  static bool _isWritingPayloadBusy(String rawPayload) {
+    final trimmed = rawPayload.trim();
+    if (trimmed.isEmpty) return false;
+    final lower = trimmed.toLowerCase();
+    if (lower == '1' || lower == 'true' || lower == 'busy' || lower == 'writing') {
+      return true;
+    }
+    if (lower == '0' || lower == 'false' || lower == 'idle') {
+      return false;
+    }
+    try {
+      final decoded = jsonDecode(trimmed);
+      if (decoded is Map) {
+        if (decoded.containsKey('busy')) {
+          return decoded['busy'] == true || decoded['busy'] == 1;
+        }
+        if (decoded.containsKey('writing')) {
+          return decoded['writing'] == true || decoded['writing'] == 1;
+        }
+      }
+    } catch (_) {}
+    return false;
   }
 
   /// Interpreta o payload publicado pelo ESP32 em `terminal/{id}/presence`.

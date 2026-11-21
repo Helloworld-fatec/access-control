@@ -7,6 +7,7 @@ import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
 import { removePhotoFile, resolvePhotoPath } from "../config/photos.js";
 import { AppError } from "../middlewares/error.middleware.js";
+import { enrollUserInFaceService } from "../services/face-service.client.js";
 import {
   createNfcTagSchema,
   createUserSchema,
@@ -32,7 +33,7 @@ async function assertUnique(
   document: string | undefined,
   ignoreId?: string,
 ) {
-  const or: Prisma.userWhereInput[] = [];
+  const or: Prisma.UserWhereInput[] = [];
   if (email) or.push({ email });
   if (document) or.push({ document });
   if (or.length === 0) return;
@@ -50,7 +51,7 @@ async function assertUnique(
 export async function listUsers(req: Request, res: Response) {
   const q = listUsersQuerySchema.parse(req.query);
 
-  const where: Prisma.userWhereInput = {
+  const where: Prisma.UserWhereInput = {
     ...(q.role ? { role: q.role } : {}),
     ...(q.active !== undefined ? { active: q.active } : {}),
     ...(q.search
@@ -182,7 +183,7 @@ export async function upsertFace(req: Request, res: Response) {
 
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, photo: { select: { filePath: true } } },
+      select: { id: true, name: true, photo: { select: { filePath: true } } },
     });
     if (!user) throw userNotFound();
 
@@ -216,6 +217,13 @@ export async function upsertFace(req: Request, res: Response) {
     // Só apaga a foto antiga depois de o banco apontar para a nova.
     if (file && user.photo && user.photo.filePath !== file.filename) {
       await removePhotoFile(user.photo.filePath);
+    }
+
+    if (file) {
+      try {
+        const photoBuffer = fs.readFileSync(file.path);
+        void enrollUserInFaceService(id, user.name, photoBuffer);
+      } catch (_) {}
     }
 
     res.status(201).json({ hasFace: true, hasPhoto: Boolean(file || user.photo) });

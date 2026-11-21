@@ -7,7 +7,6 @@ import 'package:mobile_readings/config/terminal_config.dart';
 import 'package:mobile_readings/screens/terminal_screen.dart';
 import 'package:mobile_readings/services/api_client.dart';
 import 'package:mobile_readings/services/mqtt_presence_service.dart';
-import 'package:mobile_readings/services/nfc_service.dart';
 import 'package:mobile_readings/state/terminal_controller.dart';
 
 class _InMemoryConfigStorage implements ConfigStorage {
@@ -23,44 +22,24 @@ class _InMemoryConfigStorage implements ConfigStorage {
   }
 }
 
-class _FakeNfcService implements NfcReaderService {
-  bool listening = false;
-  void Function(String uid)? onTagCallback;
-
-  @override
-  Future<NfcHardwareStatus> checkAvailability() async =>
-      NfcHardwareStatus.available;
-
-  @override
-  Future<void> startListening({
-    required void Function(String uid) onTagRead,
-    void Function(String errorMessage)? onError,
-  }) async {
-    listening = true;
-    onTagCallback = onTagRead;
-  }
-
-  @override
-  Future<void> stopListening() async {
-    listening = false;
-  }
-}
-
 class _FakeMqttService implements PresenceMqttService {
   @override
   bool isConnected = true;
 
   void Function()? triggerPresence;
   void Function(bool connected)? triggerConnectionChanged;
+  void Function(bool busy)? triggerReaderBusy;
 
   @override
   Future<void> connect({
     required TerminalConfig config,
     required void Function() onPresenceDetected,
     required void Function(bool connected) onConnectionChanged,
+    void Function(bool isBusy)? onReaderBusyChanged,
   }) async {
     triggerPresence = onPresenceDetected;
     triggerConnectionChanged = onConnectionChanged;
+    triggerReaderBusy = onReaderBusyChanged;
     onConnectionChanged(isConnected);
   }
 
@@ -92,10 +71,12 @@ class _MockBackendHttp extends http.BaseClient {
       );
     }
 
-    if (path.endsWith('/access/nfc')) {
+    if (path.endsWith('/access/facial') ||
+        path.endsWith('/access/face') ||
+        path.endsWith('/access/nfc')) {
       final body = grantAccess
           ? {'result': 'GRANTED', 'message': 'Acesso liberado', 'userName': 'Ana'}
-          : {'result': 'DENIED', 'reason': 'UNAUTHORIZED'};
+          : {'result': 'DENIED', 'message': 'Não autorizado'};
       return http.StreamedResponse(
         Stream.value(utf8.encode(jsonEncode(body))),
         grantAccess ? 200 : 403,
@@ -103,18 +84,17 @@ class _MockBackendHttp extends http.BaseClient {
     }
 
     return http.StreamedResponse(
-      Stream.value(utf8.encode(jsonEncode({'online': true, 'presence': false}))),
+      Stream.value(utf8.encode('{}')),
       200,
     );
   }
 }
 
 void main() {
-  group('TerminalController — Máquina de Estados (US-04, US-11, US-13)', () {
+  group('TerminalController — Testes de Estado e Integração', () {
     late _InMemoryConfigStorage storage;
     late _MockBackendHttp mockHttp;
     late TerminalApiClient apiClient;
-    late _FakeNfcService nfcService;
     late _FakeMqttService mqttService;
     late TerminalController controller;
 
@@ -127,13 +107,11 @@ void main() {
         httpClient: mockHttp,
         maxRetries: 1,
       );
-      nfcService = _FakeNfcService();
       mqttService = _FakeMqttService();
 
       controller = TerminalController(
         configStorage: storage,
         apiClient: apiClient,
-        nfcService: nfcService,
         mqttService: mqttService,
         initialConfig: cfg,
         resultDisplayDuration: const Duration(milliseconds: 80),
@@ -148,40 +126,37 @@ void main() {
     test('inicia em Repouso e vai para Escuta ao detectar presença via MQTT',
         () async {
       expect(controller.state, equals(TerminalState.idle));
-      expect(nfcService.listening, isFalse);
 
       mqttService.triggerPresence!();
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
       expect(controller.state, equals(TerminalState.listening));
-      expect(nfcService.listening, isTrue);
       expect(controller.currentQrToken?.token, equals('TOKEN-123'));
       expect(controller.isQrUnavailable, isFalse);
     });
 
-    test('fluxo NFC aprovado: Escuta -> Validando -> Liberado -> Repouso',
+    test('fluxo facial aprovado: Escuta -> Validando -> Liberado -> Repouso',
         () async {
       controller.onPresenceDetected();
       await Future<void>.delayed(const Duration(milliseconds: 20));
       expect(controller.state, equals(TerminalState.listening));
 
       mockHttp.grantAccess = true;
-      await controller.onNfcTagRead('04A1B2C3');
+      await controller.onFaceIdentified(userId: 'u123', confidence: 0.95);
 
       expect(controller.state, equals(TerminalState.granted));
       expect(controller.lastAccessResult?.isGranted, isTrue);
 
       await Future<void>.delayed(const Duration(milliseconds: 120));
       expect(controller.state, equals(TerminalState.idle));
-      expect(nfcService.listening, isFalse);
     });
 
-    test('fluxo NFC negado: Escuta -> Validando -> Negado -> Escuta', () async {
+    test('fluxo facial negado: Escuta -> Validando -> Negado -> Escuta', () async {
       controller.onPresenceDetected();
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
       mockHttp.grantAccess = false;
-      await controller.onNfcTagRead('04A1B2C3');
+      await controller.onFaceIdentified(userId: 'u123', confidence: 0.95);
 
       expect(controller.state, equals(TerminalState.denied));
       expect(controller.lastAccessResult?.isGranted, isFalse);
@@ -200,6 +175,41 @@ void main() {
       expect(controller.isQrUnavailable, isTrue);
       expect(controller.currentQrToken, isNull);
     });
+
+    test('sinaliza leitor ocupado quando recebe evento MQTT de gravação (US-10)',
+        () async {
+      expect(controller.isReaderBusy, isFalse);
+
+      mqttService.triggerReaderBusy?.call(true);
+      expect(controller.isReaderBusy, isTrue);
+
+      mqttService.triggerReaderBusy?.call(false);
+      expect(controller.isReaderBusy, isFalse);
+    });
+
+    test('rejeita biometria com luz fraca com aviso acessível (US-19, US-20)',
+        () async {
+      controller.onPresenceDetected();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      await controller.evaluateCapturedFace([0.1, 0.2, 0.3], lightLevel: 0.2);
+      expect(controller.statusMessage, contains('Iluminação insuficiente'));
+    });
+
+    test('executa ensaio E2E completo até liberação de trava (US-22)', () async {
+      expect(controller.state, equals(TerminalState.idle));
+      mockHttp.grantAccess = true;
+
+      final demoFuture = controller.runE2eDemo();
+      expect(controller.isE2eDemoRunning, isTrue);
+
+      await Future<void>.delayed(const Duration(milliseconds: 1000));
+      expect(controller.state, equals(TerminalState.listening));
+      expect(controller.isFaceModeEnabled, isTrue);
+
+      await demoFuture;
+      expect(controller.isE2eDemoRunning, isFalse);
+    });
   });
 
   group('TerminalScreen — Testes de Widget (US-21)', () {
@@ -214,7 +224,6 @@ void main() {
           httpClient: mockHttp,
           maxRetries: 1,
         ),
-        nfcService: _FakeNfcService(),
         mqttService: _FakeMqttService(),
         initialConfig: cfg,
         resultDisplayDuration: const Duration(seconds: 10),
@@ -236,13 +245,15 @@ void main() {
       expect(find.byKey(const Key('view_state_listening')), findsOneWidget);
       expect(find.byKey(const Key('qr_code_box')), findsOneWidget);
 
-      // 3. Simula aprovação NFC -> Tela Liberado
+      // 3. Simula aprovação facial -> Tela Liberado
       mockHttp.grantAccess = true;
-      await controller.onNfcTagRead('04A1B2C3');
+      await controller.onFaceIdentified(userId: 'u123', confidence: 0.95);
       await tester.pump();
 
       expect(find.byKey(const Key('view_state_granted')), findsOneWidget);
       expect(find.text('Acesso liberado'), findsOneWidget);
+      expect(find.byKey(const Key('relay_lock_feedback_box')), findsOneWidget);
+      expect(find.text('Trava Solenoide / Relé'), findsOneWidget);
 
       controller.dispose();
     });

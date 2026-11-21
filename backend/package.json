@@ -4,9 +4,12 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-  "test": "npx prisma generate && vitest run",
-  "test:watch": "vitest"
-},
+    "dev": "node start-dev.js",
+    "build": "tsc",
+    "start": "node dist/src/server.js",
+    "test": "npx prisma generate && vitest run",
+    "test:watch": "vitest"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
