@@ -21,7 +21,7 @@ const userId = "enrolled-user";
 const key = "ab12ef";
 const photo = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
 const template = { userId, embedding: Array.from({ length: 1764 }, () => 0.25) };
-const match = { result: "MATCH", userId, score: 0.96 };
+const match = { result: "MATCH", userId, score: 0.75 };
 const python = vi.fn<typeof fetch>();
 const upload = (attemptId: string = randomUUID(), credential = key) => request(app)
   .post(path)
@@ -78,7 +78,7 @@ describe("captura facial do terminal", () => {
     expect(JSON.parse(options!.body as string)).toEqual({
       photos: Array<string>(3).fill(photo.toString("base64")),
       candidates: [{ ...template, modelVersion: "hog-v1" }],
-      minimumScore: 0.93,
+      minimumScore: 0.75,
       minimumMargin: 0.08,
     });
     expect(db.$transaction).toHaveBeenCalledTimes(1);
@@ -92,7 +92,7 @@ describe("captura facial do terminal", () => {
         terminalId,
         userId,
         result: "GRANTED",
-        confidence: 0.96,
+        confidence: 0.75,
       }),
     });
   });

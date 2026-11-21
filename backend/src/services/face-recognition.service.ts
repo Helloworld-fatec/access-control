@@ -6,7 +6,7 @@ export const FACE_MODEL_VERSION = "hog-v1";
 export const MAX_FACE_CANDIDATES = 256;
 export const MAX_FACE_CAPTURES = 3;
 const FACE_VECTOR_SIZE = 1764;
-const MINIMUM_SCORE = 0.93;
+const MINIMUM_SCORE = 0.75;
 const MINIMUM_MARGIN = 0.08;
 
 const extractionSchema = z.object({

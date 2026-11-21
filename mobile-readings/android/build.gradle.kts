@@ -26,14 +26,25 @@ subprojects {
             if (android != null) {
                 try {
                     val method = android.javaClass.getMethod("compileSdkVersion", Int::class.javaPrimitiveType)
-                    method.invoke(android, 35)
+                    method.invoke(android, 36)
                 } catch (_: Exception) {
                     try {
                         val method = android.javaClass.getMethod("setCompileSdkVersion", Int::class.javaPrimitiveType)
-                        method.invoke(android, 35)
+                        method.invoke(android, 36)
                     } catch (_: Exception) {}
                 }
             }
+        }
+    }
+}
+
+subprojects {
+    if (name == "camera_android_camerax") {
+        plugins.withId("com.android.library") {
+            dependencies.add(
+                "implementation",
+                "androidx.concurrent:concurrent-futures:1.2.0"
+            )
         }
     }
 }

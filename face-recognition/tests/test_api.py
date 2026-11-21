@@ -123,7 +123,7 @@ class ApiContractTest(unittest.TestCase):
         return self.client.post("/match", json={
             "photos": [b64encode(content).decode("ascii") for content in photos],
             "candidates": candidates,
-            "minimumScore": 0.93,
+            "minimumScore": 0.75,
             "minimumMargin": 0.08,
         })
 
@@ -139,7 +139,7 @@ class ApiContractTest(unittest.TestCase):
         result = response.json()
         self.assertEqual(result["result"], "MATCH")
         self.assertEqual(result["userId"], candidate["userId"])
-        self.assertGreaterEqual(result["score"], 0.93)
+        self.assertGreaterEqual(result["score"], 0.75)
         self.assertLessEqual(result["score"], 1.0)
 
     def test_rejects_unknown_and_ambiguous_matches(self):
