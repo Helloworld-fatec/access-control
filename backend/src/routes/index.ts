@@ -7,6 +7,7 @@ import { authorizationRoutes } from "./authorization.routes.js";
 import { accessLogRoutes } from "./access-log.routes.js";
 import { authRoutes } from "./auth.routes.js";
 import { accessRoutes } from "./access.routes.js";
+import { dashboardRoutes } from "./dashboard.routes.js";
 
 export const routes = Router();
 
@@ -313,3 +314,4 @@ routes.use("/terminals", terminalRoutes);
 routes.use("/authorizations", authorizationRoutes);
 routes.use("/access-logs", accessLogRoutes);
 routes.use("/access", accessRoutes);
+routes.use("/dashboard", dashboardRoutes);

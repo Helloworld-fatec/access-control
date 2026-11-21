@@ -65,7 +65,7 @@ export default function UsersPage() {
                       <td>{ROLE_LABEL[u.role]}</td>
                       <td><Badge tone={u.active ? "ok" : "muted"}>{u.active ? "Ativo" : "Inativo"}</Badge></td>
                       <td>{u.email}</td>
-                      <td>{u.phone ?? "—"}</td>
+                      <td>{u.phone || "—"}</td>
                     </tr>
                   ))}
                 </tbody>

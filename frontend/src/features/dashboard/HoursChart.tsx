@@ -2,7 +2,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import type { HourBucket } from "../../shared/types";
 
 const GRANTED = "#1c6b45";
-const DENIED = "#B51F2E";
+const DENIED = "#D81E3F";
 const label = (h: number) => `${String(h).padStart(2, "0")}h`;
 
 /** Acessos por hora. O gráfico não carrega a informação sozinho: há legenda em texto e uma tabela equivalente. */
@@ -18,8 +18,8 @@ export default function HoursChart({ data }: { data: HourBucket[] }) {
       <div role="img" aria-label="Gráfico de barras empilhadas com acessos liberados e negados por hora do dia. Os mesmos dados estão na tabela abaixo.">
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={rows} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#BBC9D1" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#4A5E6A" }} interval={1} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#D3DAE4" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#4A5565" }} interval={1} />
             <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#4A5E6A" }} />
             <Tooltip />
             <Legend />

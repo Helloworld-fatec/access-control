@@ -25,7 +25,7 @@ const useDashboard = () =>
   server.use(
     http.get(`${API}/dashboard/summary`, () => HttpResponse.json(summary)),
     http.get(`${API}/dashboard/accesses-by-hour`, () => HttpResponse.json(hours)),
-    http.get(`${API}/terminals/t1/status`, () => HttpResponse.json(status)),
+    http.get(`${API}/terminals/status`, () => HttpResponse.json({ data: [status] })),
     http.get(`${API}/access-logs`, () => HttpResponse.json(page([log]))),
   );
 
@@ -68,6 +68,7 @@ describe("DashboardPage", () => {
     expect(await within(card).findByText("Online")).toBeInTheDocument();
     expect(within(card).getByText("Pessoa detectada")).toBeInTheDocument();
     expect(within(card).getByText("Destrancada")).toBeInTheDocument();
+    expect(within(card).getByText("Visto pela última vez")).toBeInTheDocument();
   });
 
   it("lista os últimos acessos", async () => {
@@ -83,7 +84,7 @@ describe("DashboardPage", () => {
     server.use(
       http.get(`${API}/dashboard/summary`, () => HttpResponse.json({ error: { code: "NOT_FOUND", message: "Rota não encontrada" } }, { status: 404 })),
       http.get(`${API}/dashboard/accesses-by-hour`, () => HttpResponse.json({ error: { code: "NOT_FOUND", message: "Rota não encontrada" } }, { status: 404 })),
-      http.get(`${API}/terminals/t1/status`, () => HttpResponse.json(status)),
+      http.get(`${API}/terminals/status`, () => HttpResponse.json({ data: [status] })),
       http.get(`${API}/access-logs`, () => HttpResponse.json(page([]))),
     );
     renderApp(<DashboardPage />);
@@ -92,16 +93,16 @@ describe("DashboardPage", () => {
     expect(alerts[0]).toHaveTextContent("npm run dev:mock");
   });
 
-  it("avisa que o status do terminal só vale para o próprio terminal (403)", async () => {
+  it("avisa no cartão quando o status dos terminais falha", async () => {
     server.use(
       http.get(`${API}/dashboard/summary`, () => HttpResponse.json(summary)),
       http.get(`${API}/dashboard/accesses-by-hour`, () => HttpResponse.json(hours)),
-      http.get(`${API}/terminals/t1/status`, () => HttpResponse.json({ error: { code: "UNAUTHORIZED", message: "Chave do terminal inválida" } }, { status: 401 })),
+      http.get(`${API}/terminals/status`, () => HttpResponse.json({ error: { code: "INTERNAL_ERROR", message: "Erro interno do servidor" } }, { status: 500 })),
       http.get(`${API}/access-logs`, () => HttpResponse.json(page([]))),
     );
     renderApp(<DashboardPage />);
     const card = await screen.findByRole("article", { name: "Terminal Portaria A" });
-    expect(await within(card).findByRole("alert")).toHaveTextContent("exige a chave do terminal");
+    expect(await within(card).findByRole("alert")).toHaveTextContent("Status indisponível");
   });
 
   it("permite pausar a atualização automática", async () => {
