@@ -25,8 +25,8 @@ Future<void> main() async {
     await WakelockPlus.enable();
   } catch (_) {}
 
-  final configStorage = const LocalConfigStorage();
-  final initialConfig = await configStorage.load();
+  const configStorage = LocalConfigStorage();
+  const initialConfig = TerminalConfig();
   final apiClient = TerminalApiClient(config: initialConfig);
   final mqttService = PresenceMqttService();
   final faceService = FaceSyncService();
@@ -39,7 +39,7 @@ Future<void> main() async {
     initialConfig: initialConfig,
   );
 
-  // Renderiza a interface imediatamente, sem travar a abertura com I/O de rede
+  // Renderiza a interface imediatamente, sem travar a abertura com I/O de rede ou disco
   runApp(MobileReadingsApp(controller: controller));
 
   unawaited(controller.initialize());

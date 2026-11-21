@@ -185,7 +185,10 @@ class LocalConfigStorage implements ConfigStorage {
 
   const LocalConfigStorage({
     FlutterSecureStorage? secureStorage,
-  }) : _secureStorage = secureStorage ?? const FlutterSecureStorage();
+  }) : _secureStorage = secureStorage ??
+            const FlutterSecureStorage(
+              aOptions: AndroidOptions(encryptedSharedPreferences: true),
+            );
 
   @override
   Future<TerminalConfig> load() async {
@@ -193,10 +196,16 @@ class LocalConfigStorage implements ConfigStorage {
     String apiKey = '';
     String mqttPassword = '';
     try {
-      apiKey = await _secureStorage.read(key: _kSecureApiKey) ?? '';
-      mqttPassword = await _secureStorage.read(key: _kSecureMqttPassword) ?? '';
+      apiKey = await _secureStorage
+              .read(key: _kSecureApiKey)
+              .timeout(const Duration(milliseconds: 800), onTimeout: () => '') ??
+          '';
+      mqttPassword = await _secureStorage
+              .read(key: _kSecureMqttPassword)
+              .timeout(const Duration(milliseconds: 800), onTimeout: () => '') ??
+          '';
     } catch (_) {
-      // Fallback caso o ambiente desktop/web de desenvolvimento não suporte keystore nativo
+      // Fallback caso o ambiente desktop/web ou o keystore nativo demore ou falhe
       apiKey = prefs.getString(_kSecureApiKey) ?? '';
       mqttPassword = prefs.getString(_kSecureMqttPassword) ?? '';
     }
