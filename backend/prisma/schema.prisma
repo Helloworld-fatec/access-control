@@ -16,7 +16,7 @@ datasource db {
 
 // ───────────── Usuários e credenciais ─────────────
 
-model user {
+model User {
   id           String   @id @default(uuid())
   name         String
   document     String?  @unique
@@ -28,32 +28,32 @@ model user {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  nfcTags        nfctag[]
-  faceTemplate   facetemplate?
-  photo          userphoto?
-  authorizations authorization[] @relation("authorization_user")
-  createdAuths   authorization[] @relation("authorization_created_by")
-  canceledAuths  authorization[] @relation("authorization_canceled_by")
-  accessLogs     accesslog[]
+  nfcTags        NfcTag[]
+  faceTemplate   FaceTemplate?
+  photo          UserPhoto?
+  authorizations Authorization[] @relation("AuthorizationUser")
+  createdAuths   Authorization[] @relation("AuthorizationCreatedBy")
+  canceledAuths  Authorization[] @relation("AuthorizationCanceledBy")
+  accessLogs     AccessLog[]
 
   @@index([role, active])
   @@map("users")
 }
 
-model nfctag {
+model NfcTag {
   id        String   @id @default(uuid())
   uid       String   @unique // hexadecimal em maiúsculas, padronizado
   userId    String
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  user user @relation(fields: [userId], references: [id], onDelete: Cascade, map: "nfc_tags_user_id_fkey")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, map: "nfc_tags_user_id_fkey")
 
   @@index([userId], map: "nfc_tags_user_id_idx")
   @@map("nfc_tags")
 }
 
-model facetemplate {
+model FaceTemplate {
   id           String   @id @default(uuid())
   userId       String   @unique(map: "face_templates_user_id_key")
   embedding    Float[] // vetor (ex.: 128 floats), nunca a imagem
@@ -62,12 +62,12 @@ model facetemplate {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  user user @relation(fields: [userId], references: [id], onDelete: Cascade, map: "face_templates_user_id_fkey")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, map: "face_templates_user_id_fkey")
 
   @@map("face_templates")
 }
 
-model userphoto {
+model UserPhoto {
   id        String   @id @default(uuid())
   userId    String   @unique(map: "user_photos_user_id_key")
   filePath  String // caminho relativo dentro de PHOTOS_DIR
@@ -75,14 +75,14 @@ model userphoto {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
-  user user @relation(fields: [userId], references: [id], onDelete: Cascade, map: "user_photos_user_id_fkey")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, map: "user_photos_user_id_fkey")
 
   @@map("user_photos")
 }
 
 // ───────────── Locais e terminais ─────────────
 
-model location {
+model Location {
   id          String  @id @default(uuid())
   building    String
   entrance    String? // portaria
@@ -90,14 +90,14 @@ model location {
   turnstile   String? // catraca
   description String?
 
-  terminals      terminal[]
-  authorizations authorization[]
+  terminals      Terminal[]
+  authorizations Authorization[]
 
   @@unique([building, entrance, door, turnstile], map: "locations_building_entrance_door_turnstile_key")
   @@map("locations")
 }
 
-model terminal {
+model Terminal {
   id             String    @id @default(uuid())
   name           String
   locationId     String
@@ -110,9 +110,9 @@ model terminal {
   lastSeenAt     DateTime?
   createdAt      DateTime  @default(now())
 
-  location   location   @relation(fields: [locationId], references: [id], map: "terminals_location_id_fkey")
-  accessLogs accesslog[]
-  qrNonces   qrnonce[]
+  location   Location    @relation(fields: [locationId], references: [id], map: "terminals_location_id_fkey")
+  accessLogs AccessLog[]
+  qrNonces   QrNonce[]
 
   @@index([locationId], map: "terminals_location_id_idx")
   @@map("terminals")
@@ -120,7 +120,7 @@ model terminal {
 
 // ───────────── Autorizações ─────────────
 
-model authorization {
+model Authorization {
   id           String   @id @default(uuid())
   userId       String
   locationId   String
@@ -137,11 +137,11 @@ model authorization {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  user       user     @relation("authorization_user", fields: [userId], references: [id], onDelete: Cascade, map: "authorizations_user_id_fkey")
-  location   location @relation(fields: [locationId], references: [id], map: "authorizations_location_id_fkey")
-  createdBy  user     @relation("authorization_created_by", fields: [createdById], references: [id], map: "authorizations_created_by_id_fkey")
-  canceledBy user?    @relation("authorization_canceled_by", fields: [canceledById], references: [id], map: "authorizations_canceled_by_id_fkey")
-  accessLogs accesslog[]
+  user       User      @relation("AuthorizationUser", fields: [userId], references: [id], onDelete: Cascade, map: "authorizations_user_id_fkey")
+  location   Location  @relation(fields: [locationId], references: [id], map: "authorizations_location_id_fkey")
+  createdBy  User      @relation("AuthorizationCreatedBy", fields: [createdById], references: [id], map: "authorizations_created_by_id_fkey")
+  canceledBy User?     @relation("AuthorizationCanceledBy", fields: [canceledById], references: [id], map: "authorizations_canceled_by_id_fkey")
+  accessLogs AccessLog[]
 
   @@index([userId, locationId, status], map: "authorizations_user_location_status_idx")
   @@index([endDate], map: "authorizations_end_date_idx")
@@ -151,7 +151,7 @@ model authorization {
 
 // ───────────── Histórico e anti-replay ─────────────
 
-model accesslog {
+model AccessLog {
   id              String   @id @default(uuid())
   userId          String?
   terminalId      String
@@ -165,9 +165,9 @@ model accesslog {
   commandAcked    Boolean?
   createdAt       DateTime @default(now())
 
-  user          user?          @relation(fields: [userId], references: [id], onDelete: SetNull, map: "access_logs_user_id_fkey")
-  terminal      terminal       @relation(fields: [terminalId], references: [id], map: "access_logs_terminal_id_fkey")
-  authorization authorization? @relation(fields: [authorizationId], references: [id], onDelete: SetNull, map: "access_logs_authorization_id_fkey")
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull, map: "access_logs_user_id_fkey")
+  terminal      Terminal       @relation(fields: [terminalId], references: [id], map: "access_logs_terminal_id_fkey")
+  authorization Authorization? @relation(fields: [authorizationId], references: [id], onDelete: SetNull, map: "access_logs_authorization_id_fkey")
 
   @@index([createdAt], map: "access_logs_created_at_idx")
   @@index([userId, createdAt], map: "access_logs_user_created_at_idx")
@@ -175,13 +175,13 @@ model accesslog {
   @@map("access_logs")
 }
 
-model qrnonce {
+model QrNonce {
   nonce      String   @id // SHA-256 do token QR; nunca guardar o token em claro
   terminalId String
   expiresAt  DateTime
   consumedAt DateTime?
 
-  terminal terminal @relation(fields: [terminalId], references: [id], onDelete: Cascade, map: "qr_nonces_terminal_id_fkey")
+  terminal Terminal @relation(fields: [terminalId], references: [id], onDelete: Cascade, map: "qr_nonces_terminal_id_fkey")
 
   @@index([expiresAt], map: "qr_nonces_expires_at_idx") // para limpeza periódica
   @@map("qr_nonces")
