@@ -57,6 +57,12 @@ async function start() {
     console.log('[Dev] Serviço Facial Python HOG já está ativo na porta 8000.');
   }
 
+  try {
+    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+  } catch (err) {
+    console.warn('[Dev] Aviso ao verificar migrations:', err.message);
+  }
+
   const tsx = spawn('npx', ['tsx', 'watch', 'src/server.ts'], {
     stdio: 'inherit',
     shell: true,
