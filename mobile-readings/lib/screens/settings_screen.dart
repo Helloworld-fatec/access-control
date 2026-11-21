@@ -31,7 +31,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _faceThresholdCtrl;
 
   late bool _useHttps;
-  late bool _simulationMode;
   late bool _voiceAccessibility;
   late bool _kioskMode;
   late bool _preferFaceAuth;
@@ -57,7 +56,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       text: cfg.faceSimilarityThreshold.toStringAsFixed(2),
     );
     _useHttps = cfg.useHttps;
-    _simulationMode = cfg.simulationMode;
     _voiceAccessibility = cfg.voiceAccessibilityEnabled;
     _kioskMode = cfg.kioskModeEnabled;
     _preferFaceAuth = cfg.preferFaceAuth;
@@ -96,7 +94,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       faceSimilarityThreshold: double.parse(
         _faceThresholdCtrl.text.trim().replaceAll(',', '.'),
       ),
-      simulationMode: _simulationMode,
+      simulationMode: false,
       voiceAccessibilityEnabled: _voiceAccessibility,
       kioskModeEnabled: _kioskMode,
       preferFaceAuth: _preferFaceAuth,
@@ -122,16 +120,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Modo de Simulação (Mock Local)'),
-              subtitle: const Text(
-                'Permite testar QR Code e leitura NFC sem precisar do backend ou broker MQTT ativos.',
-              ),
-              value: _simulationMode,
-              onChanged: (v) => setState(() => _simulationMode = v),
-            ),
-            const Divider(),
             const Text(
               'Servidor Backend (API REST)',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),

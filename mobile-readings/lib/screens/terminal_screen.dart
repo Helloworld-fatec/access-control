@@ -54,12 +54,9 @@ class TerminalScreen extends StatelessWidget {
     required Color foregroundColor,
   }) {
     final mqttOnline = controller.isMqttConnected;
-    final simMode = controller.config.simulationMode;
 
     String connLabel;
-    if (simMode) {
-      connLabel = 'MODO SIMULAÇÃO';
-    } else if (mqttOnline) {
+    if (mqttOnline) {
       connLabel = 'MQTT: Conectado';
     } else if (controller.isFallbackPollingActive) {
       connLabel = 'MQTT: Offline (Polling HTTP ativo)';
@@ -74,7 +71,7 @@ class TerminalScreen extends StatelessWidget {
       title: Row(
         children: [
           Icon(
-            mqttOnline || simMode ? Icons.cloud_done : Icons.cloud_off,
+            mqttOnline ? Icons.cloud_done : Icons.cloud_off,
             size: 18,
             color: foregroundColor,
           ),
@@ -156,26 +153,6 @@ class TerminalScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
-              SizedBox(
-                height: 48,
-                child: FilledButton.icon(
-                  key: const Key('btn_run_e2e_demo'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF31566A),
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed:
-                      controller.isE2eDemoRunning ? null : controller.runE2eDemo,
-                  icon: const Icon(Icons.play_circle_outline),
-                  label: Text(
-                    controller.isE2eDemoRunning
-                        ? (controller.e2eDemoStep ?? 'Executando ensaio...')
-                        : 'Ensaio E2E Completo (US-22)',
-                    style: const TextStyle(fontSize: 15),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -227,41 +204,6 @@ class TerminalScreen extends StatelessWidget {
                               'Leitor ocupado gravando tag NFC. Aguarde um instante...',
                               style: TextStyle(
                                 color: Color(0xFF856404),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
-                  // Banner de progresso do Ensaio E2E Automatizado (US-22)
-                  if (controller.isE2eDemoRunning) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE0F7FA),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF80DEEA)),
-                      ),
-                      child: Row(
-                        children: [
-                          const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2.5),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              controller.e2eDemoStep ??
-                                  'Ensaio E2E em andamento...',
-                              style: const TextStyle(
-                                color: Color(0xFF006064),
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
@@ -372,18 +314,16 @@ class TerminalScreen extends StatelessWidget {
 
         const SizedBox(height: 16),
 
-        // Botões de Ação e Reconhecimento Facial (US-16, US-17, US-18, US-19)
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          alignment: WrapAlignment.center,
+        // Botão de Ação: Validação Biométrica Oficial (US-16, US-17, US-18)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             FilledButton.icon(
               key: const Key('btn_sim_face_valid'),
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF2E7D32),
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
               ),
               onPressed: () {
                 _viewfinderKey.currentState?.captureAndValidate();
@@ -394,26 +334,9 @@ class TerminalScreen extends StatelessWidget {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
-            OutlinedButton.icon(
-              key: const Key('btn_sim_face_denied'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFB51F2E),
-                side: const BorderSide(color: Color(0xFFB51F2E)),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              ),
-              onPressed: controller.simulateFaceAccessDenied,
-              icon: const Icon(Icons.highlight_off),
-              label: const Text('Face Não Cadastrada'),
-            ),
-            OutlinedButton.icon(
-              key: const Key('btn_sim_face_low_light'),
-              onPressed: controller.simulateFaceLowLight,
-              icon: const Icon(Icons.nightlight_round),
-              label: const Text('Testar Luz Fraca (US-19)'),
-            ),
+            const SizedBox(width: 12),
             IconButton.filledTonal(
-              tooltip: 'Ressincronizar biometrias locais',
+              tooltip: 'Sincronizar biometrias',
               icon: const Icon(Icons.sync),
               onPressed: controller.syncFaceEmbeddings,
             ),
@@ -558,41 +481,6 @@ class TerminalScreen extends StatelessWidget {
             ],
           ),
         ),
-
-        // Controles auxiliares quando o Modo de Simulação estiver ativo ou sem hardware NFC
-        if (controller.config.simulationMode ||
-            nfcStatus != NfcHardwareStatus.available) ...[
-          const SizedBox(height: 18),
-          const Divider(),
-          const Text(
-            'Simulação de Leitura NFC (Modo de Teste)',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            alignment: WrapAlignment.center,
-            children: [
-              ElevatedButton.icon(
-                key: const Key('btn_sim_nfc_valid'),
-                onPressed: () => controller.onNfcTagRead('04A1B2C3D4'),
-                icon: const Icon(Icons.check),
-                label: const Text('Simular Tag Autorizada'),
-              ),
-              OutlinedButton.icon(
-                key: const Key('btn_sim_nfc_invalid'),
-                onPressed: () => controller.onNfcTagRead('00000000'),
-                icon: const Icon(Icons.close),
-                label: const Text('Simular Tag Negada'),
-              ),
-            ],
-          ),
-        ],
       ],
     );
   }
