@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -37,9 +39,10 @@ Future<void> main() async {
     initialConfig: initialConfig,
   );
 
-  await controller.initialize();
-
+  // Renderiza a interface imediatamente, sem travar a abertura com I/O de rede
   runApp(MobileReadingsApp(controller: controller));
+
+  unawaited(controller.initialize());
 }
 
 class MobileReadingsApp extends StatelessWidget {

@@ -127,7 +127,7 @@ class TerminalController extends ChangeNotifier {
     _faceModeEnabled = _config.preferFaceAuth;
     _apiClient.updateConfig(_config);
     _notifySafely();
-    await _connectPresenceChannels();
+    unawaited(_connectPresenceChannels());
     unawaited(syncFaceEmbeddings());
   }
 
