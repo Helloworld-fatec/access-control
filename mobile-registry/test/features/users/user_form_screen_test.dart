@@ -79,10 +79,35 @@ void main() {
     expect(find.textContaining('Nenhum rosto'), findsOneWidget);
 
     adapter.routes['POST /users/u-1/face'] =
-        FakeAdapter.json(201, {'hasFace': true});
+        FakeAdapter.json(201, {'hasFace': true, 'hasPhoto': true});
     await tapVisible(tester, find.text('Tentar foto novamente'));
     expect(find.text('Rosto cadastrado'), findsOneWidget);
+    expect(find.bySemanticsLabel('Foto cadastrada'), findsOneWidget);
     expect(adapter.callsTo('PUT /users/u-1'), 0);
+  });
+
+  testWidgets('carrega a foto autenticada no cartão e na edição', (tester) async {
+    final bytes = File('../face-recognition/tests/astronaut.jpg').readAsBytesSync();
+    final adapter = RoutedAdapter({
+      'GET /users': usersPage([
+        userJson(hasPhoto: true),
+        userJson(id: 'u-2', name: 'Sem foto'),
+      ]),
+      'GET /users/u-1': FakeAdapter.json(200, detailJson(hasPhoto: true)),
+      'GET /users/u-1/photo': (options) async => ResponseBody.fromBytes(
+        bytes,
+        200,
+        headers: {Headers.contentTypeHeader: ['image/jpeg']},
+      ),
+    });
+    await start(tester, adapter);
+    expect(find.byType(Image), findsOneWidget);
+    expect(adapter.callsTo('GET /users/u-2/photo'), 0);
+    await tapVisible(tester, find.text('Maria Silva'));
+    expect(find.bySemanticsLabel('Foto cadastrada'), findsOneWidget);
+    final requests = adapter.requests.where((request) => request.path.endsWith('/photo'));
+    expect(requests, hasLength(2));
+    expect(requests.every((r) => r.headers['Authorization'] == 'Bearer tok-123'), isTrue);
   });
 
   testWidgets('salva edição e volta à lista após confirmar exclusão',

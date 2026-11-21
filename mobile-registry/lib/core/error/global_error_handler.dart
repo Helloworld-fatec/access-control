@@ -3,6 +3,8 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
+
 /// Tratamento global de erros (US-01): nada fecha o app em silêncio e, em
 /// produção, uma falha de tela mostra uma mensagem simples em vez da tela vermelha.
 void installGlobalErrorHandlers() {
@@ -30,7 +32,7 @@ class FriendlyErrorWidget extends StatelessWidget {
     return const Directionality(
       textDirection: TextDirection.ltr,
       child: ColoredBox(
-        color: Color(0xFFF7F7F4),
+        color: AppColors.background,
         child: Center(
           child: Padding(
             padding: EdgeInsets.all(24),
@@ -39,7 +41,7 @@ class FriendlyErrorWidget extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 20,
-                color: Color(0xFF1B2A33),
+                color: AppColors.textPrimary,
                 decoration: TextDecoration.none,
               ),
             ),

@@ -1,13 +1,39 @@
+import { mkdtemp, readFile, readdir, rmdir, unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "../config/env.js";
 import { app } from "../index.js";
 
-const db = vi.hoisted(() => ({ findUnique: vi.fn(), upsert: vi.fn() }));
-vi.mock("../config/prisma.js", () => ({
-  prisma: { user: { findUnique: db.findUnique }, facetemplate: { upsert: db.upsert } },
+const db = vi.hoisted(() => ({
+  findUnique: vi.fn(),
+  findUsers: vi.fn(),
+  countUsers: vi.fn(),
+  upsert: vi.fn(),
+  findPhoto: vi.fn(),
+  upsertPhoto: vi.fn(),
+  deleteFace: vi.fn(),
+  deletePhoto: vi.fn(),
+  lockUser: vi.fn(),
+  transaction: vi.fn(),
 }));
+vi.mock("../config/prisma.js", () => {
+  const client = {
+    user: { findUnique: db.findUnique, findMany: db.findUsers, count: db.countUsers },
+    facetemplate: { upsert: db.upsert, deleteMany: db.deleteFace },
+    userphoto: { findUnique: db.findPhoto, upsert: db.upsertPhoto, deleteMany: db.deletePhoto },
+    $queryRaw: db.lockUser,
+  };
+  return {
+    prisma: {
+      ...client,
+      $transaction: (work: ((tx: typeof client) => unknown) | Promise<unknown>[]) =>
+        Array.isArray(work) ? Promise.all(work) : db.transaction(() => work(client)),
+    },
+  };
+});
 
 const userId = "14825695-6cdb-4e40-a33e-94045475eabb";
 const endpoint = `/api/users/${userId}/face`;
@@ -15,27 +41,83 @@ const endpoint = `/api/users/${userId}/face`;
 const photo = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
 const result = { embedding: Array.from({ length: 1764 }, () => 0.25), modelVersion: "hog-v1" };
 const fetchFace = vi.fn<typeof fetch>();
+const originalPhotosDir = env.PHOTOS_DIR;
+let photosDir: string;
 
-function upload(consent = "true") {
-  const token = jwt.sign({ role: "ADMIN" }, env.JWT_SECRET, { subject: "admin" });
-  return request(app).post(endpoint).set("Authorization", `Bearer ${token}`).field("consent", consent);
+function bearer(role = "ADMIN", subject = "admin") {
+  return `Bearer ${jwt.sign({ role }, env.JWT_SECRET, { subject })}`;
 }
 
-beforeEach(() => {
+function upload(consent = "true") {
+  return request(app).post(endpoint).set("Authorization", bearer()).field("consent", consent);
+}
+
+beforeEach(async () => {
   vi.resetAllMocks();
+  photosDir = await mkdtemp(join(tmpdir(), "access-control-photos-"));
+  env.PHOTOS_DIR = photosDir;
   vi.stubGlobal("fetch", fetchFace);
-  db.findUnique.mockResolvedValueOnce({ active: true, role: "ADMIN" });
-  db.findUnique.mockResolvedValueOnce({ photo: null });
+  db.findUnique.mockResolvedValue({ id: userId, active: true, role: "ADMIN" });
+  db.lockUser.mockResolvedValue([{ id: userId }]);
+  db.transaction.mockImplementation((work) => work());
 });
-afterEach(() => vi.unstubAllGlobals());
+
+describe("leitura das fotos de usuários", () => {
+  const ownPhoto = "/api/users/me/photo";
+  const resident = bearer("RESIDENT", userId);
+
+  it("consulta a própria foto pelo JWT e reserva a consulta por ID ao administrador", async () => {
+    await writeFile(join(photosDir, "own.jpg"), photo);
+    db.findUnique.mockResolvedValue({ active: true, role: "RESIDENT" });
+    db.findPhoto.mockResolvedValue({ filePath: "own.jpg", mimeType: "image/jpeg" });
+    const response = await request(app).get(ownPhoto)
+      .query({ userId: "another-user" })
+      .set("Authorization", resident);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(photo);
+    expect(db.findPhoto).toHaveBeenCalledExactlyOnceWith({ where: { userId } });
+    expect((await request(app).get(`/api/users/${userId}/photo`)
+      .set("Authorization", resident)).status).toBe(403);
+    expect(db.findPhoto).toHaveBeenCalledTimes(1);
+  });
+
+  it("requer sessão e retorna 404 quando o usuário não tem foto", async () => {
+    expect((await request(app).get(ownPhoto)).status).toBe(401);
+    const response = await request(app).get(ownPhoto).set("Authorization", resident);
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe("PHOTO_NOT_FOUND");
+  });
+
+  it("inclui apenas o indicador de foto na listagem administrativa", async () => {
+    db.findUsers.mockResolvedValue([
+      { id: userId, photo: { id: "photo-id" } },
+      { id: "another-user", photo: null },
+    ]);
+    db.countUsers.mockResolvedValue(2);
+    const response = await request(app).get("/api/users").set("Authorization", bearer());
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual([
+      { id: userId, hasPhoto: true },
+      { id: "another-user", hasPhoto: false },
+    ]);
+  });
+});
+afterEach(async () => {
+  vi.unstubAllGlobals();
+  env.PHOTOS_DIR = originalPhotosDir;
+  for (const file of await readdir(photosDir)) {
+    await unlink(join(photosDir, file));
+  }
+  await rmdir(photosDir);
+});
 
 describe("POST /api/users/:id/face", () => {
-  it("forwards only the JPEG and saves the validated descriptor", async () => {
+  it("saves the descriptor and serves the persisted JPEG", async () => {
     fetchFace.mockResolvedValue(Response.json(result));
 
     const response = await upload().attach("photo", photo, "face.jpg");
     expect(response.status).toBe(201);
-    expect(response.body).toEqual({ hasFace: true, hasPhoto: false });
+    expect(response.body).toEqual({ hasFace: true, hasPhoto: true });
     const [url, options] = fetchFace.mock.calls[0]!;
     expect(url).toEqual(new URL("/extract", env.FACE_RECOGNITION_URL));
     const form = options?.body as FormData;
@@ -48,16 +130,33 @@ describe("POST /api/users/:id/face", () => {
       update: data,
       select: { id: true },
     });
+    const [filePath] = await readdir(photosDir);
+    expect(filePath).toMatch(/^[\da-f-]+\.jpg$/);
+    const photoData = { filePath, mimeType: "image/jpeg" };
+    expect(db.upsertPhoto).toHaveBeenCalledExactlyOnceWith({
+      where: { userId },
+      create: { userId, ...photoData },
+      update: photoData,
+      select: { id: true },
+    });
+    db.findPhoto.mockResolvedValue(photoData);
+    const saved = await request(app).get(`/api/users/${userId}/photo`).set("Authorization", bearer());
+    expect(saved.status).toBe(200);
+    expect(saved.headers["content-type"]).toBe("image/jpeg");
+    expect(saved.body).toEqual(photo);
   });
 
-  it("reports an existing saved photo without replacing it", async () => {
-    db.findUnique.mockReset()
-      .mockResolvedValueOnce({ active: true, role: "ADMIN" })
-      .mockResolvedValueOnce({ photo: { id: "old-photo" } });
+  it("replaces the previous photo after the transaction succeeds", async () => {
+    await writeFile(join(photosDir, "old.jpg"), "old");
+    db.findPhoto.mockResolvedValue({ filePath: "old.jpg" });
     fetchFace.mockResolvedValue(Response.json(result));
     const response = await upload().attach("photo", photo, "face.jpg");
     expect(response.status).toBe(201);
     expect(response.body.hasPhoto).toBe(true);
+    const files = await readdir(photosDir);
+    expect(files).toHaveLength(1);
+    expect(files[0]).not.toBe("old.jpg");
+    expect(await readFile(join(photosDir, files[0]!))).toEqual(photo);
   });
 
   it("requires authentication before processing the photo", async () => {
@@ -121,6 +220,7 @@ describe("POST /api/users/:id/face", () => {
     expect(response.status).toBe(422);
     expect(response.body.error.code).toBe("NO_FACE");
     expect(db.upsert).not.toHaveBeenCalled();
+    expect(await readdir(photosDir)).toEqual([]);
   });
 
   it("leaves the existing descriptor intact if the service is unreachable", async () => {
@@ -144,12 +244,34 @@ describe("POST /api/users/:id/face", () => {
     }
   });
 
-  it("reports database failures without including database input", async () => {
+  it("keeps the old JPEG and cleans up the new one on database failure", async () => {
+    await writeFile(join(photosDir, "old.jpg"), "old");
+    db.findPhoto.mockResolvedValue({ filePath: "old.jpg" });
     fetchFace.mockResolvedValue(Response.json(result));
-    db.upsert.mockRejectedValue(new Error("private database input"));
+    db.upsertPhoto.mockRejectedValue(new Error("private database input"));
     const response = await upload().attach("photo", photo, "face.jpg");
     expect(response.status).toBe(500);
     expect(response.body.error.code).toBe("FACE_PERSISTENCE_FAILED");
     expect(response.text).not.toContain("private database input");
+    expect(await readdir(photosDir)).toEqual(["old.jpg"]);
+  });
+
+  it("leaves the database untouched when the JPEG cannot be written", async () => {
+    env.PHOTOS_DIR = join(photosDir, "missing");
+    fetchFace.mockResolvedValue(Response.json(result));
+    const response = await upload().attach("photo", photo, "face.jpg");
+    expect(response.status).toBe(500);
+    expect(response.body.error.code).toBe("FACE_PERSISTENCE_FAILED");
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("removes the photo file when the face record is deleted", async () => {
+    await writeFile(join(photosDir, "old.jpg"), photo);
+    db.findPhoto.mockResolvedValue({ filePath: "old.jpg" });
+    const response = await request(app).delete(endpoint).set("Authorization", bearer());
+    expect(response.status).toBe(204);
+    expect(db.deleteFace).toHaveBeenCalledWith({ where: { userId } });
+    expect(db.deletePhoto).toHaveBeenCalledWith({ where: { userId } });
+    expect(await readdir(photosDir)).toEqual([]);
   });
 });

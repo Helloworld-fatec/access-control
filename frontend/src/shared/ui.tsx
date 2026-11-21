@@ -1,10 +1,14 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { ApiError } from "./api";
+import Logo from "./Logo";
 
 export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <header className="page-header">
-      <h1>{title}</h1>
+      <div className="page-title">
+        <Logo size={44} />
+        <h1>{title}</h1>
+      </div>
       <div className="row">{children}</div>
     </header>
   );

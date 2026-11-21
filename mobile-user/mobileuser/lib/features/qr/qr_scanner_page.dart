@@ -60,10 +60,11 @@ class _QrScannerPageState extends State<QrScannerPage>
       await _controller.start();
       if (mounted) setState(() => _cameraError = null);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _cameraError = 'Não foi possível iniciar a câmera. Verifique se ela está disponível e se o app tem permissão.',
         );
+      }
     }
   }
 
@@ -119,10 +120,11 @@ class _QrScannerPageState extends State<QrScannerPage>
     try {
       final response = await session.consumeQr(value);
       final granted = response['result'] == 'GRANTED';
-      if (!granted && response['result'] != 'DENIED')
+      if (!granted && response['result'] != 'DENIED') {
         throw const QrConsumeException(
           message: 'Resposta inesperada do servidor.',
         );
+      }
       if (!mounted) return;
       setState(() {
         _granted = granted;
@@ -174,12 +176,13 @@ class _QrScannerPageState extends State<QrScannerPage>
   };
 
   void _showNetworkFailure() {
-    if (mounted)
+    if (mounted) {
       setState(() {
         _resultTitle = 'Não foi possível confirmar';
         _resultMessage = 'Falha de rede. Não é possível afirmar que a porta abriu. Conecte-se à rede e leia um QR atualizado.';
         _granted = false;
       });
+    }
   }
 
   Future<void> _retry() async {
@@ -216,7 +219,7 @@ class _QrScannerPageState extends State<QrScannerPage>
   }
 
   Widget _scannerView() {
-    if (_cameraError != null)
+    if (_cameraError != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -251,6 +254,7 @@ class _QrScannerPageState extends State<QrScannerPage>
           ),
         ),
       );
+    }
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -272,7 +276,7 @@ class _QrScannerPageState extends State<QrScannerPage>
               width: 260,
               height: 260,
               decoration: BoxDecoration(
-                border: Border.all(color: AppColors.yellow, width: 4),
+                border: Border.all(color: AppColors.primary, width: 4),
                 borderRadius: BorderRadius.circular(24),
               ),
             ),
@@ -317,7 +321,7 @@ class _QrScannerPageState extends State<QrScannerPage>
             Icon(
               granted ? Icons.check_circle : Icons.error_outline,
               size: 88,
-              color: granted ? Colors.green : Colors.orange,
+              color: granted ? Colors.green : AppColors.danger,
             ),
             const SizedBox(height: 20),
             Text(

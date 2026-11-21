@@ -1,5 +1,6 @@
 // backend/src/config/photos.ts
 import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { env } from "./env.js";
 
@@ -19,6 +20,22 @@ export function resolvePhotoPath(relativePath: string): string {
     throw new Error("Caminho de foto inválido");
   }
   return full;
+}
+
+export async function savePhotoFile(photo: Buffer): Promise<string> {
+  const filePath = `${randomUUID()}.jpg`;
+  const file = await fs.promises.open(resolvePhotoPath(filePath), "wx");
+  try {
+    try {
+      await file.writeFile(photo);
+    } finally {
+      await file.close();
+    }
+    return filePath;
+  } catch (error) {
+    await removePhotoFile(filePath);
+    throw error;
+  }
 }
 
 /** Apaga o arquivo da foto. Ignora se ele já não existir. */

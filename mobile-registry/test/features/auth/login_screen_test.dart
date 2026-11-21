@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_registry/core/network/api_exception.dart';
 import 'package:mobile_registry/features/auth/data/auth_repository.dart';
 import 'package:mobile_registry/features/auth/presentation/login_screen.dart';
+import 'package:mobile_registry/features/auth/presentation/login_validators.dart';
 import 'package:mobile_registry/features/home/presentation/home_screen.dart';
 
 import '../../helpers/fake_adapter.dart';
@@ -31,6 +32,56 @@ Map<String, Object> error(String code, String message) => {
     };
 
 void main() {
+  test('normaliza endereço local ou hospedado para a base da API', () {
+    const addresses = {
+      ' 192.168.1.25:3333 ': 'http://192.168.1.25:3333/api',
+      'localhost:3333': 'http://localhost:3333/api',
+      'backend.local:80': 'http://backend.local/api',
+      'backend.onrender.com': 'https://backend.onrender.com/api',
+      'https://backend.onrender.com/api/': 'https://backend.onrender.com/api',
+      'http://[::1]:3333': 'http://[::1]:3333/api',
+    };
+    for (final entry in addresses.entries) {
+      expect(LoginValidators.parseServerAddress(entry.key).toString(), entry.value);
+    }
+    for (final invalid in [
+      '192.168.1.256:3333',
+      'localhost:0',
+      'localhost:65536',
+      'localhost:',
+      'ftp://backend.example.com',
+      'https://user@backend.example.com',
+      'https://backend.example.com/api?foo=1',
+      'https://backend.example.com/login',
+    ]) {
+      expect(LoginValidators.parseServerAddress(invalid), isNull, reason: invalid);
+    }
+  });
+
+  testWidgets('teste de conexão e login usam o esquema do endereço informado', (tester) async {
+    final adapter = RoutedAdapter({
+      'GET /health': FakeAdapter.json(200, {'status': 'ok'}),
+      'POST /login': loginOk(),
+      'GET /users': usersPage([]),
+    });
+    final env = await buildTestEnv(tester, adapter: adapter);
+    await tester.pumpWidget(env.widget);
+    await tester.pumpAndSettle();
+
+    final address = field('Endereço do servidor');
+    expect(address, findsOneWidget);
+    expect(field('Porta'), findsNothing);
+    await tester.enterText(address, '192.168.1.25:3333');
+    await tapVisible(tester, find.text('Testar conexão'));
+    expect(adapter.requests.single.uri.toString(), 'http://192.168.1.25:3333/api/health');
+    expect(find.text('Conexão com o servidor confirmada.'), findsOneWidget);
+
+    await tester.enterText(address, 'https://backend.onrender.com/api/');
+    await fillAndSubmit(tester);
+    expect(adapter.requests[1].uri.toString(), 'https://backend.onrender.com/api/login');
+    expect(adapter.requests[2].uri.toString(), startsWith('https://backend.onrender.com/api/users'));
+  });
+
   testWidgets('mostra e-mail, senha, "Mostrar senha"', (tester) async {
     final env = await buildTestEnv(tester);
     await tester.pumpWidget(env.widget);

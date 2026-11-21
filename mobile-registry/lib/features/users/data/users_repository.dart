@@ -74,8 +74,24 @@ class UsersRepository {
     await _dio.delete<dynamic>('/users/$id');
   }
 
-  Future<void> saveFace(String id, Uint8List photo) async {
-    await _dio.post<dynamic>(
+  Future<Uint8List?> getPhoto(String id) async {
+    try {
+      final response = await _dio.get<Uint8List>(
+        '/users/$id/photo',
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Accept': 'image/jpeg'},
+        ),
+      );
+      return response.data;
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  Future<bool> saveFace(String id, Uint8List photo) async {
+    final response = await _dio.post<dynamic>(
       '/users/$id/face',
       data: FormData.fromMap({
         'consent': 'true',
@@ -86,6 +102,8 @@ class UsersRepository {
         ),
       }),
     );
+    final data = response.data;
+    return data is Map && data['hasPhoto'] == true;
   }
 
   Future<String> linkNfcCredential(String id, String codeHex) => _call(

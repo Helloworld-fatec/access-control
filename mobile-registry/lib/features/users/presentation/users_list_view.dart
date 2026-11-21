@@ -239,6 +239,8 @@ class _UsersListViewState extends State<UsersListView> {
         UserCard(
           user: user,
           onTap: () => widget.onOpen(user.id),
+          photoRevision: controller.photoRevision,
+          loadPhoto: user.hasPhoto ? () => controller.getPhoto(user.id) : null,
         ),
         const SizedBox(height: 12),
       ],

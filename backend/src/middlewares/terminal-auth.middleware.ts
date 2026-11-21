@@ -1,6 +1,7 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import { prisma } from "../config/prisma.js";
+import { hashTerminalKey, terminalKeyPattern } from "../config/terminal-key.js";
+import { rateLimit } from "./rate-limit.middleware.js";
 
 declare global {
   namespace Express {
@@ -10,14 +11,21 @@ declare global {
   }
 }
 
+export const limitTerminalAuth = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  key: (req) => req.ip ?? req.socket.remoteAddress ?? "unknown",
+  countStatus: 401,
+});
+
 export async function authenticateTerminal(
   req: Request,
   res: Response,
   next: NextFunction,
 ) {
-  const bearer = req.header("authorization")?.replace(/^Bearer\s+/i, "").trim();
-  const apiKey = req.get("x-terminal-key") ?? req.get("x-api-key") ?? (bearer && bearer.length >= 24 ? bearer : undefined);
-  if (!apiKey || !/^[\x21-\x7E]{24,200}$/.test(apiKey)) {
+  const bearer = req.get("authorization")?.match(/^Bearer\s+(\S+)$/i)?.[1];
+  const apiKey = req.get("x-terminal-key") ?? req.get("x-api-key") ?? bearer;
+  if (!apiKey || !terminalKeyPattern.test(apiKey)) {
     res.status(401).json({
       error: { code: "TERMINAL_UNAUTHORIZED", message: "Credencial do terminal obrigatória" },
     });
@@ -25,15 +33,12 @@ export async function authenticateTerminal(
   }
 
   try {
-    const apiKeyHash = createHash("sha256").update(apiKey).digest("hex");
-    const terminal = await prisma.terminal.findFirst({
-      where: { apiKeyHash },
-      select: { id: true, locationId: true, apiKeyHash: true },
+    const terminal = await prisma.terminal.findUnique({
+      where: { apiKeyHash: hashTerminalKey(apiKey) },
+      select: { id: true, locationId: true },
     });
 
-    const suppliedHash = Buffer.from(apiKeyHash, "hex");
-    const storedHash = terminal ? Buffer.from(terminal.apiKeyHash, "hex") : Buffer.alloc(32);
-    if (!terminal || !timingSafeEqual(suppliedHash, storedHash)) {
+    if (!terminal) {
       res.status(401).json({
         error: { code: "TERMINAL_UNAUTHORIZED", message: "Credencial do terminal inválida" },
       });

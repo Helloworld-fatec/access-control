@@ -23,10 +23,7 @@ class FaceMatchResult {
   final String userId;
   final double similarity;
 
-  const FaceMatchResult({
-    required this.userId,
-    required this.similarity,
-  });
+  const FaceMatchResult({required this.userId, required this.similarity});
 }
 
 /// Serviço de sincronização em memória e comparação local de embeddings faciais (US-15, US-17).
@@ -36,6 +33,8 @@ class FaceSyncService {
 
   final http.Client _httpClient;
   final List<AuthorizedFaceEmbedding> _memoryEmbeddings = [];
+
+  int _cacheGeneration = 0;
 
   FaceSyncService({http.Client? httpClient})
       : _httpClient = httpClient ?? http.Client();
@@ -49,12 +48,14 @@ class FaceSyncService {
     TerminalConfig config, {
     String expectedModelVersion = currentModelVersion,
   }) async {
+    final generation = ++_cacheGeneration;
     final uri = Uri.parse(
       '${config.backendBaseUrl}/terminals/${config.terminalId}/faces',
     );
     final headers = <String, String>{
       'Accept': 'application/json',
-      if (config.apiKey.trim().isNotEmpty) 'x-api-key': config.apiKey.trim(),
+      if (config.apiKey.trim().isNotEmpty)
+        'x-terminal-key': config.apiKey.trim(),
     };
 
     final response = await _httpClient
@@ -62,7 +63,9 @@ class FaceSyncService {
         .timeout(const Duration(seconds: 5));
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('Falha ao sincronizar embeddings (${response.statusCode})');
+      throw Exception(
+        'Falha ao sincronizar embeddings (${response.statusCode})',
+      );
     }
 
     final decoded = jsonDecode(response.body);
@@ -72,6 +75,7 @@ class FaceSyncService {
             ? decoded['data'] as List
             : const []);
 
+    if (generation != _cacheGeneration) return 0;
     _memoryEmbeddings.clear();
     for (final raw in items) {
       if (raw is! Map) continue;
@@ -100,6 +104,7 @@ class FaceSyncService {
 
   /// Limpa os embeddings da memória RAM.
   void clearMemory() {
+    _cacheGeneration++;
     _memoryEmbeddings.clear();
   }
 
@@ -132,7 +137,9 @@ class FaceSyncService {
   /// Similaridade de cosseno entre dois vetores de mesma dimensão.
   static double cosineSimilarity(List<double> a, List<double> b) {
     if (a.length != b.length || a.isEmpty) {
-      throw ArgumentError('Vetores devem ter o mesmo tamanho e não ser vazios.');
+      throw ArgumentError(
+        'Vetores devem ter o mesmo tamanho e não ser vazios.',
+      );
     }
     double dot = 0.0;
     double normA = 0.0;

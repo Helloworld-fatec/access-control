@@ -5,6 +5,7 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/application/session_controller.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/home/presentation/home_screen.dart';
+import 'features/terminals/data/terminals_repository.dart';
 import 'features/users/data/face_camera.dart';
 import 'features/users/data/users_repository.dart';
 
@@ -25,6 +26,7 @@ class AccessRegistryApp extends StatefulWidget {
 class _AccessRegistryAppState extends State<AccessRegistryApp> {
   late final _session = widget.session ?? SessionController();
   late final _users = UsersRepository(_session.dio);
+  late final _terminals = TerminalsRepository(_session.dio);
 
   @override
   void dispose() {
@@ -47,6 +49,7 @@ class _AccessRegistryAppState extends State<AccessRegistryApp> {
           home: signedIn
               ? HomeScreen(
                   repository: _users,
+                  terminalsRepository: _terminals,
                   capturePhoto: widget.capturePhoto,
                   onSignOut: _session.signOut,
                 )

@@ -15,12 +15,12 @@ COPY prisma7.config.ts tsconfig.json ./
 COPY src ./src
 
 RUN npm run db:generate \
-    && mkdir -p /app/photos \
+    && mkdir -p /app/uploads \
     && chown -R app:app /app
 
 ENV NODE_ENV=production \
     PORT=3333 \
-    PHOTOS_DIR=/app/photos
+    PHOTOS_DIR=/app/uploads
 
 USER app
 

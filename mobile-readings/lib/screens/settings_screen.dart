@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../config/terminal_config.dart';
+import '../services/api_client.dart';
 import '../state/terminal_controller.dart';
 
-/// Tela funcional de configuração do Terminal de Acesso (US-02, US-03).
 class SettingsScreen extends StatefulWidget {
   final TerminalController controller;
 
-  const SettingsScreen({
-    super.key,
-    required this.controller,
-  });
+  const SettingsScreen({super.key, required this.controller});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -18,228 +15,132 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
-
-  late final TextEditingController _backendHostCtrl;
-  late final TextEditingController _backendPortCtrl;
-  late final TextEditingController _terminalIdCtrl;
-  late final TextEditingController _apiKeyCtrl;
-  late final TextEditingController _inactivityCtrl;
-  late final TextEditingController _faceThresholdCtrl;
-
-  late bool _useHttps;
-  late bool _simulationMode;
-  bool _obscureApiKey = true;
+  late final TextEditingController _address;
+  late final TextEditingController _key;
+  bool _obscureKey = true;
   bool _saving = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    final cfg = widget.controller.config;
-    _backendHostCtrl = TextEditingController(text: cfg.backendHost);
-    _backendPortCtrl = TextEditingController(text: cfg.backendPort.toString());
-    _terminalIdCtrl = TextEditingController(text: cfg.terminalId);
-    _apiKeyCtrl = TextEditingController(text: cfg.apiKey);
-    _inactivityCtrl =
-        TextEditingController(text: cfg.inactivityTimeoutSeconds.toString());
-    _faceThresholdCtrl = TextEditingController(
-      text: cfg.faceSimilarityThreshold.toStringAsFixed(2),
-    );
-    _useHttps = cfg.useHttps;
-    _simulationMode = cfg.simulationMode;
+    final config = widget.controller.config;
+    _address = TextEditingController(text: config.serverAddress ?? '');
+    _key = TextEditingController(text: config.apiKey);
   }
 
   @override
   void dispose() {
-    _backendHostCtrl.dispose();
-    _backendPortCtrl.dispose();
-    _terminalIdCtrl.dispose();
-    _apiKeyCtrl.dispose();
-    _inactivityCtrl.dispose();
-    _faceThresholdCtrl.dispose();
+    _address.dispose();
+    _key.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (_saving || !(_formKey.currentState?.validate() ?? false)) return;
+    final address = _address.text;
+    final key = _key.text;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
 
-    setState(() => _saving = true);
-    final prevCfg = widget.controller.config;
-    final updated = TerminalConfig(
-      backendHost: _backendHostCtrl.text.trim(),
-      backendPort: int.parse(_backendPortCtrl.text.trim()),
-      useHttps: _useHttps,
-      mqttHost: prevCfg.mqttHost,
-      mqttPort: prevCfg.mqttPort,
-      mqttUsername: prevCfg.mqttUsername,
-      mqttPassword: prevCfg.mqttPassword,
-      terminalId: _terminalIdCtrl.text.trim(),
-      apiKey: _apiKeyCtrl.text.trim(),
-      inactivityTimeoutSeconds: int.parse(_inactivityCtrl.text.trim()),
-      faceSimilarityThreshold: double.parse(
-        _faceThresholdCtrl.text.trim().replaceAll(',', '.'),
-      ),
-      simulationMode: _simulationMode,
-    );
+    try {
+      await widget.controller.configureTerminal(address, key);
+    } on TerminalApiException catch (error) {
+      _showError(error.message);
+      return;
+    } on Exception {
+      _showError('Não foi possível salvar a configuração com segurança.');
+      return;
+    }
 
-    await widget.controller.updateConfig(updated);
     if (!mounted) return;
     setState(() => _saving = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Configurações salvas e aplicadas.')),
+      const SnackBar(
+        content: Text('Terminal autenticado e configuração salva.'),
+      ),
     );
     Navigator.of(context).pop();
   }
 
+  void _showError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _error = message;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Configuração do Terminal'),
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Modo de Simulação (Mock Local)'),
-              subtitle: const Text(
-                'Permite testar QR Code e leitura NFC sem precisar do backend ou broker MQTT ativos.',
+    return PopScope(
+      canPop: !_saving,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Configuração do Terminal')),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextFormField(
+                key: const Key('field_server_address'),
+                controller: _address,
+                enabled: !_saving,
+                keyboardType: TextInputType.url,
+                autocorrect: false,
+                decoration: const InputDecoration(
+                  labelText: 'Endereço do servidor',
+                  hintText: 'https://servidor.exemplo ou 192.168.1.100:3000',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) =>
+                    TerminalConfig.normalizeServerAddress(value ?? '') == null
+                        ? 'Informe uma URL HTTP/HTTPS ou IP:porta válido.'
+                        : null,
               ),
-              value: _simulationMode,
-              onChanged: (v) => setState(() => _simulationMode = v),
-            ),
-            const Divider(),
-            const Text(
-              'Servidor Backend (API REST)',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: TextFormField(
-                    key: const Key('field_backend_host'),
-                    controller: _backendHostCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Endereço do Backend (IP/Host)',
-                      hintText: '192.168.1.100',
-                      border: OutlineInputBorder(),
+              const SizedBox(height: 16),
+              TextFormField(
+                key: const Key('field_terminal_key'),
+                controller: _key,
+                enabled: !_saving,
+                obscureText: _obscureKey,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: InputDecoration(
+                  labelText: 'Chave do terminal',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    tooltip: _obscureKey ? 'Mostrar chave' : 'Ocultar chave',
+                    onPressed: () => setState(() => _obscureKey = !_obscureKey),
+                    icon: Icon(
+                      _obscureKey ? Icons.visibility : Icons.visibility_off,
                     ),
-                    validator: TerminalConfig.validateHost,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: TextFormField(
-                    key: const Key('field_backend_port'),
-                    controller: _backendPortCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Porta HTTP',
-                      hintText: '3000',
-                      border: OutlineInputBorder(),
+                validator: TerminalConfig.validateTerminalKey,
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 16),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
                     ),
-                    validator: TerminalConfig.validatePort,
                   ),
                 ),
               ],
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Usar HTTPS'),
-              value: _useHttps,
-              onChanged: (v) => setState(() => _useHttps = v),
-            ),
-            const Divider(),
-            const Text(
-              'Identificação do Terminal',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              key: const Key('field_terminal_id'),
-              controller: _terminalIdCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Identificador do Terminal (ID)',
-                border: OutlineInputBorder(),
-              ),
-              validator: TerminalConfig.validateTerminalId,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              key: const Key('field_api_key'),
-              controller: _apiKeyCtrl,
-              obscureText: _obscureApiKey,
-              decoration: InputDecoration(
-                labelText: 'Chave da API do Terminal (apiKey)',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscureApiKey ? Icons.visibility : Icons.visibility_off,
-                  ),
-                  onPressed: () =>
-                      setState(() => _obscureApiKey = !_obscureApiKey),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Divider(),
-            const Text(
-              'Parâmetros de Operação',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    key: const Key('field_inactivity_seconds'),
-                    controller: _inactivityCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Inatividade até Repouso (s)',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: TerminalConfig.validateInactivitySeconds,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    key: const Key('field_face_threshold'),
-                    controller: _faceThresholdCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Limiar Facial (0.10 - 1.00)',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: TerminalConfig.validateFaceThreshold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 52,
-              child: ElevatedButton.icon(
+              const SizedBox(height: 24),
+              FilledButton(
                 key: const Key('btn_save_settings'),
                 onPressed: _saving ? null : _save,
-                icon: const Icon(Icons.save),
-                label: Text(
-                  _saving ? 'Salvando...' : 'Salvar configurações',
-                  style: const TextStyle(fontSize: 16),
-                ),
+                child: Text(_saving ? 'Verificando...' : 'Validar e salvar'),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

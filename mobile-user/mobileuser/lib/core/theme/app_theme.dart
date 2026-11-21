@@ -4,13 +4,15 @@ import 'app_colors.dart';
 
 class AppTheme {
   static ThemeData get light {
-    const scheme = ColorScheme.light(
+    final scheme = ColorScheme.fromSeed(
+      seedColor: AppColors.primary,
       primary: AppColors.primary,
       onPrimary: AppColors.white,
-      secondary: AppColors.highlight,
+      secondary: AppColors.secondary,
       onSecondary: AppColors.white,
-      surface: AppColors.white,
-      onSurface: AppColors.primary,
+      surface: AppColors.background,
+      onSurface: AppColors.secondary,
+      surfaceContainerHighest: AppColors.support,
       error: AppColors.highlight,
       onError: AppColors.white,
     );
@@ -21,10 +23,10 @@ class AppTheme {
       scaffoldBackgroundColor: AppColors.background,
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.support,
-        foregroundColor: AppColors.primary,
+        foregroundColor: AppColors.secondary,
         centerTitle: false,
         titleTextStyle: TextStyle(
-          color: AppColors.primary,
+          color: AppColors.secondary,
           fontSize: 22,
           fontWeight: FontWeight.w800,
         ),
@@ -35,7 +37,7 @@ class AppTheme {
         titleMedium: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
         bodyLarge: TextStyle(fontSize: 18),
         bodyMedium: TextStyle(fontSize: 16),
-      ).apply(bodyColor: AppColors.primary, displayColor: AppColors.primary),
+      ).apply(bodyColor: AppColors.secondary, displayColor: AppColors.secondary),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.primary,
@@ -49,7 +51,7 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primary,
+          foregroundColor: AppColors.highlight,
           minimumSize: const Size.fromHeight(60),
           side: const BorderSide(color: AppColors.primary, width: 2),
           textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
@@ -67,8 +69,8 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.support,
-        labelStyle: const TextStyle(color: AppColors.primary, fontSize: 16),
-        floatingLabelStyle: const TextStyle(color: AppColors.primary),
+        labelStyle: const TextStyle(color: AppColors.secondary, fontSize: 16),
+        floatingLabelStyle: const TextStyle(color: AppColors.highlight),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 18,
           vertical: 20,
@@ -87,7 +89,7 @@ class AppTheme {
         ),
       ),
       snackBarTheme: const SnackBarThemeData(
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppColors.secondary,
         contentTextStyle: TextStyle(
           color: AppColors.white,
           fontSize: 16,

@@ -88,6 +88,10 @@ class UsersListController extends ValueNotifier<UsersListState> {
   /// Identifica a requisição "vigente". Respostas de requisições antigas
   /// (ex.: digitou outra busca antes da anterior responder) são descartadas.
   int _request = 0;
+  int _photoRevision = 0;
+  int get photoRevision => _photoRevision;
+
+  Future<Uint8List?> getPhoto(String id) => _repository.getPhoto(id);
 
   @override
   void dispose() {
@@ -108,6 +112,7 @@ class UsersListController extends ValueNotifier<UsersListState> {
         active: value.active,
       );
       if (id != _request) return;
+      _photoRevision++;
       value = value.copyWith(
         items: page.items,
         page: page.page,

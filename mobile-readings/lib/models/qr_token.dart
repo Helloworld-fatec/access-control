@@ -1,42 +1,31 @@
-/// Token do QR Code rotativo gerado pelo backend (US-07, US-08).
-/// O terminal nunca cria nem interpreta o conteúdo do token: apenas renderiza.
 class QrToken {
-  final String token;
+  final Map<String, dynamic> payload;
   final DateTime expiresAt;
+  final int refreshAfterSeconds;
 
   const QrToken({
-    required this.token,
+    required this.payload,
     required this.expiresAt,
+    required this.refreshAfterSeconds,
   });
 
-  bool isExpired([DateTime? now]) {
-    final current = now ?? DateTime.now();
-    return !current.isBefore(expiresAt);
-  }
-
-  factory QrToken.fromJson(Map<String, dynamic> json, {DateTime? now}) {
-    final current = now ?? DateTime.now();
-    final rawToken =
-        (json['token'] ?? json['qrToken'] ?? json['qr'] ?? '').toString();
-    if (rawToken.isEmpty) {
-      throw const FormatException('Token QR vazio na resposta do servidor.');
+  factory QrToken.fromJson(Map<String, dynamic> json) {
+    final payload = json['payload'];
+    final expiresAt = json['expiresAt'];
+    final refreshAfter = json['refreshAfterSeconds'];
+    if (payload is! Map<String, dynamic> ||
+        payload['v'] != 1 ||
+        payload['token'] is! String ||
+        !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(payload['token'] as String) ||
+        expiresAt is! String ||
+        refreshAfter is! int ||
+        refreshAfter <= 0) {
+      throw const FormatException('Formato do QR Code incompatível.');
     }
-
-    DateTime expiresAt;
-    if (json['expiresAt'] != null) {
-      expiresAt = DateTime.parse(json['expiresAt'].toString());
-    } else if (json['ttlSeconds'] is num) {
-      expiresAt = current.add(
-        Duration(seconds: (json['ttlSeconds'] as num).toInt()),
-      );
-    } else {
-      // Renovado a cada 10s (RF12); validade padrão de 12s para cobrir jitter de rede
-      expiresAt = current.add(const Duration(seconds: 12));
-    }
-
     return QrToken(
-      token: rawToken,
-      expiresAt: expiresAt,
+      payload: Map.unmodifiable(payload),
+      expiresAt: DateTime.parse(expiresAt),
+      refreshAfterSeconds: refreshAfter,
     );
   }
 }

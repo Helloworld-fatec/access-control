@@ -6,7 +6,8 @@ import { consumeQrSchema } from "../models/dtos/qr-access.dto.js";
 import { ACCESS_METHODS, ACCESS_RESULTS, DENY_REASONS } from "../types/index.js";
 import { requestDoorUnlock } from "../services/door-unlock.service.js";
 
-const QR_TTL_SECONDS = 300;
+const QR_TTL_SECONDS = 20;
+const QR_REFRESH_SECONDS = 10;
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -36,7 +37,7 @@ export async function issueQr(req: Request, res: Response) {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + QR_TTL_SECONDS * 1000);
 
-  await prisma.qrNonce.create({
+  await prisma.qrnonce.create({
     data: {
       nonce: hashToken(token),
       terminalId: req.terminal.id,
@@ -47,7 +48,7 @@ export async function issueQr(req: Request, res: Response) {
   res.json({
     payload: { v: 1, token },
     expiresAt: expiresAt.toISOString(),
-    refreshAfterSeconds: Math.floor(QR_TTL_SECONDS * 2 / 3),
+    refreshAfterSeconds: QR_REFRESH_SECONDS,
   });
 }
 
@@ -62,14 +63,14 @@ export async function consumeQr(req: Request, res: Response) {
   const todayDate = new Date(`${today}T00:00:00.000Z`);
 
   const outcome = await prisma.$transaction(async (tx) => {
-    const qr = await tx.qrNonce.findUnique({
+    const qr = await tx.qrnonce.findUnique({
       where: { nonce: tokenHash },
       include: { terminal: { select: { id: true, locationId: true } } },
     });
     if (!qr) return { kind: "UNKNOWN" as const };
 
     // Claim atômico: apenas uma requisição pode consumir este QR.
-    const claim = await tx.qrNonce.updateMany({
+    const claim = await tx.qrnonce.updateMany({
       where: { nonce: tokenHash, consumedAt: null },
       data: { consumedAt: now },
     });

@@ -1,525 +1,362 @@
+import 'dart:convert';
+import 'dart:async';
+
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-import '../services/nfc_service.dart';
+import '../models/face_capture.dart';
+import '../services/face_capture_file_web.dart'
+    if (dart.library.io) '../services/face_capture_file_io.dart';
 import '../state/terminal_controller.dart';
 import 'settings_screen.dart';
 
-/// Tela principal do Terminal de Acesso (US-04, US-07, US-08, US-09, US-11, US-12, US-13, US-20).
-/// Reflete diretamente o estado atual do [TerminalController].
-class TerminalScreen extends StatelessWidget {
+bool _isBackgrounded(AppLifecycleState state) =>
+    state == AppLifecycleState.hidden ||
+    state == AppLifecycleState.paused ||
+    state == AppLifecycleState.detached;
+
+class TerminalScreen extends StatefulWidget {
   final TerminalController controller;
 
-  const TerminalScreen({
-    super.key,
-    required this.controller,
-  });
+  const TerminalScreen({super.key, required this.controller});
 
-  void _openSettings(BuildContext context) {
+  @override
+  State<TerminalScreen> createState() => _TerminalScreenState();
+}
+
+class _TerminalScreenState extends State<TerminalScreen>
+    with WidgetsBindingObserver {
+  TerminalController get _controller => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_isBackgrounded(state) && _controller.state != TerminalState.idle) {
+      _controller.returnToIdle();
+    }
+  }
+
+  void _openSettings() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => SettingsScreen(controller: controller),
+        builder: (_) => SettingsScreen(controller: _controller),
       ),
     );
   }
+
+  VoidCallback? _backAction(TerminalState state) => switch (state) {
+        TerminalState.idle => null,
+        TerminalState.choosing => _controller.returnToIdle,
+        _ => _controller.showChoices,
+      };
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: controller,
+      listenable: _controller,
       builder: (context, _) {
-        switch (controller.state) {
-          case TerminalState.idle:
-            return _buildIdleView(context);
-          case TerminalState.listening:
-            return _buildListeningView(context);
-          case TerminalState.validating:
-            return _buildValidatingView(context);
-          case TerminalState.granted:
-            return _buildGrantedView(context);
-          case TerminalState.denied:
-            return _buildDeniedView(context);
-        }
+        final state = _controller.state;
+        final back = _backAction(state);
+        final title = switch (state) {
+          TerminalState.idle => 'Terminal de Acesso',
+          TerminalState.choosing => 'Escolha como acessar',
+          TerminalState.qr => 'QR Code',
+          _ => 'Reconhecimento facial',
+        };
+        return PopScope(
+          canPop: back == null,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) back?.call();
+          },
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(title),
+              leading: back == null ? null : BackButton(onPressed: back),
+              actions: [
+                if (state == TerminalState.idle && _controller.initialized)
+                  IconButton(
+                    key: const Key('btn_open_settings'),
+                    tooltip: 'Configuração',
+                    onPressed: _openSettings,
+                    icon: const Icon(Icons.settings_outlined),
+                  ),
+              ],
+            ),
+            body: SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.all(24),
+                    children: _content(context, state),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
       },
     );
   }
 
-  /// Barra discreta de status (MQTT e acesso às configurações) (US-02, US-05).
-  PreferredSizeWidget _buildStatusBar(
-    BuildContext context, {
-    required Color backgroundColor,
-    required Color foregroundColor,
-  }) {
-    final mqttOnline = controller.isMqttConnected;
-    final simMode = controller.config.simulationMode;
-
-    String connLabel;
-    if (simMode) {
-      connLabel = 'MODO SIMULAÇÃO';
-    } else if (mqttOnline) {
-      connLabel = 'MQTT: Conectado';
-    } else if (controller.isFallbackPollingActive) {
-      connLabel = 'MQTT: Offline (Polling HTTP ativo)';
-    } else {
-      connLabel = 'MQTT: Desconectado';
+  List<Widget> _content(BuildContext context, TerminalState state) {
+    if (!_controller.initialized) {
+      return const [Center(child: CircularProgressIndicator())];
     }
-
-    return AppBar(
-      backgroundColor: backgroundColor,
-      foregroundColor: foregroundColor,
-      elevation: 0,
-      title: Row(
-        children: [
+    switch (state) {
+      case TerminalState.idle:
+        final configured = _controller.config.isConfigured;
+        return [
           Icon(
-            mqttOnline || simMode ? Icons.cloud_done : Icons.cloud_off,
-            size: 18,
-            color: foregroundColor,
+            Icons.badge_outlined,
+            size: 72,
+            color: Theme.of(context).colorScheme.primary,
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '${controller.config.terminalId} · $connLabel',
-              style: TextStyle(fontSize: 13, color: foregroundColor),
-              overflow: TextOverflow.ellipsis,
+          const SizedBox(height: 24),
+          FilledButton(
+            key: const Key('btn_wake_terminal'),
+            onPressed: configured ? _controller.activate : _openSettings,
+            child: Text(configured ? 'Iniciar acesso' : 'Configurar terminal'),
+          ),
+        ];
+      case TerminalState.choosing:
+        return [
+          FilledButton.icon(
+            onPressed: _controller.showQr,
+            icon: const Icon(Icons.qr_code),
+            label: const Text('QR Code'),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _controller.showFacial,
+            icon: const Icon(Icons.face_retouching_natural),
+            label: const Text('Reconhecimento facial'),
+          ),
+        ];
+      case TerminalState.qr:
+        final token = _controller.currentQrToken;
+        final error = _controller.qrError;
+        if (token == null && error == null) {
+          return const [Center(child: CircularProgressIndicator())];
+        }
+        return [
+          if (token != null) ...[
+            const Text(
+              'Escaneie com o app de acesso.',
+              textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 20),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 300),
+                child: QrImageView(
+                  data: jsonEncode(token.payload),
+                  backgroundColor: Colors.white,
+                  semanticsLabel: 'QR Code de acesso',
+                ),
+              ),
+            ),
+          ],
+          if (error != null) ...[
+            const SizedBox(height: 16),
+            Semantics(
+              liveRegion: true,
+              child: Text(error, textAlign: TextAlign.center),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              key: const Key('btn_retry_qr'),
+              onPressed:
+                  _controller.canRetryQr ? _controller.refreshQrCodeNow : null,
+              child: const Text('Tentar novamente'),
+            ),
+          ],
+        ];
+      case TerminalState.facial:
+        return [
+          _FacialCamera(
+            capturing: _controller.isCapturing,
+            onCapture: _controller.startRecognition,
+            onUnavailable: _controller.cameraUnavailable,
           ),
-        ],
-      ),
-      actions: [
-        IconButton(
-          key: const Key('btn_open_settings'),
-          tooltip: 'Configurações do terminal',
-          icon: const Icon(Icons.settings),
-          onPressed: () => _openSettings(context),
+        ];
+      case TerminalState.validatingFacial:
+        return const [
+          Center(child: CircularProgressIndicator()),
+          SizedBox(height: 16),
+          Text('Validando acesso...', textAlign: TextAlign.center),
+        ];
+      case TerminalState.facialResult:
+        final result = _controller.facialResult!;
+        return [
+          Icon(
+            result.isGranted ? Icons.check_circle_outline : Icons.info_outline,
+            size: 56,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(height: 16),
+          Semantics(
+            liveRegion: true,
+            child: Text(result.message, textAlign: TextAlign.center),
+          ),
+          const SizedBox(height: 20),
+          if (!result.isGranted) ...[
+            FilledButton(
+              onPressed: _controller.showFacial,
+              child: const Text('Tentar novamente'),
+            ),
+            OutlinedButton(
+              onPressed: _controller.showQr,
+              child: const Text('Usar QR Code'),
+            ),
+          ] else
+            FilledButton(
+              onPressed: _controller.returnToIdle,
+              child: const Text('Concluir'),
+            ),
+        ];
+    }
+  }
+}
+
+class _FacialCamera extends StatefulWidget {
+  final bool capturing;
+  final Future<void> Function(Future<List<List<int>>> Function()) onCapture;
+  final VoidCallback onUnavailable;
+
+  const _FacialCamera({
+    required this.capturing,
+    required this.onCapture,
+    required this.onUnavailable,
+  });
+
+  @override
+  State<_FacialCamera> createState() => _FacialCameraState();
+}
+
+class _FacialCameraState extends State<_FacialCamera>
+    with WidgetsBindingObserver {
+  CameraController? _camera;
+  bool _closed = false;
+
+  bool get _active => mounted && !_closed;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_openFrontCamera());
+  }
+
+  Future<void> _openFrontCamera() async {
+    CameraController? pending;
+    try {
+      final cameras = await availableCameras();
+      if (!_active) return;
+      final front = cameras
+          .where((camera) => camera.lensDirection == CameraLensDirection.front)
+          .firstOrNull;
+      if (front == null) {
+        widget.onUnavailable();
+        return;
+      }
+      final camera = CameraController(
+        front,
+        ResolutionPreset.low,
+        enableAudio: false,
+      );
+      pending = camera;
+      await camera.initialize();
+      if (!_active) return;
+      setState(() => _camera = camera);
+      pending = null;
+    } on Exception {
+      if (_active) widget.onUnavailable();
+    } finally {
+      await pending?.dispose();
+    }
+  }
+
+  Future<List<List<int>>> _capture() async {
+    final camera = _camera!;
+    final photos = <List<int>>[];
+    for (var index = 0; index < maxFaceCaptures; index++) {
+      if (!_active) break;
+      final file = await camera.takePicture();
+      try {
+        if (!_active) break;
+        if (await file.length() <= maxFacePhotoBytes && _active) {
+          final bytes = await file.readAsBytes();
+          if (!_active) break;
+          if (isSupportedFaceJpeg(bytes)) photos.add(bytes);
+        }
+      } finally {
+        await discardFaceCaptureFile(file.path);
+      }
+      if (_active && index + 1 < maxFaceCaptures) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+    }
+    return photos;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_isBackgrounded(state)) _closeCamera();
+  }
+
+  void _closeCamera() {
+    _closed = true;
+    final camera = _camera;
+    _camera = null;
+    if (camera != null) unawaited(camera.dispose());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _closeCamera();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final camera = _camera;
+    if (camera == null) return const Center(child: CircularProgressIndicator());
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: CameraPreview(camera),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Posicione o rosto no centro da imagem.',
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed: widget.capturing ? null : () => widget.onCapture(_capture),
+          child: Text(
+            widget.capturing ? 'Capturando...' : 'Iniciar reconhecimento',
+          ),
         ),
       ],
-    );
-  }
-
-  /// Estado 1: Repouso — tela escura econômica, NFC e câmera desligados (US-13).
-  Widget _buildIdleView(BuildContext context) {
-    return Scaffold(
-      key: const Key('view_state_idle'),
-      backgroundColor: const Color(0xFF0A0E12),
-      appBar: _buildStatusBar(
-        context,
-        backgroundColor: const Color(0xFF0A0E12),
-        foregroundColor: Colors.white70,
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.sensors,
-                size: 72,
-                color: Colors.white54,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Terminal em repouso',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Aproxime-se da entrada para ativar a leitura.',
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Colors.white70,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 36),
-              SizedBox(
-                height: 52,
-                child: OutlinedButton.icon(
-                  key: const Key('btn_wake_terminal'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white38),
-                  ),
-                  onPressed: controller.onPresenceDetected,
-                  icon: const Icon(Icons.touch_app),
-                  label: const Text(
-                    'Ativar terminal manualmente',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Estado 2: Escuta — exibe o QR Code rotativo e aguarda leitura NFC (US-07, US-08, US-09, US-20).
-  Widget _buildListeningView(BuildContext context) {
-    final qrToken = controller.currentQrToken;
-    final qrUnavailable = controller.isQrUnavailable;
-    final nfcStatus = controller.nfcHardwareStatus;
-
-    return Scaffold(
-      key: const Key('view_state_listening'),
-      backgroundColor: const Color(0xFFF7F7F4),
-      appBar: _buildStatusBar(
-        context,
-        backgroundColor: const Color(0xFF31566A),
-        foregroundColor: Colors.white,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Identifique-se para entrar',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF31566A),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Leia o QR Code com o aplicativo ou aproxime sua tag NFC.',
-                    style: TextStyle(fontSize: 18, color: Colors.black87),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Card do QR Code ou aviso de indisponibilidade (US-07, US-08)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFF31566A),
-                        width: 2,
-                      ),
-                    ),
-                    child: qrUnavailable || qrToken == null
-                        ? Column(
-                            key: const Key('qr_unavailable_box'),
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.qr_code_2,
-                                size: 72,
-                                color: Color(0xFFB51F2E),
-                              ),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'QR indisponível',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFB51F2E),
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Sem comunicação com o servidor para atualizar o código.',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.black87,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 12),
-                              OutlinedButton.icon(
-                                key: const Key('btn_retry_qr'),
-                                onPressed: controller.refreshQrCodeNow,
-                                icon: const Icon(Icons.refresh),
-                                label: const Text('Tentar novamente'),
-                              ),
-                            ],
-                          )
-                        : Column(
-                            key: const Key('qr_code_box'),
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              QrImageView(
-                                data: qrToken.token,
-                                version: QrVersions.auto,
-                                size: 240,
-                                backgroundColor: Colors.white,
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Código renovado automaticamente a cada 10s',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Indicador do estado do leitor NFC (US-09)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE5EBEE),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          nfcStatus == NfcHardwareStatus.available
-                              ? Icons.nfc
-                              : Icons.portable_wifi_off,
-                          size: 32,
-                          color: nfcStatus == NfcHardwareStatus.available
-                              ? const Color(0xFF31566A)
-                              : const Color(0xFFB51F2E),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            nfcStatus == NfcHardwareStatus.available
-                                ? 'Leitor NFC ativo: aproxime seu cartão ou chaveiro do aparelho.'
-                                : 'NFC desligado ou indisponível neste aparelho.',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  if (controller.statusMessage != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      controller.statusMessage!,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: Color(0xFFB51F2E),
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-
-                  // Controles auxiliares quando o Modo de Simulação estiver ativo ou sem hardware NFC (ex.: navegador)
-                  if (controller.config.simulationMode ||
-                      nfcStatus != NfcHardwareStatus.available) ...[
-                    const SizedBox(height: 20),
-                    const Divider(),
-                    const Text(
-                      'Simulação de Leitura NFC (Modo de Teste)',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        ElevatedButton.icon(
-                          key: const Key('btn_sim_nfc_valid'),
-                          onPressed: () =>
-                              controller.onNfcTagRead('04A1B2C3D4'),
-                          icon: const Icon(Icons.check),
-                          label: const Text('Simular Tag Autorizada'),
-                        ),
-                        OutlinedButton.icon(
-                          key: const Key('btn_sim_nfc_invalid'),
-                          onPressed: () =>
-                              controller.onNfcTagRead('00000000'),
-                          icon: const Icon(Icons.close),
-                          label: const Text('Simular Tag Negada'),
-                        ),
-                        FilledButton.tonalIcon(
-                          key: const Key('btn_sim_face_valid'),
-                          onPressed: controller.simulateFaceAccess,
-                          icon: const Icon(Icons.face),
-                          label: const Text('Simular Reconhecimento Facial'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Estado 3: Validando — aguarda resposta do backend (US-10).
-  Widget _buildValidatingView(BuildContext context) {
-    return Scaffold(
-      key: const Key('view_state_validating'),
-      backgroundColor: const Color(0xFFF7F7F4),
-      appBar: _buildStatusBar(
-        context,
-        backgroundColor: const Color(0xFF31566A),
-        foregroundColor: Colors.white,
-      ),
-      body: const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 64,
-                height: 64,
-                child: CircularProgressIndicator(strokeWidth: 6),
-              ),
-              SizedBox(height: 24),
-              Text(
-                'Validando credencial...',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF31566A),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Aguarde um instante.',
-                style: TextStyle(fontSize: 18, color: Colors.black87),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Estado 4: Liberado — tela verde, ícone de confirmação e texto "Acesso liberado" (US-11).
-  Widget _buildGrantedView(BuildContext context) {
-    final result = controller.lastAccessResult;
-    return Scaffold(
-      key: const Key('view_state_granted'),
-      backgroundColor: const Color(0xFF2E7D32),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.check_circle,
-                  size: 112,
-                  color: Colors.white,
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Acesso liberado',
-                  style: TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                if (result?.userName != null &&
-                    result!.userName!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    result.userName!,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      color: Colors.white,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-                const SizedBox(height: 16),
-                const Text(
-                  'Pode passar.',
-                  style: TextStyle(
-                    fontSize: 20,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Estado 5: Negado — tela vermelha, ícone e texto com motivo simples ou indisponibilidade (US-11, US-12).
-  Widget _buildDeniedView(BuildContext context) {
-    final result = controller.lastAccessResult;
-    final isUnavailable = result?.isUnavailable ?? false;
-    final title = isUnavailable ? 'Sistema indisponível' : 'Acesso negado';
-    final detail = result?.message ?? 'Acesso não autorizado.';
-
-    return Scaffold(
-      key: const Key('view_state_denied'),
-      backgroundColor: const Color(0xFFB51F2E),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  isUnavailable ? Icons.cloud_off : Icons.cancel,
-                  size: 112,
-                  color: Colors.white,
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  detail,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

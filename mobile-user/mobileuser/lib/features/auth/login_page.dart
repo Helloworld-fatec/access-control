@@ -44,25 +44,29 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await SessionScope.of(context).login(url.text, email.text, password.text);
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           error = e.message;
         });
+      }
     } on TimeoutException {
-      if (mounted)
+      if (mounted) {
         setState(() {
           error = 'O servidor demorou para responder.';
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           error = 'Sem conexao. Confira a URL e se ambos estao no mesmo Wi-Fi.';
         });
+      }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           loading = false;
         });
+      }
     }
   }
 

@@ -25,7 +25,7 @@ class LogoutAppBarAction extends StatelessWidget {
       iconSize: 28,
       tooltip: 'Sair',
       style: IconButton.styleFrom(
-        foregroundColor: AppColors.onDark, // contraste sobre a barra azul
+        foregroundColor: AppColors.onDark,
         minimumSize: const Size(56, 56),
       ),
       onPressed: () => confirmAndSignOut(context, onSignOut),

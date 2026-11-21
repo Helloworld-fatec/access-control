@@ -2,26 +2,59 @@
 abstract final class LoginValidators {
   static final RegExp _email = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
   static final RegExp _octet = RegExp(r'^(0|[1-9][0-9]{0,2})$');
-  static final RegExp _digits = RegExp(r'^[0-9]+$');
+  static final RegExp _numericHost = RegExp(r'^[0-9.]+$');
+  static final RegExp _hostLabel = RegExp(
+    r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$',
+    caseSensitive: false,
+  );
 
-  static String? serverIp(String? value) {
-    final parts = (value ?? '').trim().split('.');
-    if (parts.length != 4 ||
-        !parts.every(
-          (part) => _octet.hasMatch(part) && int.parse(part) <= 255,
-        )) {
-      return 'Informe um IPv4 válido, como 192.168.1.25.';
-    }
-    return null;
+  static const invalidServerAddress =
+      'Informe um endereço válido, como 192.168.1.25:3333 ou https://meu-backend.onrender.com.';
+
+  static String? serverAddress(String? value) {
+    if ((value ?? '').trim().isEmpty) return 'Informe o endereço do servidor.';
+    return parseServerAddress(value!) == null ? invalidServerAddress : null;
   }
 
-  static String? serverPort(String? value) {
-    final text = (value ?? '').trim();
-    final port = _digits.hasMatch(text) ? int.tryParse(text) : null;
-    if (port == null || port < 1 || port > 65535) {
-      return 'Informe uma porta entre 1 e 65535.';
+  static Uri? parseServerAddress(String value) {
+    final text = value.trim();
+    if (text.isEmpty || RegExp(r'[\s\\@]').hasMatch(text)) return null;
+    final explicitScheme = text.contains('://');
+    final address = explicitScheme ? text : 'http://$text';
+    final authority = address.split('://').last.split('/').first;
+    final uri = Uri.tryParse(address);
+    if (uri == null ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty ||
+        authority.endsWith(':') ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        uri.port < 1 ||
+        uri.port > 65535 ||
+        !const {'', '/', '/api', '/api/'}.contains(uri.path)) {
+      return null;
     }
-    return null;
+    final host = uri.host;
+    final ipv6 = host.contains(':');
+    final ipv4 = _numericHost.hasMatch(host);
+    final parts = host.split('.');
+    if (ipv4) {
+      if (parts.length != 4 ||
+          !parts.every(
+            (part) => _octet.hasMatch(part) && int.parse(part) <= 255,
+          )) {
+        return null;
+      }
+    } else if (!ipv6 && !parts.every(_hostLabel.hasMatch)) {
+      return null;
+    }
+    final useHttps =
+        !explicitScheme &&
+        !authority.contains(':') &&
+        !ipv4 &&
+        !ipv6 &&
+        host != 'localhost';
+    return uri.replace(scheme: useHttps ? 'https' : uri.scheme, path: '/api');
   }
 
   static String? email(String? value) {

@@ -91,7 +91,7 @@ export interface AccessLog {
   terminal?: { id: string; name: string };
 }
 
-// Painel (US-15, US-16). Os endpoints /dashboard/* ainda não existem no backend: por ora só o modo demonstração os simula.
+// Painel (US-15, US-16).
 export interface DashboardSummary {
   date: string;
   granted: number;
@@ -107,9 +107,10 @@ export interface HourBucket {
   granted: number;
   denied: number;
 }
-/** Resposta de GET /terminals/{id}/status. `lock` ainda não existe no backend. */
+/** Situação do terminal (GET /terminals/status). `lock` ainda não existe no backend; só a demonstração o simula. */
 export interface TerminalStatus {
   id: string;
+  name?: string;
   online: boolean;
   presenceActive: boolean;
   lastPresenceAt: string | null;

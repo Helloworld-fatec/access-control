@@ -1,3 +1,6 @@
+import json
+from base64 import b64decode
+from binascii import Error as Base64Error
 from io import BytesIO
 from typing import Literal
 
@@ -10,10 +13,15 @@ from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException, MultiPartParser
 
 from hog import EMBEDDING_SIZE, MODEL_VERSION, FaceCountError, extract_hog
+from matching import match_faces
 
 MAX_PHOTO_BYTES = 102_400
 MAX_REQUEST_BYTES = MAX_PHOTO_BYTES + 16_384
 MAX_IMAGE_PIXELS = 4_000_000
+MAX_CAPTURE_PHOTOS = 3
+MAX_CANDIDATES = 256
+MAX_MATCH_BYTES = 16 * 1024 * 1024
+MAX_ENCODED_PHOTO_BYTES = ((MAX_PHOTO_BYTES + 2) // 3) * 4
 
 app = FastAPI(title="Face Recognition")
 
@@ -23,6 +31,23 @@ class ExtractionResult(BaseModel):
         min_length=EMBEDDING_SIZE, max_length=EMBEDDING_SIZE
     )
     modelVersion: Literal[MODEL_VERSION]
+
+
+class Candidate(ExtractionResult):
+    userId: str = Field(min_length=1, max_length=64)
+
+
+class MatchRequest(BaseModel):
+    photos: list[str] = Field(min_length=1, max_length=MAX_CAPTURE_PHOTOS)
+    candidates: list[Candidate] = Field(min_length=1, max_length=MAX_CANDIDATES)
+    minimumScore: FiniteFloat = Field(gt=0, le=1)
+    minimumMargin: FiniteFloat = Field(gt=0, le=1)
+
+
+class MatchResult(BaseModel):
+    result: Literal["MATCH", "UNKNOWN_FACE", "AMBIGUOUS_FACE"]
+    userId: str | None = None
+    score: FiniteFloat | None = None
 
 
 def error(status: int, code: str) -> HTTPException:
@@ -126,3 +151,57 @@ async def extract(request: Request) -> ExtractionResult:
         await form.close()
 
     return await run_in_threadpool(extract_photo, content)
+
+def recognize_batch(request: MatchRequest) -> MatchResult:
+    candidates = {candidate.userId: candidate.embedding for candidate in request.candidates}
+    if len(candidates) != len(request.candidates):
+        raise error(400, "INVALID_MATCH_REQUEST")
+
+    captures = []
+    for encoded in request.photos:
+        if len(encoded) > MAX_ENCODED_PHOTO_BYTES:
+            raise error(413, "PHOTO_TOO_LARGE")
+        try:
+            photo = b64decode(encoded, validate=True)
+        except (ValueError, Base64Error) as exc:
+            raise error(422, "CORRUPT_IMAGE") from exc
+        if len(photo) > MAX_PHOTO_BYTES:
+            raise error(413, "PHOTO_TOO_LARGE")
+        try:
+            captures.append(extract_photo(photo).embedding)
+        except HTTPException as exc:
+            if exc.detail != {"code": "NO_FACE"}:
+                raise
+
+    if not captures:
+        raise error(422, "NO_FACE")
+
+    try:
+        result, user_id, score = match_faces(
+            candidates, captures, request.minimumScore, request.minimumMargin
+        )
+    except ValueError as exc:
+        raise error(400, "INVALID_MATCH_REQUEST") from exc
+    return MatchResult(result=result, userId=user_id, score=score)
+
+
+def parse_match_request(body: bytearray) -> MatchResult:
+    try:
+        dto = MatchRequest.model_validate(json.loads(body))
+    except (ValueError, RecursionError) as exc:
+        raise error(400, "INVALID_MATCH_REQUEST") from exc
+    return recognize_batch(dto)
+
+
+@app.post("/match", response_model=MatchResult, response_model_exclude_none=True)
+async def match(request: Request) -> MatchResult:
+    media_type = request.headers.get("content-type", "").split(";", 1)[0]
+    if media_type.strip().lower() != "application/json":
+        raise error(415, "UNSUPPORTED_REQUEST_TYPE")
+
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > MAX_MATCH_BYTES:
+            raise error(413, "REQUEST_TOO_LARGE")
+        body.extend(chunk)
+    return await run_in_threadpool(parse_match_request, body)

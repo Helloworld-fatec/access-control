@@ -7,6 +7,7 @@ import { authorizationRoutes } from "./authorization.routes.js";
 import { accessLogRoutes } from "./access-log.routes.js";
 import { authRoutes } from "./auth.routes.js";
 import { accessRoutes } from "./access.routes.js";
+import { dashboardRoutes } from "./dashboard.routes.js";
 
 export const routes = Router();
 
@@ -303,13 +304,12 @@ routes.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Login permanece público; os recursos da API exigem JWT.
+// Cada router aplica a autenticação apropriada aos seus consumidores.
 routes.use("/login", authRoutes);
-// Temporariamente sem autenticação nas rotas; descomente o middleware para exigir JWT.
-// routes.use(authenticate);
 routes.use("/users", userRoutes);
 routes.use("/locations", locationRoutes);
 routes.use("/terminals", terminalRoutes);
 routes.use("/authorizations", authorizationRoutes);
 routes.use("/access-logs", accessLogRoutes);
+routes.use("/dashboard", dashboardRoutes);
 routes.use("/access", accessRoutes);

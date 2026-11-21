@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server, API } from "../test/server";
-import { api, ApiError, setAccessToken, setUnauthorizedHandler } from "./api";
+import { api, apiFile, ApiError, filenameFrom, setAccessToken, setUnauthorizedHandler } from "./api";
 
 describe("cliente HTTP", () => {
   it("envia o token como Bearer e monta a query sem valores vazios", async () => {
@@ -55,5 +55,97 @@ describe("cliente HTTP", () => {
   it("devolve undefined em respostas 204", async () => {
     server.use(http.delete(`${API}/z`, () => new HttpResponse(null, { status: 204 })));
     await expect(api("/z", { method: "DELETE" })).resolves.toBeUndefined();
+  });
+});
+
+describe("401 que não é de sessão", () => {
+  it("não derruba a sessão quando a rota exige a chave do terminal", async () => {
+    server.use(http.get(`${API}/terminals/t1/status`, () => HttpResponse.json({ error: { code: "TERMINAL_UNAUTHORIZED", message: "Credencial do terminal obrigatória" } }, { status: 401 })));
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    setAccessToken("valido");
+    const err = (await api("/terminals/t1/status").catch((e) => e)) as ApiError;
+    expect(err.status).toBe(401);
+    expect(err.code).toBe("TERMINAL_UNAUTHORIZED");
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("encerra a sessão com token inválido ou expirado", async () => {
+    server.use(http.get(`${API}/authorizations`, () => HttpResponse.json({ error: { code: "INVALID_TOKEN", message: "Token inválido ou expirado" } }, { status: 401 })));
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    setAccessToken("expirado");
+    await api("/authorizations").catch(() => undefined);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignora 401 tardio de uma sessão anterior mesmo com o mesmo token", async () => {
+    let release!: () => void;
+    let started!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    const sent = new Promise<void>((resolve) => { started = resolve; });
+    server.use(http.get(`${API}/locations`, async () => {
+      started();
+      await pending;
+      return HttpResponse.json({ error: { code: "INVALID_TOKEN" } }, { status: 401 });
+    }));
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    setAccessToken("token");
+    const stale = api("/locations");
+    await sent;
+    setAccessToken(null);
+    setAccessToken("token");
+    release();
+    await expect(stale).rejects.toMatchObject({ status: 401 });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("mantém a sessão diante de 403", async () => {
+    server.use(http.get(`${API}/access-logs`, () => HttpResponse.json({ error: { code: "FORBIDDEN" } }, { status: 403 })));
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    setAccessToken("valido");
+    await expect(api("/access-logs")).rejects.toMatchObject({ status: 403, code: "FORBIDDEN" });
+    expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+describe("filenameFrom", () => {
+  const h = (v?: string) => ({ headers: new Headers(v ? { "Content-Disposition": v } : {}) });
+  it("lê o nome entre aspas", () => {
+    expect(filenameFrom(h('attachment; filename="historico-acessos-2026-11-19.csv"'), "x.csv")).toBe("historico-acessos-2026-11-19.csv");
+  });
+  it("usa o padrão quando o cabeçalho não existe", () => {
+    expect(filenameFrom(h(), "padrao.csv")).toBe("padrao.csv");
+  });
+  it("nunca devolve caminhos vindos do servidor", () => {
+    expect(filenameFrom(h('attachment; filename="../../etc/passwd"'), "x.csv")).not.toMatch(/[\\/]/);
+  });
+});
+
+describe("apiFile", () => {
+  it("baixa com o token, repassa a query e devolve o nome do servidor", async () => {
+    let auth: string | null = null;
+    let url = "";
+    server.use(
+      http.get(`${API}/access-logs/export`, ({ request }) => {
+        auth = request.headers.get("authorization");
+        url = request.url;
+        return new HttpResponse("a;b\r\n", { headers: { "Content-Type": "text/csv", "Content-Disposition": 'attachment; filename="h.csv"' } });
+      }),
+    );
+    setAccessToken("tok");
+    const r = await apiFile("/access-logs/export", { query: { result: "DENIED", from: "" } }, "x.csv");
+    expect(auth).toBe("Bearer tok");
+    expect(url).toContain("result=DENIED");
+    expect(url).not.toContain("from=");
+    expect(r.filename).toBe("h.csv");
+    expect(await r.blob.text()).toBe("a;b\r\n");
+  });
+
+  it("transforma erro JSON em ApiError (ex.: arquivo grande demais)", async () => {
+    server.use(http.get(`${API}/access-logs/export`, () => HttpResponse.json({ error: { code: "EXPORT_TOO_LARGE", message: "Reduza o período" } }, { status: 413 })));
+    await expect(apiFile("/access-logs/export")).rejects.toMatchObject({ status: 413, code: "EXPORT_TOO_LARGE", message: "Reduza o período" });
   });
 });

@@ -5,7 +5,7 @@ import bcrypt from "bcrypt";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
-import { removePhotoFile, resolvePhotoPath } from "../config/photos.js";
+import { removePhotoFile, resolvePhotoPath, savePhotoFile } from "../config/photos.js";
 import { AppError } from "../middlewares/error.middleware.js";
 import { extractFace } from "../services/face-recognition.service.js";
 import {
@@ -68,6 +68,7 @@ export async function listUsers(req: Request, res: Response) {
   const [rows, total] = await prisma.$transaction([
     prisma.user.findMany({
       where,
+      include: { photo: { select: { id: true } } },
       orderBy: { name: "asc" },
       skip: (q.page - 1) * q.pageSize,
       take: q.pageSize,
@@ -75,7 +76,11 @@ export async function listUsers(req: Request, res: Response) {
     prisma.user.count({ where }),
   ]);
 
-  res.json(paginate(rows.map(toUserResponse), total, q.page, q.pageSize));
+  const data = rows.map((user) => ({
+    ...toUserResponse(user),
+    hasPhoto: user.photo != null,
+  }));
+  res.json(paginate(data, total, q.page, q.pageSize));
 }
 
 // GET /users/:id
@@ -132,6 +137,7 @@ export async function updateUser(req: Request, res: Response) {
 export async function deleteUser(req: Request, res: Response) {
   const { id } = idParamSchema.parse(req.params);
   const photoPath = await prisma.$transaction(async (tx) => {
+    await lockPhotoOwner(tx, id);
     const photo = await tx.userphoto.findUnique({
       where: { userId: id },
       select: { filePath: true },
@@ -234,6 +240,14 @@ export async function linkNfcCredential(req: Request, res: Response) {
 
 // ───────────── Rosto e foto ─────────────
 
+async function lockPhotoOwner(tx: Prisma.TransactionClient, id: string): Promise<void> {
+  // Serialize uploads and deletions even when no photo row exists yet.
+  const users = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM users WHERE id = ${id} FOR UPDATE
+  `;
+  if (users.length === 0) throw userNotFound();
+}
+
 /**
  * POST /users/:id/face  (multipart/form-data)
  * Campos: consent=true e photo (JPEG).
@@ -247,43 +261,65 @@ export async function upsertFace(req: Request, res: Response) {
 
   const user = await prisma.user.findUnique({
     where: { id },
-    select: { photo: { select: { id: true } } },
+    select: { id: true },
   });
   if (!user) throw userNotFound();
 
   const consentAt = new Date();
   const descriptor = await extractFace(photo);
   const faceData = { ...descriptor, consentAt };
+  let filePath: string | undefined;
+  let oldPath: string | undefined;
   try {
-    await prisma.facetemplate.upsert({
-      where: { userId: id },
-      create: { userId: id, ...faceData },
-      update: faceData,
-      select: { id: true },
+    const savedPath = await savePhotoFile(photo);
+    filePath = savedPath;
+    oldPath = await prisma.$transaction(async (tx) => {
+      await lockPhotoOwner(tx, id);
+      const previous = await tx.userphoto.findUnique({
+        where: { userId: id },
+        select: { filePath: true },
+      });
+      await tx.facetemplate.upsert({
+        where: { userId: id },
+        create: { userId: id, ...faceData },
+        update: faceData,
+        select: { id: true },
+      });
+      const photoData = { filePath: savedPath, mimeType: "image/jpeg" };
+      await tx.userphoto.upsert({
+        where: { userId: id },
+        create: { userId: id, ...photoData },
+        update: photoData,
+        select: { id: true },
+      });
+      return previous?.filePath;
     });
-  } catch {
+  } catch (error) {
+    await removePhotoFile(filePath);
+    if (error instanceof AppError) throw error;
     // O erro bruto do Prisma pode incluir os valores enviados na operação.
     throw new AppError(500, "Não foi possível gravar o cadastro facial", "FACE_PERSISTENCE_FAILED");
   }
 
-  res.status(201).json({ hasFace: true, hasPhoto: user.photo !== null });
+  await removePhotoFile(oldPath);
+  res.status(201).json({ hasFace: true, hasPhoto: true });
 }
 
 // DELETE /users/:id/face  (exclusão dos dados biométricos, LGPD)
 export async function deleteFace(req: Request, res: Response) {
   const { id } = idParamSchema.parse(req.params);
 
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: { id: true, photo: { select: { filePath: true } } },
+  const photoPath = await prisma.$transaction(async (tx) => {
+    await lockPhotoOwner(tx, id);
+    const photo = await tx.userphoto.findUnique({
+      where: { userId: id },
+      select: { filePath: true },
+    });
+    await tx.facetemplate.deleteMany({ where: { userId: id } });
+    await tx.userphoto.deleteMany({ where: { userId: id } });
+    return photo?.filePath;
   });
-  if (!user) throw userNotFound();
-
-  await prisma.$transaction([
-    prisma.facetemplate.deleteMany({ where: { userId: id } }),
-    prisma.userphoto.deleteMany({ where: { userId: id } }),
-  ]);
-  await removePhotoFile(user.photo?.filePath);
+  await removePhotoFile(photoPath);
 
   res.status(204).send();
 }
@@ -291,7 +327,15 @@ export async function deleteFace(req: Request, res: Response) {
 // GET /users/:id/photo
 export async function getPhoto(req: Request, res: Response) {
   const { id } = idParamSchema.parse(req.params);
+  await sendUserPhoto(id, res);
+}
 
+export async function getOwnPhoto(req: Request, res: Response) {
+  if (!req.auth) throw new AppError(401, "User not authenticated", "UNAUTHORIZED");
+  await sendUserPhoto(req.auth.userId, res);
+}
+
+async function sendUserPhoto(id: string, res: Response) {
   const photo = await prisma.userphoto.findUnique({ where: { userId: id } });
   if (!photo) throw new AppError(404, "Foto não encontrada", "PHOTO_NOT_FOUND");
 

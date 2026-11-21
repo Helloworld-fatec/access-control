@@ -7,7 +7,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatória"),
   /** Pasta das fotos. Relativa ao diretório de execução (backend/). */
-  PHOTOS_DIR: z.string().min(1).default("photos"),
+  PHOTOS_DIR: z.string().min(1).default("uploads"),
   BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(10),
   JWT_SECRET: z.string().min(32, "JWT_SECRET deve ter ao menos 32 caracteres"),
   JWT_EXPIRES_IN: z.string().default("1h"),

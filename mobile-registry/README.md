@@ -6,7 +6,7 @@ Aplicativo Android para administradores do Sistema Integrado de Controle de Aces
 
 Requer Flutter 3.47 com Dart 3.13 ou superior na série 3.x e Android 7.0 (API 24) ou superior.
 
-Na tela de login, preencha **IP do servidor** e **Porta** e toque em **Testar conexão**. A porta padrão do Compose é `3333`. O endereço fica em memória enquanto o app estiver aberto. O emulador usa `10.0.2.2` como IP inicial.
+Na tela de login, preencha **Endereço do servidor** e toque em **Testar conexão**. Para o Compose local, use `192.168.1.25:3333`, substituindo o IP pelo da máquina. Para um backend no Render, use `https://meu-backend.onrender.com` ou o domínio sem o prefixo. O app acrescenta `/api` quando necessário. O endereço fica em memória enquanto o app estiver aberto. O emulador começa com `http://10.0.2.2:3333`.
 
 ```sh
 cd mobile-registry

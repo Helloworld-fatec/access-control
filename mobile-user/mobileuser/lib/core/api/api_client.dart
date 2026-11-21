@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -72,6 +73,23 @@ class ApiClient {
     return decode(r);
   }
 
+  Future<Uint8List?> profilePhoto() async {
+    final response = await client
+        .get(
+          Uri.parse('$baseUrl/api/users/me/photo'),
+          headers: {'Authorization': 'Bearer $token', 'Accept': 'image/jpeg'},
+        )
+        .timeout(const Duration(seconds: 15));
+    if (response.statusCode == 404) return null;
+    if (response.statusCode != 200) {
+      throw ApiException(
+        'Não foi possível carregar a foto.',
+        statusCode: response.statusCode,
+      );
+    }
+    return response.bodyBytes;
+  }
+
   Future<Map<String, dynamic>> consumeQr(String qrToken) async {
     final r = await client
         .post(
@@ -89,8 +107,9 @@ class ApiClient {
     } on FormatException {
       throw const QrConsumeException(message: 'Resposta inválida do servidor.');
     }
-    if (d is! Map<String, dynamic>)
+    if (d is! Map<String, dynamic>) {
       throw const QrConsumeException(message: 'Resposta inválida do servidor.');
+    }
     if (r.statusCode >= 200 && r.statusCode < 300) return d;
     final error = d['error'];
     throw QrConsumeException(
@@ -121,8 +140,9 @@ class ApiClient {
         statusCode: r.statusCode,
       );
     }
-    if (d is! Map<String, dynamic>)
+    if (d is! Map<String, dynamic>) {
       throw const ApiException('Resposta inválida do servidor.');
+    }
     return d;
   }
 }

@@ -86,7 +86,7 @@ class SessionController extends ChangeNotifier {
       if (response.statusCode == 200 && _healthy(response.data)) return null;
       return 'O endereço respondeu, mas o serviço de saúde da API não retornou OK.';
     } on DioException {
-      return 'Não foi possível alcançar o servidor. Confira o IP, a porta e a rede.';
+      return 'Não foi possível alcançar o servidor. Confira o endereço e a rede.';
     } finally {
       timer.cancel();
       _checking = false;

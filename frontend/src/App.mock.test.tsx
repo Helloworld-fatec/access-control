@@ -7,7 +7,11 @@ import App from "./App";
 
 // Integração: o app inteiro, do login ao painel, contra a API simulada do modo demonstração.
 describe("App com API simulada", () => {
-  beforeAll(() => installMock({ live: false }));
+  beforeAll(async () => {
+    // A transformação do módulo e do Recharts pelo Vite pode exceder a espera da asserção.
+    await import("./features/dashboard/DashboardPage");
+    installMock({ live: false });
+  });
 
   it("entra, vê o painel com dados de exemplo e navega pelo menu", async () => {
     renderApp(<App />, "/login");

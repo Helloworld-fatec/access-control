@@ -1,6 +1,6 @@
 # Face Recognition
 
-Serviço interno em Python/FastAPI para extrair um descritor HOG de uma foto com um rosto. Na etapa de integração, o Express enviará a foto e associará o descritor retornado ao usuário.
+Serviço interno em Python/FastAPI para extrair descritores HOG no cadastro e comparar capturas do terminal com os templates fornecidos pelo backend.
 
 ## Contrato HTTP
 
@@ -29,7 +29,20 @@ Os erros têm o formato `{"detail":{"code":"PHOTO_REQUIRED"}}`.
 2. O OpenCV detecta rostos frontais com `haarcascade_frontalface_default.xml`, `scaleFactor=1.1`, `minNeighbors=5` e tamanho mínimo de `30×30` pixels. Para uma única detecção, o serviço recorta o retângulo facial e redimensiona para `64×64` com interpolação bilinear.
 3. O HOG usa janela de `64×64`, blocos de `16×16`, passo de `8×8`, células de `8×8` e 9 intervalos de orientação sem sinal. A normalização é L2-Hys com limiar de `0.2`, sigma de `4.0`, abertura da derivada de `1`, 64 níveis e correção gama desativada. São `7×7` blocos com `2×2` células e 9 valores por célula, totalizando 1.764 valores. [Referência do OpenCV](https://docs.opencv.org/4.13.0/d5/d33/structcv_1_1HOGDescriptor.html)
 
-Qualquer mudança no detector, no pré-processamento ou nos parâmetros que torne vetores incompatíveis exige uma nova `modelVersion`. O contrato atual do Express espera 128 valores de outro extrator. A integração deve validar a dimensão de 1.764 para `hog-v1`.
+Qualquer mudança no detector, no pré-processamento ou nos parâmetros que torne vetores incompatíveis exige uma nova `modelVersion`. Para renovar templates anteriores, recadastre a foto e o consentimento pelo fluxo oficial `POST /api/users/:id/face`. A captura aceita templates `hog-v1` com 1.764 componentes válidos.
+
+## Reconhecimento por captura
+
+O terminal envia `POST /api/access/face/capture` ao backend com `x-terminal-key`, `x-face-attempt-id` (UUID novo por tentativa) e de uma a três partes JPEG de nome `photos` em `multipart/form-data`. Cada arquivo pode ter até 102.400 bytes (ou o limite menor configurado no backend) e 4 milhões de pixels. O backend identifica o local pela chave e seleciona até 256 templates vinculados a ele.
+
+Na chamada interna `POST /match`, o backend envia JSON de até 16 MiB com `photos` (JPEGs em Base64), `candidates` (objetos com `userId`, `embedding` e `modelVersion`), `minimumScore` e `minimumMargin`. O timeout do backend usa `FACE_RECOGNITION_TIMEOUT_MS`, com padrão de 5 segundos. O serviço reaproveita a extração do cadastro e compara os vetores por similaridade cosseno. Cada captura com rosto precisa apontar para o mesmo candidato, com score de pelo menos 0,93 e diferença de pelo menos 0,08 em relação ao segundo colocado, quando houver. O score devolvido em `MATCH` é o menor do lote.
+
+- `MATCH` inclui `userId` e `score`. O backend verifica esses dados, aplica as regras de autorização e devolve `allowed: true` somente se a decisão for `GRANTED`.
+- `UNKNOWN_FACE` e `AMBIGUOUS_FACE` geram recusa. Um quadro sem rosto pode ser ignorado se outro contiver um rosto. Múltiplos rostos, JPEG inválido e dimensões excessivas invalidam o lote.
+- O backend registra uma decisão por tentativa processada. Um UUID já processado para o mesmo terminal recebe `409 FACE_ATTEMPT_REPLAYED`. Uma nova captura iniciada pelo usuário usa outro UUID. Fotos de tentativa e embeddings ficam em memória durante o processamento.
+- Os limiares são iniciais para a demonstração. Os testes locais usam uma foto pública, uma variação de brilho e vetores controlados. A calibração com pessoas distintas e imagens consentidas ainda precisa ser feita na bancada. O fluxo não implementa detecção de vivacidade.
+
+Antes de usar a rota, aplique a migração com `npm run db:deploy` em `backend/`, apontado para o banco de teste.
 
 ## Executar e testar
 

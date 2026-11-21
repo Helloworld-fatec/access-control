@@ -16,7 +16,7 @@ class AuthRepository {
       'Acesso negado. Este aplicativo é exclusivo para administradores.';
   static const String loginNotFoundMessage =
       'Não encontramos o serviço de login neste servidor. '
-      'Confira o endereço e a porta usados na compilação do app.';
+      'Confira o endereço informado no login.';
   static const String invalidDataMessage =
       'Confira o e-mail e a senha informados.';
   static const String unexpectedResponseMessage =

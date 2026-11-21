@@ -7,7 +7,9 @@ import * as users from "../controllers/users.controller.js";
 
 export const userRoutes = Router();
 
-userRoutes.use(authenticate, requireAdmin);
+userRoutes.use(authenticate);
+userRoutes.get("/me/photo", h(users.getOwnPhoto));
+userRoutes.use(requireAdmin);
 
 userRoutes.get("/", h(users.listUsers));
 userRoutes.post("/", h(users.createUser));

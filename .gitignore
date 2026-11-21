@@ -9,4 +9,6 @@ coverage/
 
 # Uploads e dados de desenvolvimento
 backend/photos/
+/backend/uploads/
+/uploads/
 .pgdata-test/

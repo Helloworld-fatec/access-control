@@ -1,10 +1,11 @@
 import unittest
+from base64 import b64encode
 from io import BytesIO
 from math import isfinite
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, ImageEnhance
 
 from main import MAX_PHOTO_BYTES, MAX_REQUEST_BYTES, app
 
@@ -117,3 +118,70 @@ class ApiContractTest(unittest.TestCase):
     def test_rejects_oversized_dimensions(self):
         jpeg = image_bytes(size=(2001, 2000))
         self.check_error(self.upload(jpeg), 413, "IMAGE_DIMENSIONS_TOO_LARGE")
+
+    def match(self, photos, candidates):
+        return self.client.post("/match", json={
+            "photos": [b64encode(content).decode("ascii") for content in photos],
+            "candidates": candidates,
+            "minimumScore": 0.93,
+            "minimumMargin": 0.08,
+        })
+
+    def test_matches_consistent_captures_with_hog_from_enrollment(self):
+        photo = ASTRONAUT.read_bytes()
+        reference = self.upload(photo).json()
+        candidate = {"userId": "registered-user", **reference}
+        dimmer = BytesIO()
+        with Image.open(ASTRONAUT) as image:
+            ImageEnhance.Brightness(image).enhance(0.8).save(dimmer, format="JPEG", quality=80)
+        response = self.match([photo, image_bytes(), dimmer.getvalue()], [candidate])
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertEqual(result["result"], "MATCH")
+        self.assertEqual(result["userId"], candidate["userId"])
+        self.assertGreaterEqual(result["score"], 0.93)
+        self.assertLessEqual(result["score"], 1.0)
+
+    def test_rejects_unknown_and_ambiguous_matches(self):
+        photo = ASTRONAUT.read_bytes()
+        reference = self.upload(photo).json()
+        different = [0.0] * 1764
+        different[reference["embedding"].index(min(reference["embedding"]))] = 1.0
+        unknown = self.match([photo], [
+            {"userId": "different", "modelVersion": "hog-v1", "embedding": different},
+        ])
+        self.assertEqual(unknown.json(), {"result": "UNKNOWN_FACE"})
+
+        ambiguous = self.match([photo], [
+            {"userId": "candidate-a", **reference},
+            {"userId": "candidate-b", **reference},
+        ])
+        self.assertEqual(ambiguous.json(), {"result": "AMBIGUOUS_FACE"})
+
+    def test_capture_batch_rejects_multiple_faces_even_when_another_photo_matches(self):
+        photo = ASTRONAUT.read_bytes()
+        candidate = {"userId": "registered-user", **self.upload(photo).json()}
+        buffer = BytesIO()
+        with Image.open(ASTRONAUT) as face:
+            with Image.new("RGB", (2 * face.width + 32, face.height)) as collage:
+                collage.paste(face, (0, 0))
+                collage.paste(face, (face.width + 32, 0))
+                collage.save(buffer, format="JPEG")
+        self.check_error(self.match([photo, buffer.getvalue()], [candidate]), 422, "MULTIPLE_FACES")
+
+    def test_capture_validation_for_no_face_corrupt_oversized_and_incompatible_inputs(self):
+        photo = ASTRONAUT.read_bytes()
+        candidate = {"userId": "registered-user", **self.upload(photo).json()}
+        for content, status, code in (
+            (image_bytes(), 422, "NO_FACE"),
+            (b"invalid jpeg", 422, "CORRUPT_IMAGE"),
+            (b"x" * (MAX_PHOTO_BYTES + 1), 413, "PHOTO_TOO_LARGE"),
+            (image_bytes(size=(2001, 2000)), 413, "IMAGE_DIMENSIONS_TOO_LARGE"),
+        ):
+            with self.subTest(code=code):
+                self.check_error(self.match([content], [candidate]), status, code)
+        self.check_error(self.match([photo] * 4, [candidate]), 400, "INVALID_MATCH_REQUEST")
+        self.check_error(
+            self.match([photo], [{**candidate, "modelVersion": "legacy"}]),
+            400, "INVALID_MATCH_REQUEST",
+        )

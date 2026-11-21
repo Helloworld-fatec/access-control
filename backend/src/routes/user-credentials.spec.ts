@@ -7,6 +7,7 @@ import { app } from "../index.js";
 import { removePhotoFile } from "../config/photos.js";
 
 const db = vi.hoisted(() => ({
+  lockUser: vi.fn(),
   findUser: vi.fn(),
   deleteUser: vi.fn(),
   findPhoto: vi.fn(),
@@ -16,6 +17,7 @@ const db = vi.hoisted(() => ({
 
 vi.mock("../config/prisma.js", () => {
   const client = {
+    $queryRaw: db.lockUser,
     user: { findUnique: db.findUser, delete: db.deleteUser },
     userphoto: { findUnique: db.findPhoto },
     nfccredential: {
@@ -50,6 +52,7 @@ function prismaError(code: string) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  db.lockUser.mockResolvedValue([{ id: userId }]);
   db.findUser.mockResolvedValue({ role: "ADMIN", active: true });
 });
 

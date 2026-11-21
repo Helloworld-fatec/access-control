@@ -1,0 +1,6 @@
+comando para liberar o firewall
+
+PS C:\Users\bruno> New-NetFirewallHyperVRule -Name 'MobileRegistry-WSL2-3333' `
+>>   -DisplayName 'Mobile Registry WSL2' -Direction Inbound `
+>>   -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' `
+>>   -Protocol TCP -LocalPorts 3333 -Action Allow

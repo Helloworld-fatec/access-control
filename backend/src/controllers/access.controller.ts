@@ -1,9 +1,17 @@
 // backend/src/controllers/access.controller.ts
 import type { Request, Response } from "express";
+import { z } from "zod";
+import type { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
 import { faceAccessSchema, nfcAccessSchema } from "../models/dtos/index.js";
 import { todayInSaoPaulo } from "../models/index.js";
+import {
+  FACE_MODEL_VERSION,
+  MAX_FACE_CANDIDATES,
+  isCompatibleFaceEmbedding,
+  matchFace,
+} from "../services/face-recognition.service.js";
 import {
   ACCESS_METHODS,
   ACCESS_RESULTS,
@@ -47,6 +55,7 @@ interface EvaluateAccessParams {
   method: AccessMethod;
   nfcUid?: string;
   confidence?: number;
+  faceAttemptId?: string;
 }
 
 /**
@@ -54,24 +63,31 @@ interface EvaluateAccessParams {
  * Valida usuário ativo, autorização para o local, janela de datas, janela de horários
  * e usos restantes (com incremento atômico), registrando sempre o evento em AccessLog.
  */
-async function evaluateUserAccess(params: EvaluateAccessParams) {
-  const { userId, terminalId, locationId, method, nfcUid, confidence } = params;
+async function evaluateUserAccess(
+  params: EvaluateAccessParams,
+  db: Pick<Prisma.TransactionClient, "user" | "authorization" | "accesslog"> = prisma,
+) {
+  const { userId, terminalId, locationId, method, nfcUid, confidence, faceAttemptId } = params;
+  const log = {
+    terminalId,
+    method,
+    nfcUid: nfcUid ?? null,
+    confidence: confidence ?? null,
+    ...(faceAttemptId === undefined ? {} : { faceAttemptId }),
+  };
 
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { id: true, name: true, active: true },
   });
 
   if (!user) {
-    await prisma.accessLog.create({
+    await db.accesslog.create({
       data: {
         userId: null,
-        terminalId,
-        method,
+        ...log,
         result: ACCESS_RESULTS.DENIED,
         reason: DENY_REASONS.INVALID_CREDENTIAL,
-        nfcUid: nfcUid ?? null,
-        confidence: confidence ?? null,
       },
     });
     return {
@@ -82,15 +98,12 @@ async function evaluateUserAccess(params: EvaluateAccessParams) {
   }
 
   if (!user.active) {
-    await prisma.accessLog.create({
+    await db.accesslog.create({
       data: {
         userId: user.id,
-        terminalId,
-        method,
+        ...log,
         result: ACCESS_RESULTS.DENIED,
         reason: DENY_REASONS.USER_INACTIVE,
-        nfcUid: nfcUid ?? null,
-        confidence: confidence ?? null,
       },
     });
     return {
@@ -100,7 +113,7 @@ async function evaluateUserAccess(params: EvaluateAccessParams) {
     };
   }
 
-  const authorizations = await prisma.authorization.findMany({
+  const authorizations = await db.authorization.findMany({
     where: {
       userId: user.id,
       locationId,
@@ -109,15 +122,12 @@ async function evaluateUserAccess(params: EvaluateAccessParams) {
   });
 
   if (authorizations.length === 0) {
-    await prisma.accessLog.create({
+    await db.accesslog.create({
       data: {
         userId: user.id,
-        terminalId,
-        method,
+        ...log,
         result: ACCESS_RESULTS.DENIED,
         reason: DENY_REASONS.NO_AUTHORIZATION,
-        nfcUid: nfcUid ?? null,
-        confidence: confidence ?? null,
       },
     });
     return {
@@ -159,7 +169,7 @@ async function evaluateUserAccess(params: EvaluateAccessParams) {
     }
 
     // Atualização atômica de usedCount para evitar corrida em acessos simultâneos (US-12)
-    const updated = await prisma.authorization.updateMany({
+    const updated = await db.authorization.updateMany({
       where: {
         id: auth.id,
         status: AUTHORIZATION_STATUSES.ACTIVE,
@@ -175,16 +185,13 @@ async function evaluateUserAccess(params: EvaluateAccessParams) {
       continue;
     }
 
-    await prisma.accessLog.create({
+    await db.accesslog.create({
       data: {
         userId: user.id,
-        terminalId,
+        ...log,
         authorizationId: auth.id,
-        method,
         result: ACCESS_RESULTS.GRANTED,
         reason: null,
-        nfcUid: nfcUid ?? null,
-        confidence: confidence ?? null,
       },
     });
 
@@ -195,16 +202,13 @@ async function evaluateUserAccess(params: EvaluateAccessParams) {
     };
   }
 
-  await prisma.accessLog.create({
+  await db.accesslog.create({
     data: {
       userId: user.id,
-      terminalId,
+      ...log,
       authorizationId: fallbackAuthId,
-      method,
       result: ACCESS_RESULTS.DENIED,
       reason: fallbackReason,
-      nfcUid: nfcUid ?? null,
-      confidence: confidence ?? null,
     },
   });
 
@@ -226,12 +230,12 @@ export async function validateNfcAccess(req: Request, res: Response) {
     throw new AppError(404, "Terminal não encontrado", "TERMINAL_NOT_FOUND");
   }
 
-  const tag = await prisma.nfcTag.findUnique({
+  const tag = await prisma.nfctag.findUnique({
     where: { uid: dto.uid },
   });
 
   if (!tag || !tag.active) {
-    await prisma.accessLog.create({
+    await prisma.accesslog.create({
       data: {
         userId: tag?.userId ?? null,
         terminalId: terminal.id,
@@ -296,6 +300,13 @@ export async function validateFaceAccess(req: Request, res: Response) {
     confidence: dto.confidence,
   });
 
+  sendFaceOutcome(res, outcome);
+}
+
+function sendFaceOutcome(
+  res: Response,
+  outcome: Awaited<ReturnType<typeof evaluateUserAccess>>,
+): void {
   if (outcome.granted) {
     res.status(200).json({
       result: ACCESS_RESULTS.GRANTED,
@@ -312,4 +323,83 @@ export async function validateFaceAccess(req: Request, res: Response) {
     reason: outcome.reason,
     message: outcome.message,
   });
+}
+
+const replayedAttempt = () =>
+  new AppError(409, "Esta tentativa facial já foi processada", "FACE_ATTEMPT_REPLAYED");
+
+// POST /access/face/capture
+export async function validateFaceCapture(req: Request, res: Response) {
+  const terminal = req.terminal;
+  if (!terminal) throw new AppError(401, "Terminal não autenticado", "TERMINAL_UNAUTHORIZED");
+
+  const faceAttemptId = z.uuid().parse(req.get("x-face-attempt-id")).toLowerCase();
+  const key = { terminalId: terminal.id, faceAttemptId };
+  const attemptWhere = { terminalId_faceAttemptId: key };
+  const alreadyProcessed = () => prisma.accesslog.findUnique({
+    where: attemptWhere,
+    select: { id: true },
+  });
+  if (await alreadyProcessed()) throw replayedAttempt();
+
+  const recordDenial = async (reason: string) => {
+    await prisma.accesslog.create({
+      data: { ...key, method: ACCESS_METHODS.FACE, result: ACCESS_RESULTS.DENIED, reason },
+    });
+  };
+
+  try {
+    const templates = await prisma.facetemplate.findMany({
+      where: {
+        modelVersion: FACE_MODEL_VERSION,
+        user: { authorizations: { some: { locationId: terminal.locationId } } },
+      },
+      select: { userId: true, embedding: true },
+      take: MAX_FACE_CANDIDATES + 1,
+    });
+    const candidates = templates.filter(({ embedding }) => isCompatibleFaceEmbedding(embedding));
+
+    const files = req.files as Express.Multer.File[];
+    let match: Awaited<ReturnType<typeof matchFace>>;
+    try {
+      if (templates.length > MAX_FACE_CANDIDATES) {
+        throw new AppError(503, "O local excede a capacidade do reconhecimento", "FACE_CANDIDATE_LIMIT");
+      }
+      if (candidates.length === 0) {
+        throw new AppError(422, "Nenhum cadastro facial compatível para este local", "FACE_NO_COMPATIBLE_TEMPLATES");
+      }
+      match = await matchFace(files.map(({ buffer }) => buffer), candidates);
+    } catch (err) {
+      if (err instanceof AppError) await recordDenial(err.code);
+      throw err;
+    }
+
+    if (match.result !== "MATCH") {
+      await recordDenial(match.result);
+      res.status(403).json({
+        result: ACCESS_RESULTS.DENIED,
+        allowed: false,
+        reason: match.result,
+        message: match.result === "AMBIGUOUS_FACE"
+          ? "Não foi possível identificar um único candidato"
+          : "Rosto não reconhecido",
+      });
+      return;
+    }
+
+    const outcome = await prisma.$transaction((tx) => evaluateUserAccess({
+      ...key,
+      userId: match.userId,
+      locationId: terminal.locationId,
+      method: ACCESS_METHODS.FACE,
+      confidence: match.score,
+    }, tx));
+    sendFaceOutcome(res, outcome);
+  } catch (err) {
+    if (err && typeof err === "object" && "code" in err &&
+        err.code === "P2002" && await alreadyProcessed()) {
+      throw replayedAttempt();
+    }
+    throw err;
+  }
 }

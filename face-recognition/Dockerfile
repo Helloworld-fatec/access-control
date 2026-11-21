@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY main.py hog.py ./
+COPY main.py hog.py matching.py ./
 
 USER 10001:10001
 EXPOSE 8000

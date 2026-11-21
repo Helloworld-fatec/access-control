@@ -13,6 +13,7 @@ import '../data/user_models.dart';
 import '../data/users_repository.dart';
 import 'user_data_fields.dart';
 import 'user_form_model.dart';
+import 'user_photo.dart';
 
 class UserFormScreen extends StatefulWidget {
   const UserFormScreen({
@@ -37,6 +38,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
   final _random = Random.secure();
   UserSummary? _user;
   Uint8List? _photo;
+  Future<Uint8List?> Function()? _loadSavedPhoto;
   String? _nfcCode;
   String? _nfcStatus;
   String? _notice;
@@ -74,6 +76,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
         _user = detail.user;
         _model.fill(detail.user);
         _hasFace = detail.hasFace;
+        _loadSavedPhoto = detail.hasPhoto ? () => widget.repository.getPhoto(id) : null;
         _nfcStatus = detail.nfcCredentialStatus;
       });
     } catch (error) {
@@ -143,13 +146,15 @@ class _UserFormScreenState extends State<UserFormScreen> {
     final photo = _photo;
     if (photo == null || !_consent) return;
     try {
-      await repository.saveFace(id, photo);
+      final hasPhoto = await repository.saveFace(id, photo);
       if (!mounted) return;
       setState(() {
         _hasFace = true;
+        if (hasPhoto) _loadSavedPhoto = () async => photo;
         _photo = null;
         _consent = false;
       });
+      if (hasPhoto) unawaited(widget.onChanged());
     } catch (error) {
       if (!mounted) return;
       final api = ApiException.from(error);
@@ -303,6 +308,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
 
   Widget _form(bool editing) {
     final photo = _photo;
+    final loadSavedPhoto = _loadSavedPhoto;
     return Form(
       key: _model.formKey,
       child: SingleChildScrollView(
@@ -323,6 +329,19 @@ class _UserFormScreenState extends State<UserFormScreen> {
             ),
             const Divider(),
             Text(_hasFace ? 'Rosto cadastrado' : 'Rosto sem cadastro'),
+            if (editing && photo == null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: loadSavedPhoto == null
+                    ? const _PhotoPlaceholder()
+                    : UserPhoto(
+                        key: ObjectKey(loadSavedPhoto),
+                        load: loadSavedPhoto,
+                        placeholder: const _PhotoPlaceholder(),
+                        height: 160,
+                        semanticLabel: 'Foto cadastrada',
+                      ),
+              ),
             if (photo != null) ...[
               Image.memory(photo,
                   height: 160,
@@ -394,4 +413,14 @@ class _UserFormScreenState extends State<UserFormScreen> {
       ),
     );
   }
+}
+
+class _PhotoPlaceholder extends StatelessWidget {
+  const _PhotoPlaceholder();
+
+  @override
+  Widget build(BuildContext context) => const CircleAvatar(
+        radius: 32,
+        child: Icon(Icons.person_outline, semanticLabel: 'Foto indisponível'),
+      );
 }

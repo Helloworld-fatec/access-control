@@ -116,7 +116,7 @@ model terminal {
   latitude       Float // coordenada fixa (GPS simulado)
   longitude      Float
   qrSecret       String // segredo para assinar o token do QR
-  apiKeyHash     String // autentica o mobile-readings
+  apiKeyHash     String   @unique(map: "terminals_api_key_hash_key")
   online         Boolean   @default(false)
   lastPresenceAt DateTime?
   lastSeenAt     DateTime?
@@ -175,6 +175,7 @@ model accesslog {
   confidence      Float?
   distanceMeters  Float?
   commandAcked    Boolean?
+  faceAttemptId   String?  @db.Uuid
   createdAt       DateTime @default(now())
 
   user          user?          @relation(fields: [userId], references: [id], onDelete: SetNull, map: "access_logs_user_id_fkey")
@@ -184,6 +185,7 @@ model accesslog {
   @@index([createdAt], map: "access_logs_created_at_idx")
   @@index([userId, createdAt], map: "access_logs_user_created_at_idx")
   @@index([terminalId, createdAt], map: "access_logs_terminal_created_at_idx")
+  @@unique([terminalId, faceAttemptId], map: "access_logs_terminal_face_attempt_key")
   @@map("access_logs")
 }
 

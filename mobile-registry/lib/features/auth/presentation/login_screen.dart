@@ -19,11 +19,9 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _ipKey = GlobalKey<FormFieldState<String>>();
-  final _portKey = GlobalKey<FormFieldState<String>>();
-  late final _ip = TextEditingController(text: widget.session.server.host);
-  late final _port = TextEditingController(
-    text: widget.session.server.port.toString(),
+  final _addressKey = GlobalKey<FormFieldState<String>>();
+  late final _address = TextEditingController(
+    text: widget.session.server.origin,
   );
   final _email = TextEditingController();
   final _password = TextEditingController();
@@ -33,8 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _ip.dispose();
-    _port.dispose();
+    _address.dispose();
     _email.dispose();
     _password.dispose();
     super.dispose();
@@ -51,18 +48,11 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Uri _serverAddress() => Uri(
-    scheme: widget.session.server.scheme,
-    host: _ip.text.trim(),
-    port: int.parse(_port.text.trim()),
-    path: '/api',
-  );
+  Uri _serverAddress() => LoginValidators.parseServerAddress(_address.text)!;
 
   Future<void> _checkConnection() async {
     if (widget.session.busy) return;
-    final ipValid = _ipKey.currentState!.validate();
-    final portValid = _portKey.currentState!.validate();
-    if (!ipValid || !portValid) return;
+    if (!_addressKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
     setState(() => _checked = false);
     final error = await widget.session.checkConnection(_serverAddress());
@@ -128,31 +118,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 20),
                   ],
                   TextFormField(
-                    key: _ipKey,
-                    controller: _ip,
+                    key: _addressKey,
+                    controller: _address,
                     readOnly: login.busy,
                     decoration: const InputDecoration(
-                      labelText: 'IP do servidor',
-                      hintText: '192.168.1.25',
+                      labelText: 'Endereço do servidor',
+                      hintText: '192.168.1.25:3333 ou https://…',
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType: TextInputType.url,
                     textInputAction: TextInputAction.next,
-                    validator: LoginValidators.serverIp,
+                    validator: LoginValidators.serverAddress,
                     onChanged: _addressChanged,
                     autocorrect: false,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    key: _portKey,
-                    controller: _port,
-                    readOnly: login.busy,
-                    decoration: const InputDecoration(labelText: 'Porta'),
-                    keyboardType: TextInputType.number,
-                    textInputAction: TextInputAction.next,
-                    validator: LoginValidators.serverPort,
-                    onChanged: _addressChanged,
+                    enableSuggestions: false,
                   ),
                   const SizedBox(height: 12),
                   AppSecondaryButton(

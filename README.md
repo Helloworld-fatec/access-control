@@ -226,9 +226,11 @@ Edite o `.env`:
 |---|---|---|---|
 | `DATABASE_URL` | Sim | — | Conexão com o PostgreSQL, por exemplo `postgresql://USUARIO:SENHA@localhost:5432/NOME_DO_BANCO?schema=public` |
 | `PORT` | Não | `3000` | Porta da API |
-| `PHOTOS_DIR` | Não | `photos` | Pasta onde as fotos reduzidas são gravadas (criada automaticamente) |
+| `PHOTOS_DIR` | Não | `uploads` | Pasta onde o backend grava os JPEGs recebidos (criada automaticamente) |
 | `MAX_PHOTO_BYTES` | Não | `102400` | Tamanho máximo da foto enviada, em bytes (100 KB) |
 | `BCRYPT_ROUNDS` | Não | `10` | Custo do hash de senha |
+
+O Compose monta o volume existente `access_control_photos` em `/app/uploads`. Para uma instalação local que já guarda fotos em `photos/`, pare o backend e mova o conteúdo para `uploads/` antes de reiniciar. O banco mantém os mesmos caminhos relativos.
 
 ```bash
 npm install
