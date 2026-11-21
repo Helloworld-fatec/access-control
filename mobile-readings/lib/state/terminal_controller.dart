@@ -9,14 +9,13 @@ import '../services/accessibility_service.dart';
 import '../services/api_client.dart';
 import '../services/face_sync_service.dart';
 import '../services/mqtt_presence_service.dart';
-import '../services/nfc_service.dart';
 
 /// Estados oficiais do Terminal de Acesso (US-04).
 enum TerminalState {
-  /// Repouso: tela econômica, câmera desligada e leitor NFC inativo (US-13).
+  /// Repouso: tela econômica e câmera desligada (US-13).
   idle,
 
-  /// Escuta: QR Code rotativo visível e leitura NFC ativa.
+  /// Escuta: QR Code rotativo visível ou reconhecimento facial ativo.
   listening,
 
   /// Validando: credencial enviada ao backend, aguardando decisão.
@@ -33,10 +32,8 @@ enum TerminalState {
 class TerminalController extends ChangeNotifier {
   final ConfigStorage _configStorage;
   final TerminalApiClient _apiClient;
-  final NfcReaderService _nfcService;
   final PresenceMqttService _mqttService;
   final FaceSyncService _faceService;
-  final NfcCooldownGuard _nfcCooldownGuard;
   AccessibilityService _accessibilityService;
 
   final Duration qrRefreshInterval;
@@ -54,7 +51,6 @@ class TerminalController extends ChangeNotifier {
   bool _isE2eDemoRunning = false;
   String? _e2eDemoStep;
   String? _faceSyncMessage;
-  NfcHardwareStatus _nfcHardwareStatus = NfcHardwareStatus.available;
   AccessResult? _lastAccessResult;
   String? _statusMessage;
 
@@ -68,25 +64,21 @@ class TerminalController extends ChangeNotifier {
   TerminalController({
     required ConfigStorage configStorage,
     required TerminalApiClient apiClient,
-    required NfcReaderService nfcService,
     required PresenceMqttService mqttService,
     FaceSyncService? faceService,
     AccessibilityService? accessibilityService,
-    NfcCooldownGuard? nfcCooldownGuard,
     TerminalConfig initialConfig = const TerminalConfig(),
     this.qrRefreshInterval = const Duration(seconds: 10),
     this.presencePollingInterval = const Duration(seconds: 2),
     this.resultDisplayDuration = const Duration(seconds: 3),
   })  : _configStorage = configStorage,
         _apiClient = apiClient,
-        _nfcService = nfcService,
         _mqttService = mqttService,
         _faceService = faceService ?? FaceSyncService(),
         _accessibilityService = accessibilityService ??
             AccessibilityService(
               enabled: initialConfig.voiceAccessibilityEnabled,
             ),
-        _nfcCooldownGuard = nfcCooldownGuard ?? NfcCooldownGuard(),
         _config = initialConfig,
         _faceModeEnabled = initialConfig.preferFaceAuth;
 
@@ -99,7 +91,6 @@ class TerminalController extends ChangeNotifier {
   bool get isMqttConnected => _mqttConnected;
   bool get isFallbackPollingActive =>
       _presenceFallbackTimer != null && _presenceFallbackTimer!.isActive;
-  NfcHardwareStatus get nfcHardwareStatus => _nfcHardwareStatus;
   AccessResult? get lastAccessResult => _lastAccessResult;
   String? get statusMessage => _statusMessage;
   bool get isReaderBusy => _isReaderBusy;
@@ -135,7 +126,6 @@ class TerminalController extends ChangeNotifier {
     );
     _faceModeEnabled = _config.preferFaceAuth;
     _apiClient.updateConfig(_config);
-    _nfcHardwareStatus = await _nfcService.checkAvailability();
     _notifySafely();
     await _connectPresenceChannels();
     unawaited(syncFaceEmbeddings());
@@ -257,7 +247,6 @@ class TerminalController extends ChangeNotifier {
     _lastAccessResult = null;
     _statusMessage = null;
     _state = TerminalState.idle;
-    unawaited(_nfcService.stopListening());
     _notifySafely();
   }
 
@@ -271,24 +260,8 @@ class TerminalController extends ChangeNotifier {
     }
     _resetInactivityTimer();
     _startQrPolling();
-    unawaited(_startNfcInListening());
     unawaited(_accessibilityService.notifyTerminalAwake());
     _notifySafely();
-  }
-
-  Future<void> _startNfcInListening() async {
-    _nfcHardwareStatus = await _nfcService.checkAvailability();
-    _notifySafely();
-    if (_nfcHardwareStatus == NfcHardwareStatus.available &&
-        _state == TerminalState.listening) {
-      await _nfcService.startListening(
-        onTagRead: onNfcTagRead,
-        onError: (msg) {
-          _statusMessage = msg;
-          _notifySafely();
-        },
-      );
-    }
   }
 
   void _resetInactivityTimer() {
@@ -352,30 +325,7 @@ class TerminalController extends ChangeNotifier {
     });
   }
 
-  // ───────────── Leitura e Validação de Credenciais (US-09, US-10, US-11, US-12) ─────────────
-
-  /// Chamado quando uma tag NFC é aproximada do terminal em Escuta (US-09, US-10).
-  Future<void> onNfcTagRead(String rawUid) async {
-    if (_state != TerminalState.listening) return;
-
-    String normalizedUid;
-    try {
-      normalizedUid = NfcUidHelper.normalizeHexUid(rawUid);
-    } catch (_) {
-      _statusMessage = 'Formato de tag NFC inválido.';
-      _notifySafely();
-      return;
-    }
-
-    // Respeita o intervalo mínimo entre envios para evitar registros duplicados (US-10)
-    if (!_nfcCooldownGuard.shouldAccept(normalizedUid)) {
-      return;
-    }
-
-    await _processCredentialValidation(
-      () => _apiClient.validateNfcAccess(normalizedUid),
-    );
-  }
+  // ───────────── Validação de Credenciais Faciais (US-16 a US-20) ─────────────
 
   /// Chamado quando o módulo facial (US-18) identifica um usuário acima do limiar.
   Future<void> onFaceIdentified({
@@ -529,7 +479,6 @@ class TerminalController extends ChangeNotifier {
     Future<AccessResult> Function() validationCall,
   ) async {
     _cancelOperationalTimers();
-    await _nfcService.stopListening();
 
     _state = TerminalState.validating;
     _statusMessage = null;
@@ -585,7 +534,6 @@ class TerminalController extends ChangeNotifier {
     _disposed = true;
     _cancelOperationalTimers();
     _stopPresenceFallbackPolling();
-    unawaited(_nfcService.stopListening());
     unawaited(_mqttService.disconnect());
     super.dispose();
   }

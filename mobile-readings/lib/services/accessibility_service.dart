@@ -46,7 +46,7 @@ class AccessibilityService {
       await HapticFeedback.selectionClick();
     } catch (_) {}
     SemanticsService.announce(
-      'Terminal ativado. Aproxime o cartão NFC ou olhe para a câmera frontal.',
+      'Terminal ativado. Aponte para o QR Code ou olhe para a câmera frontal.',
       TextDirection.ltr,
     );
   }

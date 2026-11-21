@@ -1,8 +1,6 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-
-import '../services/nfc_service.dart';
 import '../state/terminal_controller.dart';
 import 'settings_screen.dart';
 
@@ -160,11 +158,10 @@ class TerminalScreen extends StatelessWidget {
     );
   }
 
-  /// Estado 2: Escuta — exibe o QR Code rotativo, leitura NFC e reconhecimento facial (US-07, US-08, US-09, US-16, US-17, US-19, US-20).
+  /// Estado 2: Escuta — exibe o QR Code rotativo ou reconhecimento facial (US-07, US-08, US-16, US-17, US-19, US-20).
   Widget _buildListeningView(BuildContext context) {
     final qrToken = controller.currentQrToken;
     final qrUnavailable = controller.isQrUnavailable;
-    final nfcStatus = controller.nfcHardwareStatus;
     final isFaceMode = controller.isFaceModeEnabled;
 
     return Scaffold(
@@ -214,13 +211,13 @@ class TerminalScreen extends StatelessWidget {
                     ),
                   ],
 
-                  // Alternador entre métodos de entrada: QR/NFC vs Reconhecimento Facial (US-16)
+                  // Alternador entre métodos de entrada: QR Code vs Reconhecimento Facial (US-16)
                   SegmentedButton<bool>(
                     segments: const [
                       ButtonSegment<bool>(
                         value: false,
                         icon: Icon(Icons.qr_code_2),
-                        label: Text('QR Code & Cartão'),
+                        label: Text('QR Code'),
                       ),
                       ButtonSegment<bool>(
                         value: true,
@@ -238,7 +235,7 @@ class TerminalScreen extends StatelessWidget {
                   if (isFaceMode)
                     _buildFaceCameraView(context)
                   else
-                    _buildQrNfcView(context, qrToken, qrUnavailable, nfcStatus),
+                    _buildQrView(context, qrToken, qrUnavailable),
 
                   if (controller.statusMessage != null) ...[
                     const SizedBox(height: 14),
@@ -346,12 +343,11 @@ class TerminalScreen extends StatelessWidget {
     );
   }
 
-  /// Painel de QR Code e Leitura NFC (US-07, US-08, US-09).
-  Widget _buildQrNfcView(
+  /// Painel de QR Code Dinâmico (US-07, US-08).
+  Widget _buildQrView(
     BuildContext context,
     dynamic qrToken,
     bool qrUnavailable,
-    NfcHardwareStatus nfcStatus,
   ) {
     return Column(
       key: const Key('qr_nfc_view'),
@@ -367,7 +363,7 @@ class TerminalScreen extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Aproxime sua tag NFC ou aponte a câmera para o QR Code.',
+          'Aponte a câmera do seu celular para o QR Code.',
           style: TextStyle(fontSize: 16, color: Colors.black87),
           textAlign: TextAlign.center,
         ),
@@ -443,43 +439,6 @@ class TerminalScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // Indicador do estado do leitor NFC (US-09)
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE5EBEE),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                nfcStatus == NfcHardwareStatus.available
-                    ? Icons.nfc
-                    : Icons.portable_wifi_off,
-                size: 32,
-                color: nfcStatus == NfcHardwareStatus.available
-                    ? const Color(0xFF31566A)
-                    : const Color(0xFFB51F2E),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  nfcStatus == NfcHardwareStatus.available
-                      ? 'Leitor NFC ativo: aproxime seu cartão ou chaveiro do aparelho.'
-                      : 'NFC desligado ou indisponível neste aparelho.',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
         ),
       ],
     );

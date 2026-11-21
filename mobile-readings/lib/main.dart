@@ -7,7 +7,6 @@ import 'screens/terminal_screen.dart';
 import 'services/api_client.dart';
 import 'services/face_sync_service.dart';
 import 'services/mqtt_presence_service.dart';
-import 'services/nfc_service.dart';
 import 'state/terminal_controller.dart';
 
 Future<void> main() async {
@@ -27,14 +26,12 @@ Future<void> main() async {
   final configStorage = const LocalConfigStorage();
   final initialConfig = await configStorage.load();
   final apiClient = TerminalApiClient(config: initialConfig);
-  final nfcService = NativeNfcReaderService();
   final mqttService = PresenceMqttService();
   final faceService = FaceSyncService();
 
   final controller = TerminalController(
     configStorage: configStorage,
     apiClient: apiClient,
-    nfcService: nfcService,
     mqttService: mqttService,
     faceService: faceService,
     initialConfig: initialConfig,
