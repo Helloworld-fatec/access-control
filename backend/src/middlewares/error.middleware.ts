@@ -71,17 +71,6 @@ export function errorHandler(
     return;
   }
 
-  // Payload muito grande (express.json)
-  if (e.type === "entity.too.large") {
-    res.status(413).json({
-      error: {
-        code: "PAYLOAD_TOO_LARGE",
-        message: "O tamanho da foto ou requisição excedeu o limite permitido.",
-      },
-    });
-    return;
-  }
-
   // Erros do multer (upload)
   if (e.name === "MulterError") {
     const tooBig = e.code === "LIMIT_FILE_SIZE";

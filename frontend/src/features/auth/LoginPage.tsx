@@ -5,6 +5,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "./AuthContext";
 import { Field, errorMessage } from "../../shared/ui";
+import Logo from "../../shared/Logo";
 
 const schema = z.object({
   email: z.string().trim().min(1, "Informe o e-mail").email("E-mail inválido"),
@@ -35,7 +36,7 @@ export default function LoginPage() {
   return (
     <main className="login">
       <form className="login-card" onSubmit={onSubmit} noValidate>
-        <h1>Controle de acesso</h1>
+        <div className="brand"><Logo size={48} /><h1>Controle de acesso</h1></div>
         <p className="muted">Entre com sua conta de administrador.</p>
         {import.meta.env.VITE_MOCK === "true" && <p className="form-notice">Demonstração: entre com admin@teste.com e qualquer senha.</p>}
         {notice && <p className="form-notice" role="status">{notice}</p>}

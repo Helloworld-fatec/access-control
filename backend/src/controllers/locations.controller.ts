@@ -17,7 +17,7 @@ const notFound = () => new AppError(404, "Local não encontrado", "LOCATION_NOT_
 export async function listLocations(req: Request, res: Response) {
   const q = listLocationsQuerySchema.parse(req.query);
 
-  const where: Prisma.LocationWhereInput = q.search
+  const where: Prisma.locationWhereInput = q.search
     ? {
         OR: [
           { building: { contains: q.search, mode: "insensitive" } },

@@ -4,11 +4,13 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "node start-dev.js",
-    "build": "tsc",
-    "start": "node dist/src/server.js",
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "admin:create": "tsx src/scripts/create-admin.ts",
     "test": "npx prisma generate && vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:check": "tsx src/scripts/check-db.ts"
   },
   "keywords": [],
   "author": "",

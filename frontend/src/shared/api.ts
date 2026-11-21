@@ -60,6 +60,10 @@ function toQuery(query?: Record<string, unknown>): string {
   return s ? `?${s}` : "";
 }
 
+// Só estes 401 significam "sessão inválida". Outros (ex.: TERMINAL_UNAUTHORIZED, de rotas que exigem
+// a chave do terminal) não podem derrubar o login do administrador.
+const SESSION_CODES = new Set(["UNAUTHORIZED", "INVALID_TOKEN", "ERROR"]);
+
 async function raw(path: string, opts: Options): Promise<Response> {
   const headers: Record<string, string> = {};
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
@@ -89,7 +93,7 @@ async function raw(path: string, opts: Options): Promise<Response> {
       /* resposta sem corpo JSON */
     }
     const e = payload.error;
-    if (res.status === 401 && accessToken) unauthorizedHandler?.();
+    if (res.status === 401 && accessToken && SESSION_CODES.has(e?.code ?? "ERROR")) unauthorizedHandler?.();
     throw new ApiError(
       res.status,
       e?.code ?? "ERROR",
@@ -104,6 +108,20 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
   const res = await raw(path, opts);
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+/** Nome do arquivo sugerido pelo servidor (Content-Disposition), ou um padrão. */
+export function filenameFrom(res: Pick<Response, "headers">, fallback: string): string {
+  const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(res.headers.get("Content-Disposition") ?? "");
+  const name = m ? decodeURIComponent(m[1]).trim() : "";
+  // Só o nome: nunca aceitamos caminhos vindos do servidor.
+  return name.replace(/[\\/]/g, "_") || fallback;
+}
+
+/** Baixa um arquivo gerado pelo servidor (ex.: CSV), com token e tratamento de erros da API. */
+export async function apiFile(path: string, opts: Pick<Options, "query"> = {}, fallbackName = "arquivo"): Promise<{ blob: Blob; filename: string }> {
+  const res = await raw(path, opts);
+  return { blob: await res.blob(), filename: filenameFrom(res, fallbackName) };
 }
 
 /** Para a foto: <img> não envia Authorization, então buscamos o arquivo com fetch. */
