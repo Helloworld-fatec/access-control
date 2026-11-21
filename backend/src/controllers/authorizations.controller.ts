@@ -19,12 +19,12 @@ const toDate = (yyyyMmDd: string) => new Date(`${yyyyMmDd}T00:00:00.000Z`);
 const include = {
   location: true,
   user: { select: { id: true, name: true } },
-} satisfies Prisma.authorizationInclude;
+} satisfies Prisma.AuthorizationInclude;
 
 export async function listMyAuthorizations(req: Request, res: Response) {
   if (!req.auth) throw new AppError(401, "User not authenticated", "UNAUTHORIZED");
   const q = paginationSchema.parse(req.query);
-  const where: Prisma.authorizationWhereInput = { userId: req.auth.userId };
+  const where: Prisma.AuthorizationWhereInput = { userId: req.auth.userId };
   const [rows, total] = await prisma.$transaction([
     prisma.authorization.findMany({
       where,
@@ -54,7 +54,7 @@ export async function listAuthorizations(req: Request, res: Response) {
   const q = listAuthorizationsQuerySchema.parse(req.query);
   const today = toDate(todayInSaoPaulo());
 
-  const and: Prisma.authorizationWhereInput[] = [];
+  const and: Prisma.AuthorizationWhereInput[] = [];
   if (q.userId) and.push({ userId: q.userId });
   if (q.locationId) and.push({ locationId: q.locationId });
   if (q.from) and.push({ endDate: { gte: toDate(q.from) } }); // período intersecta [from, to]
@@ -69,7 +69,7 @@ export async function listAuthorizations(req: Request, res: Response) {
     and.push({ status: AUTHORIZATION_STATUSES.ACTIVE, endDate: { lt: today } });
   }
 
-  const where: Prisma.authorizationWhereInput = { AND: and };
+  const where: Prisma.AuthorizationWhereInput = { AND: and };
 
   const [rows, total] = await prisma.$transaction([
     prisma.authorization.findMany({

@@ -33,7 +33,7 @@ async function assertUnique(
   document: string | undefined,
   ignoreId?: string,
 ) {
-  const or: Prisma.userWhereInput[] = [];
+  const or: Prisma.UserWhereInput[] = [];
   if (email) or.push({ email });
   if (document) or.push({ document });
   if (or.length === 0) return;
@@ -51,7 +51,7 @@ async function assertUnique(
 export async function listUsers(req: Request, res: Response) {
   const q = listUsersQuerySchema.parse(req.query);
 
-  const where: Prisma.userWhereInput = {
+  const where: Prisma.UserWhereInput = {
     ...(q.role ? { role: q.role } : {}),
     ...(q.active !== undefined ? { active: q.active } : {}),
     ...(q.search
@@ -183,7 +183,7 @@ export async function upsertFace(req: Request, res: Response) {
 
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, photo: { select: { filePath: true } } },
+      select: { id: true, name: true, photo: { select: { filePath: true } } },
     });
     if (!user) throw userNotFound();
 

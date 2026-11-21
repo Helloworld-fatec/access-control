@@ -31,7 +31,7 @@ export const hashApiKey = (apiKey: string) =>
 // GET /terminals
 export async function listTerminals(req: Request, res: Response) {
   const q = listTerminalsQuerySchema.parse(req.query);
-  const where: Prisma.terminalWhereInput = q.locationId
+  const where: Prisma.TerminalWhereInput = q.locationId
     ? { locationId: q.locationId }
     : {};
 

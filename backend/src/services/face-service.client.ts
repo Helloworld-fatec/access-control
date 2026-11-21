@@ -29,7 +29,7 @@ export async function enrollUserInFaceService(
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "image/jpeg" },
-      body: photoBuffer,
+      body: new Uint8Array(photoBuffer),
     });
     return res.ok;
   } catch (e) {
@@ -50,7 +50,7 @@ export async function matchFaceInService(
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "image/jpeg" },
-      body: photoBuffer,
+      body: new Uint8Array(photoBuffer),
     });
     if (!res.ok) return null;
     return (await res.json()) as FaceMatchResponse;
