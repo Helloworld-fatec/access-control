@@ -59,11 +59,12 @@ class MobileReadingsApp extends StatelessWidget {
       title: 'Terminal de Acesso',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        scaffoldBackgroundColor: const Color(0xFFECF0F5),
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF31566A),
-          primary: const Color(0xFF31566A),
-          secondary: const Color(0xFFB51F2E),
-          surface: const Color(0xFFF7F7F4),
+          seedColor: const Color(0xFFD81E3F),
+          primary: const Color(0xFFD81E3F),
+          secondary: const Color(0xFF14171D),
+          surface: const Color(0xFFECF0F5),
         ),
         useMaterial3: true,
       ),

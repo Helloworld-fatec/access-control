@@ -8,6 +8,7 @@ import {
   createTerminalSchema,
   idParamSchema,
   listTerminalsQuerySchema,
+  reportTerminalStatusSchema,
   updateTerminalSchema,
 } from "../models/dtos/index.js";
 import {
@@ -126,6 +127,40 @@ export async function getTerminalStatus(req: Request, res: Response) {
     presenceActive,
     lastPresenceAt: terminal.lastPresenceAt,
     lastSeenAt: terminal.lastSeenAt,
+  });
+}
+
+// POST /terminals/:id/status (Heartbeat e reporte de status do Arduino / Hardware)
+export async function reportTerminalStatus(req: Request, res: Response) {
+  const { id } = idParamSchema.parse(req.params);
+  const dto = reportTerminalStatusSchema.parse(req.body ?? {});
+
+  const terminal = await prisma.terminal.findUnique({ where: { id } });
+  if (!terminal) throw notFound();
+
+  const now = new Date();
+  const updateData = {
+    online: dto.online ?? true,
+    lastSeenAt: now,
+    ...(dto.presence === true ? { lastPresenceAt: now } : {}),
+  };
+
+  const updated = await prisma.terminal.update({
+    where: { id },
+    data: updateData,
+  });
+
+  const presenceActive =
+    updated.lastPresenceAt != null &&
+    now.getTime() - updated.lastPresenceAt.getTime() <= 5_000;
+
+  res.json({
+    status: "OK",
+    terminalId: updated.id,
+    online: updated.online,
+    presenceActive,
+    doorState: dto.doorState ?? "CLOSED",
+    timestamp: now.toISOString(),
   });
 }
 

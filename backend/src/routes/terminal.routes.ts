@@ -21,6 +21,7 @@ terminalRoutes.post(
 // Operações do equipamento autenticadas pela API key do próprio terminal.
 terminalRoutes.get("/:id/qr", authenticateTerminal, h(terminals.getTerminalQr));
 terminalRoutes.get("/:id/status", authenticateTerminal, h(terminals.getTerminalStatus));
+terminalRoutes.post("/:id/status", authenticateTerminal, h(terminals.reportTerminalStatus));
 terminalRoutes.get(
   "/:id/faces",
   authenticateTerminal,

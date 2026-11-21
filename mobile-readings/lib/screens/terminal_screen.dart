@@ -45,43 +45,125 @@ class TerminalScreen extends StatelessWidget {
     );
   }
 
-  /// Barra discreta de status (MQTT e acesso às configurações) (US-02, US-05).
+  /// Barra de status com identificadores ao vivo de conexão da API Backend e Hardware Arduino.
   PreferredSizeWidget _buildStatusBar(
     BuildContext context, {
     required Color backgroundColor,
     required Color foregroundColor,
   }) {
     final mqttOnline = controller.isMqttConnected;
+    final apiOnline = !controller.isQrUnavailable;
 
-    String connLabel;
+    Color arduinoDotColor;
+    String arduinoLabel;
     if (mqttOnline) {
-      connLabel = 'MQTT: Conectado';
+      if (controller.isReaderBusy) {
+        arduinoDotColor = const Color(0xFFF59E0B);
+        arduinoLabel = 'Arduino: Gravando';
+      } else {
+        arduinoDotColor = const Color(0xFF2ECC71);
+        arduinoLabel = 'Arduino: Online';
+      }
     } else if (controller.isFallbackPollingActive) {
-      connLabel = 'MQTT: Offline (Polling HTTP ativo)';
+      arduinoDotColor = const Color(0xFFF59E0B);
+      arduinoLabel = 'Arduino: Polling';
     } else {
-      connLabel = 'MQTT: Desconectado';
+      arduinoDotColor = const Color(0xFF7A8798);
+      arduinoLabel = 'Arduino: Offline';
     }
+
+    final apiDotColor = apiOnline ? const Color(0xFF2ECC71) : const Color(0xFFC4152F);
+    final apiLabel = apiOnline ? 'API: Online' : 'API: Offline';
 
     return AppBar(
       backgroundColor: backgroundColor,
       foregroundColor: foregroundColor,
       elevation: 0,
-      title: Row(
-        children: [
-          Icon(
-            mqttOnline ? Icons.cloud_done : Icons.cloud_off,
-            size: 18,
-            color: foregroundColor,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '${controller.config.terminalId} · $connLabel',
-              style: TextStyle(fontSize: 13, color: foregroundColor),
-              overflow: TextOverflow.ellipsis,
+      centerTitle: false,
+      title: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Identificador do Terminal
+            Text(
+              controller.config.terminalId,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: foregroundColor,
+                letterSpacing: 0.5,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 10),
+
+            // Badge de Status do Backend / API
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: apiDotColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    apiLabel,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: foregroundColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+
+            // Badge de Status do Arduino / Hardware
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: arduinoDotColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    arduinoLabel,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: foregroundColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
       actions: [
         IconButton(
@@ -98,10 +180,10 @@ class TerminalScreen extends StatelessWidget {
   Widget _buildIdleView(BuildContext context) {
     return Scaffold(
       key: const Key('view_state_idle'),
-      backgroundColor: const Color(0xFF0A0E12),
+      backgroundColor: const Color(0xFF14171D),
       appBar: _buildStatusBar(
         context,
-        backgroundColor: const Color(0xFF0A0E12),
+        backgroundColor: const Color(0xFF14171D),
         foregroundColor: Colors.white70,
       ),
       body: Center(
@@ -113,7 +195,7 @@ class TerminalScreen extends StatelessWidget {
               const Icon(
                 Icons.sensors,
                 size: 72,
-                color: Colors.white54,
+                color: Color(0xFFD81E3F),
               ),
               const SizedBox(height: 24),
               const Text(
@@ -137,17 +219,21 @@ class TerminalScreen extends StatelessWidget {
               const SizedBox(height: 36),
               SizedBox(
                 height: 52,
-                child: OutlinedButton.icon(
+                child: FilledButton.icon(
                   key: const Key('btn_wake_terminal'),
-                  style: OutlinedButton.styleFrom(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFD81E3F),
                     foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white38),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
                   ),
                   onPressed: controller.onPresenceDetected,
                   icon: const Icon(Icons.touch_app),
                   label: const Text(
                     'Ativar terminal manualmente',
-                    style: TextStyle(fontSize: 16),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -166,10 +252,10 @@ class TerminalScreen extends StatelessWidget {
 
     return Scaffold(
       key: const Key('view_state_listening'),
-      backgroundColor: const Color(0xFFF7F7F4),
+      backgroundColor: const Color(0xFFECF0F5),
       appBar: _buildStatusBar(
         context,
-        backgroundColor: const Color(0xFF31566A),
+        backgroundColor: const Color(0xFFD81E3F),
         foregroundColor: Colors.white,
       ),
       body: SafeArea(
@@ -213,16 +299,26 @@ class TerminalScreen extends StatelessWidget {
 
                   // Alternador entre métodos de entrada: QR Code vs Reconhecimento Facial (US-16)
                   SegmentedButton<bool>(
+                    style: SegmentedButton.styleFrom(
+                      selectedBackgroundColor: const Color(0xFF14171D),
+                      selectedForegroundColor: Colors.white,
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF14171D),
+                      side: const BorderSide(color: Color(0xFFD3DAE4)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
                     segments: const [
                       ButtonSegment<bool>(
                         value: false,
                         icon: Icon(Icons.qr_code_2),
-                        label: Text('QR Code'),
+                        label: Text('QR Code', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                       ButtonSegment<bool>(
                         value: true,
                         icon: Icon(Icons.face),
-                        label: Text('Biometria Facial'),
+                        label: Text('Biometria Facial', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ],
                     selected: {isFaceMode},
@@ -242,20 +338,20 @@ class TerminalScreen extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFEBEE),
+                        color: const Color(0xFFFBE1E5),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: const Color(0xFFFFCDD2)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.info_outline, color: Color(0xFFB51F2E)),
+                          const Icon(Icons.info_outline, color: Color(0xFFC4152F)),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               controller.statusMessage!,
                               style: const TextStyle(
                                 fontSize: 14,
-                                color: Color(0xFFB51F2E),
+                                color: Color(0xFFC4152F),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -287,14 +383,14 @@ class TerminalScreen extends StatelessWidget {
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF31566A),
+            color: Color(0xFF14171D),
           ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 6),
         const Text(
           'Olhe diretamente para a câmera para validar seu acesso.',
-          style: TextStyle(fontSize: 16, color: Colors.black87),
+          style: TextStyle(fontSize: 16, color: Color(0xFF4A5565)),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),
@@ -309,7 +405,7 @@ class TerminalScreen extends StatelessWidget {
           onFallbackTriggered: controller.simulateFaceAccess,
         ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
 
         // Botão de Ação: Validação Biométrica Oficial (US-16, US-17, US-18)
         Row(
@@ -318,14 +414,19 @@ class TerminalScreen extends StatelessWidget {
             FilledButton.icon(
               key: const Key('btn_sim_face_valid'),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2E7D32),
+                backgroundColor: const Color(0xFF14171D),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    const EdgeInsets.symmetric(horizontal: 26, vertical: 15),
+                elevation: 2,
               ),
               onPressed: () {
                 _viewfinderKey.currentState?.captureAndValidate();
               },
-              icon: const Icon(Icons.face_unlock_rounded),
+              icon: const Icon(Icons.face_unlock_rounded, color: Color(0xFF2ECC71)),
               label: const Text(
                 'Validar Biometria Facial',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -357,14 +458,14 @@ class TerminalScreen extends StatelessWidget {
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF31566A),
+            color: Color(0xFF14171D),
           ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 6),
         const Text(
           'Aponte a câmera do seu celular para o QR Code.',
-          style: TextStyle(fontSize: 16, color: Colors.black87),
+          style: TextStyle(fontSize: 16, color: Color(0xFF4A5565)),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),
@@ -375,11 +476,18 @@ class TerminalScreen extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: const Color(0xFF31566A),
-              width: 2,
+              color: const Color(0xFFD3DAE4),
+              width: 1.5,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: qrUnavailable || qrToken == null
               ? Column(
@@ -389,7 +497,7 @@ class TerminalScreen extends StatelessWidget {
                     const Icon(
                       Icons.qr_code_2,
                       size: 72,
-                      color: Color(0xFFB51F2E),
+                      color: Color(0xFFC4152F),
                     ),
                     const SizedBox(height: 12),
                     const Text(
@@ -397,7 +505,7 @@ class TerminalScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFB51F2E),
+                        color: Color(0xFFC4152F),
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -406,13 +514,20 @@ class TerminalScreen extends StatelessWidget {
                       'Sem comunicação com o servidor para atualizar o código.',
                       style: TextStyle(
                         fontSize: 16,
-                        color: Colors.black87,
+                        color: Color(0xFF4A5565),
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
                       key: const Key('btn_retry_qr'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFD81E3F),
+                        side: const BorderSide(color: Color(0xFFD81E3F)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
                       onPressed: controller.refreshQrCodeNow,
                       icon: const Icon(Icons.refresh),
                       label: const Text('Tentar novamente'),
@@ -434,7 +549,7 @@ class TerminalScreen extends StatelessWidget {
                       'Código renovado automaticamente a cada 10s',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.black54,
+                        color: Color(0xFF4A5565),
                       ),
                     ),
                   ],
@@ -448,10 +563,10 @@ class TerminalScreen extends StatelessWidget {
   Widget _buildValidatingView(BuildContext context) {
     return Scaffold(
       key: const Key('view_state_validating'),
-      backgroundColor: const Color(0xFFF7F7F4),
+      backgroundColor: const Color(0xFFECF0F5),
       appBar: _buildStatusBar(
         context,
-        backgroundColor: const Color(0xFF31566A),
+        backgroundColor: const Color(0xFFD81E3F),
         foregroundColor: Colors.white,
       ),
       body: const Center(
@@ -463,7 +578,10 @@ class TerminalScreen extends StatelessWidget {
               SizedBox(
                 width: 64,
                 height: 64,
-                child: CircularProgressIndicator(strokeWidth: 6),
+                child: CircularProgressIndicator(
+                  strokeWidth: 6,
+                  color: Color(0xFFD81E3F),
+                ),
               ),
               SizedBox(height: 24),
               Text(
@@ -471,14 +589,14 @@ class TerminalScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF31566A),
+                  color: Color(0xFF14171D),
                 ),
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 8),
               Text(
                 'Aguarde um instante.',
-                style: TextStyle(fontSize: 18, color: Colors.black87),
+                style: TextStyle(fontSize: 18, color: Color(0xFF4A5565)),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -493,7 +611,7 @@ class TerminalScreen extends StatelessWidget {
     final result = controller.lastAccessResult;
     return Scaffold(
       key: const Key('view_state_granted'),
-      backgroundColor: const Color(0xFF2E7D32),
+      backgroundColor: const Color(0xFF14683F),
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -504,7 +622,7 @@ class TerminalScreen extends StatelessWidget {
                 const Icon(
                   Icons.check_circle,
                   size: 112,
-                  color: Colors.white,
+                  color: Color(0xFF2ECC71),
                 ),
                 const SizedBox(height: 24),
                 const Text(
@@ -545,13 +663,16 @@ class TerminalScreen extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white38),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFF2ECC71).withValues(alpha: 0.6),
+                      width: 1.5,
+                    ),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.lock_open, color: Colors.white, size: 28),
+                      Icon(Icons.lock_open, color: Color(0xFF2ECC71), size: 28),
                       SizedBox(width: 12),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -593,7 +714,7 @@ class TerminalScreen extends StatelessWidget {
 
     return Scaffold(
       key: const Key('view_state_denied'),
-      backgroundColor: const Color(0xFFB51F2E),
+      backgroundColor: const Color(0xFFC4152F),
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -749,9 +870,9 @@ class FaceCameraViewfinderState extends State<FaceCameraViewfinder>
       width: double.infinity,
       height: 290,
       decoration: BoxDecoration(
-        color: const Color(0xFF1A2129),
+        color: const Color(0xFF14171D),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF31566A), width: 3),
+        border: Border.all(color: const Color(0xFF14171D), width: 2),
         boxShadow: const [
           BoxShadow(
             color: Colors.black26,
@@ -766,7 +887,7 @@ class FaceCameraViewfinderState extends State<FaceCameraViewfinder>
           // Feed de Câmera Frontal ao Vivo ou Fundo Simulado (US-16)
           Positioned.fill(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(14),
               child: _isCameraReady && _cameraController != null
                   ? FittedBox(
                       fit: BoxFit.cover,
@@ -783,7 +904,7 @@ class FaceCameraViewfinderState extends State<FaceCameraViewfinder>
                         gradient: RadialGradient(
                           center: Alignment(0, -0.1),
                           radius: 0.9,
-                          colors: [Color(0xFF2C394B), Color(0xFF0F141C)],
+                          colors: [Color(0xFF232A34), Color(0xFF14171D)],
                         ),
                       ),
                     ),
@@ -793,7 +914,7 @@ class FaceCameraViewfinderState extends State<FaceCameraViewfinder>
           // Máscara semitransparente escurecendo os cantos e destacando o enquadramento
           Positioned.fill(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(14),
               child: Container(
                 color: Colors.black.withValues(alpha: 0.25),
               ),
@@ -807,12 +928,12 @@ class FaceCameraViewfinderState extends State<FaceCameraViewfinder>
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(85),
               border: Border.all(
-                color: const Color(0xFF4DD0E1),
+                color: const Color(0xFF2ECC71),
                 width: 2.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF4DD0E1).withValues(alpha: 0.25),
+                  color: const Color(0xFF2ECC71).withValues(alpha: 0.3),
                   blurRadius: 16,
                   spreadRadius: 2,
                 ),
@@ -842,11 +963,11 @@ class FaceCameraViewfinderState extends State<FaceCameraViewfinder>
                         child: Container(
                           height: 3,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF4DD0E1),
+                            color: const Color(0xFF2ECC71),
                             borderRadius: BorderRadius.circular(2),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF4DD0E1)
+                                color: const Color(0xFF2ECC71)
                                     .withValues(alpha: 0.8),
                                 blurRadius: 8,
                                 spreadRadius: 2,
@@ -869,9 +990,9 @@ class FaceCameraViewfinderState extends State<FaceCameraViewfinder>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.black54,
+                color: const Color(0xFF14171D).withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white24),
+                border: Border.all(color: const Color(0xFFD3DAE4).withValues(alpha: 0.3)),
               ),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
@@ -894,9 +1015,9 @@ class FaceCameraViewfinderState extends State<FaceCameraViewfinder>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.black54,
+                color: const Color(0xFF14171D).withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white24),
+                border: Border.all(color: const Color(0xFFD3DAE4).withValues(alpha: 0.3)),
               ),
               child: Text(
                 'Limiar: ${widget.thresholdPct}%',
@@ -911,13 +1032,14 @@ class FaceCameraViewfinderState extends State<FaceCameraViewfinder>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
-                color: const Color(0xFF31566A).withValues(alpha: 0.9),
+                color: const Color(0xFF14171D).withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF2ECC71).withValues(alpha: 0.4)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.memory, color: Colors.white, size: 14),
+                  const Icon(Icons.memory, color: Color(0xFF2ECC71), size: 14),
                   const SizedBox(width: 6),
                   Text(
                     widget.isSyncing
