@@ -228,65 +228,6 @@ class TerminalApiClient {
     }
   }
 
-  /// Envia a foto real capturada pela câmera frontal para POST /access/face.
-  /// O backend encaminha a foto para o microserviço Python HOG que faz o reconhecimento real.
-  Future<AccessResult> validateFacePhoto(List<int> photoBytes) async {
-    if (_config.simulationMode) {
-      await Future<void>.delayed(const Duration(milliseconds: 600));
-      return const AccessResult(
-        decision: AccessDecision.granted,
-        message: 'Acesso liberado',
-        userName: 'Usuário Facial',
-      );
-    }
-
-    final uri = _buildUri('/access/face');
-    final payload = jsonEncode({
-      'terminalId': _config.terminalId,
-      'photoBase64': base64Encode(photoBytes),
-    });
-
-    try {
-      final response = await _sendWithRetry(
-        () => _httpClient.post(
-          uri,
-          headers: {
-            ..._headers,
-            'Content-Type': 'application/json',
-          },
-          body: payload,
-        ),
-      );
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final body = jsonDecode(response.body) as Map<String, dynamic>;
-        return AccessResult(
-          decision: AccessDecision.granted,
-          message: body['message']?.toString() ?? 'Acesso liberado',
-          userName: body['userName']?.toString(),
-        );
-      }
-
-      if (response.statusCode == 401 ||
-          response.statusCode == 403 ||
-          response.statusCode == 400) {
-        Map<String, dynamic>? body;
-        try {
-          body = jsonDecode(response.body) as Map<String, dynamic>;
-        } catch (_) {}
-        return AccessResult(
-          decision: AccessDecision.denied,
-          message: body?['message']?.toString() ?? 'Rosto não autorizado.',
-          reasonCode: body?['reason']?.toString() ?? 'UNAUTHORIZED',
-        );
-      }
-
-      return AccessResult.unavailable();
-    } catch (_) {
-      return AccessResult.unavailable();
-    }
-  }
-
   /// Envia o resultado de identificação facial para POST /access/face (US-18).
   Future<AccessResult> validateFaceAccess({
     required String userId,

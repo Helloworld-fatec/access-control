@@ -109,7 +109,7 @@ export default function LocationsPage() {
                 <tbody>
                   {q.data.data.map((l) => (
                     <tr key={l.id}>
-                      <td>{l.building}</td><td>{l.entrance ?? "—"}</td><td>{l.door ?? "—"}</td><td>{l.turnstile ?? "—"}</td><td>{l.description ?? "—"}</td>
+                      <td>{l.building}</td><td>{l.entrance || "—"}</td><td>{l.door || "—"}</td><td>{l.turnstile || "—"}</td><td>{l.description || "—"}</td>
                       <td className="row-actions">
                         <button className="btn btn-sm" onClick={() => setEditing(l)}>Editar</button>
                         <button className="btn btn-danger btn-sm" onClick={() => setDeleting(l)}>Excluir</button>

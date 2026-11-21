@@ -98,7 +98,7 @@ export default function UserDetailPage() {
                 <div><dt>Situação</dt><dd><Badge tone={u.active ? "ok" : "muted"}>{u.active ? "Ativo" : "Inativo"}</Badge></dd></div>
                 <div><dt>E-mail</dt><dd>{u.email}</dd></div>
                 <div><dt>Documento</dt><dd title="Documento parcialmente oculto">{u.document ? maskDocument(u.document) : "—"}</dd></div>
-                <div><dt>Telefone</dt><dd>{u.phone ?? "—"}</dd></div>
+                <div><dt>Telefone</dt><dd>{u.phone || "—"}</dd></div>
                 <div><dt>Cadastrado em</dt><dd>{formatDateTime(u.createdAt)}</dd></div>
               </dl>
             </section>

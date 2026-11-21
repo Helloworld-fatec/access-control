@@ -32,6 +32,16 @@ npm test            # Vitest + Testing Library + MSW
 npm run check       # os três, em sequência
 ```
 
+## Integração com o backend real
+
+Validado contra o backend da `develop` e um PostgreSQL de verdade: login (`POST /api/login`), usuários, tags, locais,
+terminais, autorizações, histórico com filtros e acessos gerados pelo terminal (`/access/nfc`).
+Veja `docs/como-rodar.md` (na raiz do projeto) para subir tudo.
+
+- Só os 401 com código `UNAUTHORIZED` ou `INVALID_TOKEN` encerram a sessão. O `401 TERMINAL_UNAUTHORIZED`
+  de `GET /terminals/{id}/status` (que exige a chave do terminal) só aparece no cartão do terminal.
+- O backend devolve texto vazio em alguns campos opcionais (ex.: descrição do local); o front mostra "—".
+
 ## Backend
 
 O front usa os endpoints do backend da branch `develop`:
@@ -50,17 +60,18 @@ Tela inicial após o login (`/painel`), com resumo do dia, gráfico de acessos p
 para leitores de tela), acessos por método, motivos de negação, autorizações, status dos terminais e últimos acessos.
 Os terminais e os últimos acessos atualizam sozinhos a cada 5 segundos, com opção de pausar.
 
-**Por enquanto o painel só mostra dados no modo demonstração (`npm run dev:mock`).** O backend não foi alterado e ainda
-não tem os endpoints abaixo; com o backend real, o painel mostra uma mensagem explicando o que falta e continua funcionando
-a lista de últimos acessos (`GET /access-logs`).
-
-Contrato que o front espera (proposta para quem fizer o backend):
+O painel usa endpoints reais do backend (todos exigem o token de administrador):
 
 | Endpoint | Resposta |
 | --- | --- |
 | `GET /dashboard/summary?date=AAAA-MM-DD` | `{ date, granted, denied, denialRate (0 a 1), byMethod: {QR, NFC, FACE}, authorizations: {active, expiringSoon, canceled}, topDenialReasons: [{reason, count}] }` |
 | `GET /dashboard/accesses-by-hour?date=AAAA-MM-DD` | `[{ hour (0 a 23), granted, denied }]`, 24 itens, hora em America/Sao_Paulo |
-| `GET /terminals/{id}/status` | o que já existe (`online`, `presenceActive`, `lastPresenceAt`, `lastSeenAt`), acrescido de `lock: "LOCKED" \| "UNLOCKED"`, e acessível ao administrador (hoje exige a chave do terminal) |
+| `GET /terminals/status` | `{ data: [{ id, name, online, presenceActive, lastPresenceAt, lastSeenAt }] }` |
+| `GET /access-logs?pageSize=10` | últimos acessos |
+
+Regras: o dia vai de 00:00 a 24:00 em São Paulo; "expirando" são as autorizações ativas que vencem em até 7 dias;
+um terminal conta como online se `online` é verdadeiro **ou** falou com a API nos últimos 2 minutos.
+O estado da trava não existe no backend: o cartão só o mostra no modo demonstração (`npm run dev:mock`).
 
 ## Configuração do endereço da API (sem rebuild)
 
@@ -91,14 +102,18 @@ não conseguem chamar uma API em HTTP (bloqueio de conteúdo misto).
 
 ## Tag NFC
 
-A tag é vinculada por UID digitado ou por leitor USB que emula teclado (o UID "cai" no campo de texto).
-A **Web NFC API não é usada**: ela só funciona no Chrome para Android e exige HTTPS.
+A tag é vinculada por UID digitado ou por leitor USB que emula teclado, que é o que o backend aceita hoje
+(`POST /users/{id}/tags` com o UID). A **Web NFC API não é usada**: ela só funciona no Chrome para Android e exige HTTPS.
+
+> O backlog da US-07 foi atualizado: agora pede "Gravar tag" pelo terminal, com a situação da tag
+> (pendente, ativa, falha, revogada) e sem leitor USB. Isso depende de endpoints que o backend ainda não tem
+> (`GET /users/{id}/tags` e a gravação pelo terminal). Ao implementá-los, trocar o formulário de UID por esse fluxo.
 
 ## Situação das user stories
 
 Veja `criterios-de-aceite-frontend.md` (na raiz da entrega) para cada critério. Resumo do que ainda não existe:
 
-- Painel (US-15, US-16): pronto no front, mas só com dados de demonstração até o backend ter os endpoints acima.
+- Painel (US-15, US-16): integrado ao backend. Falta apenas o estado da trava, que o backend não tem.
 - Exportação do histórico (US-14): falta endpoint no backend.
 - Foto por upload ou webcam (US-08).
 - Teste ponta a ponta com Playwright (US-20); os testes unitários e de componentes já existem.

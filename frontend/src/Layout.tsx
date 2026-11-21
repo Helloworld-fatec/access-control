@@ -1,5 +1,6 @@
 import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./features/auth/AuthContext";
+import Logo from "./shared/Logo";
 
 const NAV = [
   { to: "/painel", label: "Painel" },
@@ -20,7 +21,10 @@ export default function Layout() {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="brand">Controle de acesso</div>
+        <div className="brand">
+          <Logo size={42} />
+          <span>Controle de acesso</span>
+        </div>
         <nav aria-label="Principal">
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
@@ -46,6 +50,11 @@ export default function Layout() {
         )}
         <Outlet />
       </main>
+      <footer className="hints" aria-label="Atalhos do teclado">
+        <span><kbd>Tab</kbd> Navegar</span>
+        <span><kbd>Enter</kbd> Confirmar</span>
+        <span><kbd>Esc</kbd> Fechar janela</span>
+      </footer>
     </div>
   );
 }

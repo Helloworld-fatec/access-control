@@ -9,3 +9,6 @@ node_modules/
 /local
 .pgdata-test/
 
+
+# Fotos de usuários enviadas em tempo de execução (dados pessoais)
+photos/

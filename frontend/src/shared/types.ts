@@ -107,9 +107,10 @@ export interface HourBucket {
   granted: number;
   denied: number;
 }
-/** Resposta de GET /terminals/{id}/status. `lock` ainda não existe no backend. */
+/** Situação do terminal (GET /terminals/status). `lock` ainda não existe no backend; só a demonstração o simula. */
 export interface TerminalStatus {
   id: string;
+  name?: string;
   online: boolean;
   presenceActive: boolean;
   lastPresenceAt: string | null;

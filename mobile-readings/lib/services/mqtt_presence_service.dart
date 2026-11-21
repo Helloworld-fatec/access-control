@@ -9,7 +9,6 @@ abstract class PresenceMqttService {
     required TerminalConfig config,
     required void Function() onPresenceDetected,
     required void Function(bool connected) onConnectionChanged,
-    void Function(bool isBusy)? onReaderBusyChanged,
   });
   Future<void> disconnect();
 

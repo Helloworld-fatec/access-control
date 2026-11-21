@@ -1,6 +1,6 @@
 // Modo demonstração (npm run dev:mock): responde a /api/* com dados em memória,
 // sem backend. Só é carregado quando VITE_MOCK=true; não vai para a build normal.
-import { todayInSaoPaulo } from "./format";
+import { METHOD_LABEL, REASON_LABEL, todayInSaoPaulo } from "./format";
 import type { AccessLog, Location, Role, User } from "./types";
 
 interface MUser extends User { face: boolean; tags: { id: string; uid: string; active: boolean; createdAt: string }[] }
@@ -58,6 +58,13 @@ const logs: MLog[] = Array.from({ length: 42 }, (_, i) => {
 });
 
 const clean = (v: unknown) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null);
+const filterLogs = (q: URLSearchParams) => {
+  const from = q.get("from"), to = q.get("to");
+  return logs.filter((l) =>
+    (!q.get("userId") || l.userId === q.get("userId")) && (!q.get("terminalId") || l.terminalId === q.get("terminalId")) &&
+    (!q.get("method") || l.method === q.get("method")) && (!q.get("result") || l.result === q.get("result")) &&
+    (!from || l.createdAt.slice(0, 10) >= from) && (!to || l.createdAt.slice(0, 10) <= to));
+};
 const page = <T,>(items: T[], q: URLSearchParams) => {
   const p = Math.max(Number(q.get("page")) || 1, 1);
   const size = Math.min(Math.max(Number(q.get("pageSize")) || 20, 1), 100);
@@ -138,7 +145,7 @@ const need = (b: Record<string, unknown>, field: string, msg: string) => {
   if (typeof b[field] !== "string" || !(b[field] as string).trim()) throw bad(field, msg);
 };
 
-function route(method: string, path: string[], q: URLSearchParams, b: Record<string, unknown>): { status: number; body?: unknown } {
+function route(method: string, path: string[], q: URLSearchParams, b: Record<string, unknown>): { status: number; body?: unknown; text?: boolean } {
   const [res, rid, sub, sid] = path;
   const ok = (body: unknown, status = 200) => ({ status, body });
   const none = { status: 204 };
@@ -219,6 +226,7 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
       terminals.push(t);
       return ok({ ...termOut(t), apiKey: `demo_${id()}${id()}` }, 201);
     }
+    if (rid === "status" && method === "GET") return ok({ data: terminals.map(terminalStatus) });
     const t = find(terminals, rid, "Terminal");
     if (sub === "status") return ok(terminalStatus(t));
     if (method === "DELETE") { terminals.splice(terminals.indexOf(t), 1); return none; }
@@ -261,12 +269,18 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
     return ok(rid === "summary" ? summarize(date, hours) : hours);
   }
 
+  if (res === "access-logs" && rid === "export") {
+    const csv = ["Data e hora;Pessoa;Terminal;Método;Resultado;Motivo", ...filterLogs(q).map((l) => [
+      new Date(l.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+      users.find((x) => x.id === l.userId)?.name ?? "Não identificada",
+      terminals.find((x) => x.id === l.terminalId)?.name ?? "",
+      METHOD_LABEL[l.method], l.result === "GRANTED" ? "Liberado" : "Negado", l.reason ? REASON_LABEL[l.reason] ?? l.reason : "",
+    ].join(";"))].join("\r\n");
+    return { status: 200, body: "\uFEFF" + csv + "\r\n", text: true };
+  }
+
   if (res === "access-logs" && !rid) {
-    const from = q.get("from"), to = q.get("to");
-    const list = logs.filter((l) =>
-      (!q.get("userId") || l.userId === q.get("userId")) && (!q.get("terminalId") || l.terminalId === q.get("terminalId")) &&
-      (!q.get("method") || l.method === q.get("method")) && (!q.get("result") || l.result === q.get("result")) &&
-      (!from || l.createdAt.slice(0, 10) >= from) && (!to || l.createdAt.slice(0, 10) <= to));
+    const list = filterLogs(q);
     return ok(page(list.map((l) => {
       const u = users.find((x) => x.id === l.userId);
       const t = terminals.find((x) => x.id === l.terminalId);
@@ -307,6 +321,9 @@ export function installMock(options: { live?: boolean } = {}) {
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
     try {
       const r = route((init?.method ?? "GET").toUpperCase(), url.pathname.slice(5).split("/").filter(Boolean), url.searchParams, body);
+      if ("text" in r && r.text) {
+        return new Response(r.body as string, { status: 200, headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="historico-acessos-demo.csv"' } });
+      }
       return new Response(r.status === 204 ? null : JSON.stringify(r.body), { status: r.status, headers: { "Content-Type": "application/json" } });
     } catch (e) {
       if (!(e instanceof HttpErr)) throw e;

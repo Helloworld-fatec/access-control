@@ -8,8 +8,7 @@
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true,
-    "outDir": "dist"
+    "isolatedModules": true
   },
   "include": [
     "src/**/*.ts",

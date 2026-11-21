@@ -30,14 +30,6 @@ export const listTerminalsQuerySchema = paginationSchema.extend({
   locationId: z.string().uuid().optional(),
 });
 
-export const reportTerminalStatusSchema = z.object({
-  presence: z.boolean().optional(),
-  online: z.boolean().optional(),
-  doorState: z.enum(["OPEN", "CLOSED"]).optional(),
-  rawTagUid: z.string().optional(),
-});
-
 export type CreateTerminalDto = z.infer<typeof createTerminalSchema>;
 export type UpdateTerminalDto = z.infer<typeof updateTerminalSchema>;
 export type ListTerminalsQuery = z.infer<typeof listTerminalsQuerySchema>;
-export type ReportTerminalStatusDto = z.infer<typeof reportTerminalStatusSchema>;
