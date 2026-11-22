@@ -31,6 +31,7 @@ class _Backend extends http.BaseClient {
   static const token = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg';
 
   final requests = <http.BaseRequest>[];
+  bool presence = false;
   Future<http.StreamedResponse> Function() qr = () async => qrResponse();
   Future<http.StreamedResponse> Function() face =
       () async => response({'result': 'GRANTED', 'allowed': true});
@@ -52,6 +53,9 @@ class _Backend extends http.BaseClient {
     if (request.url.path.endsWith('/terminals/me')) {
       return Future.value(response({'id': _configuredTerminal.terminalId}));
     }
+    if (request.url.path == '/api/terminals/${_configuredTerminal.terminalId}/status') {
+      return Future.value(response({'presenceActive': presence}));
+    }
     if (request.url.path == '/api/access/face/capture') return face();
     expect(request.method, 'POST');
     expect(request.url.path, '/api/terminals/me/qr');
@@ -62,8 +66,16 @@ class _Backend extends http.BaseClient {
 void main() {
   late _Backend backend;
   late TerminalController controller;
+  late bool controllerDisposed;
+
+  void disposeController() {
+    if (controllerDisposed) return;
+    controllerDisposed = true;
+    controller.dispose();
+  }
 
   setUp(() async {
+    controllerDisposed = false;
     backend = _Backend();
     controller = TerminalController(
       configStorage: _InMemoryConfigStorage(),
@@ -75,7 +87,27 @@ void main() {
     await controller.initialize();
   });
 
-  tearDown(() => controller.dispose());
+  tearDown(disposeController);
+
+  testWidgets('acorda pela presença sem reabrir durante a mesma detecção',
+      (tester) async {
+    controller.returnToIdle();
+    backend.presence = true;
+    await tester.pump(const Duration(seconds: 2));
+    expect(controller.state, TerminalState.choosing);
+    expect(backend.requests.single.headers['x-terminal-key'], _configuredTerminal.apiKey);
+
+    controller.returnToIdle();
+    await tester.pump(const Duration(seconds: 2));
+    expect(controller.state, TerminalState.idle);
+
+    backend.presence = false;
+    await tester.pump(const Duration(seconds: 2));
+    backend.presence = true;
+    await tester.pump(const Duration(seconds: 2));
+    expect(controller.state, TerminalState.choosing);
+    disposeController();
+  });
 
   testWidgets(
       'manual activation opens the choice without contacting the server',
@@ -104,7 +136,8 @@ void main() {
     expect(controller.state, TerminalState.choosing);
     expect(controller.currentQrToken, isNull);
     expect(backend.requests, hasLength(requestCount));
-    controller.returnToIdle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    disposeController();
   });
 
   test('ignores an old QR response even after reentering QR mode', () async {

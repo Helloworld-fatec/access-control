@@ -6,6 +6,8 @@ Documentação da arquitetura do Sistema Integrado de Controle de Acesso (ABP 20
 
 ## 1. Visão geral
 
+Para a integração do ESP32 na demonstração, siga o [contrato MQTT v1](./contrato.md) para tópicos, mensagens e responsabilidades dos clientes.
+
 O sistema libera uma catraca ou fechadura a partir de uma credencial lida por **QR Code** ou **tag NFC**, com validação centralizada em um backend e registro de toda tentativa de acesso. O **reconhecimento facial** é uma funcionalidade extra (seção 9).
 
 **Princípio central:** apps e dispositivo **nunca decidem o acesso**.

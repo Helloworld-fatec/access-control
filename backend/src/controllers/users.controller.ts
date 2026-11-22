@@ -1,6 +1,12 @@
 // backend/src/controllers/users.controller.ts
 import fs from "node:fs";
 import type { Request, Response } from "express";
+import { z } from "zod";
+import {
+  beginEnrollment, enrollmentResponseFields, enrollmentTerminalId, lockEnrollmentUser, toEnrollmentResponse,
+} from "../services/nfc-enrollment.service.js";
+import { mqttStatus } from "../services/mqtt.service.js";
+import { nfcUidSchema } from "../models/dtos/nfc-tag.dto.js";
 import bcrypt from "bcrypt";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../config/prisma.js";
@@ -92,13 +98,15 @@ export async function getUser(req: Request, res: Response) {
     include: {
       nfcTags: { orderBy: { createdAt: "desc" } },
       nfcCredential: { select: { status: true } },
+      nfcEnrollments: { orderBy: { createdAt: "desc" }, take: 1, select: enrollmentResponseFields },
       faceTemplate: { select: { id: true } }, // nunca devolve o embedding
       photo: { select: { id: true } },
     },
   });
   if (!user) throw userNotFound();
 
-  res.json(toUserDetailResponse(user));
+  const latest = user.nfcEnrollments?.[0];
+  res.json({ ...toUserDetailResponse(user), nfcEnrollment: latest ? toEnrollmentResponse(latest) : null });
 }
 
 // POST /users
@@ -176,6 +184,26 @@ export async function updateUserStatus(req: Request, res: Response) {
 
 // ───────────── Tags NFC ─────────────
 
+export async function startNfcEnrollment(req: Request, res: Response) {
+  const { id } = idParamSchema.parse(req.params);
+  const { expectedUid } = z.strictObject({ expectedUid: nfcUidSchema.optional() }).parse(req.body ?? {});
+  const terminalId = enrollmentTerminalId();
+  if (!terminalId || mqttStatus() !== "connected") {
+    throw new AppError(503, "O gravador NFC está indisponível", "NFC_READER_OFFLINE");
+  }
+  res.status(202).json(await beginEnrollment(id, terminalId, expectedUid));
+}
+
+export async function getNfcEnrollment(req: Request, res: Response) {
+  const { id, requestId } = idParamSchema.extend({ requestId: z.uuid() }).parse(req.params);
+  const enrollment = await prisma.nfcEnrollment.findFirst({
+    where: { id: requestId, userId: id },
+    select: enrollmentResponseFields,
+  });
+  if (!enrollment) throw new AppError(404, "Pedido de gravação NFC não encontrado", "NFC_ENROLLMENT_NOT_FOUND");
+  res.json(toEnrollmentResponse(enrollment));
+}
+
 // POST /users/:id/tags
 export async function addTag(req: Request, res: Response) {
   const { id } = idParamSchema.parse(req.params);
@@ -199,8 +227,19 @@ export async function addTag(req: Request, res: Response) {
 export async function removeTag(req: Request, res: Response) {
   const { id, tagId } = nfcTagParamsSchema.parse(req.params);
 
-  const { count } = await prisma.nfctag.deleteMany({ where: { id: tagId, userId: id } });
-  if (count === 0) throw new AppError(404, "Tag não encontrada", "TAG_NOT_FOUND");
+  await prisma.$transaction(async (tx) => {
+    await lockEnrollmentUser(tx, id);
+    const tag = await tx.nfctag.findFirst({ where: { id: tagId, userId: id }, select: { uid: true } });
+    if (!tag) throw new AppError(404, "Tag não encontrada", "TAG_NOT_FOUND");
+    await tx.nfccredential.updateMany({
+      where: { userId: id, tagId }, data: { status: "REVOKED", tagId: null },
+    });
+    await tx.nfcEnrollment.updateMany({
+      where: { userId: id, status: "PENDING", OR: [{ expectedUid: null }, { expectedUid: tag.uid }] },
+      data: { status: "FAILED", reason: "TAG_REMOVED" },
+    });
+    await tx.nfctag.delete({ where: { id: tagId } });
+  });
 
   res.status(204).send();
 }

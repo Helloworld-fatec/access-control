@@ -106,15 +106,17 @@ class UsersRepository {
     return data is Map && data['hasPhoto'] == true;
   }
 
-  Future<String> linkNfcCredential(String id, String codeHex) => _call(
-        () => _dio.put<dynamic>(
-          '/users/$id/nfc-credential',
-          data: {'codeHex': codeHex},
+  Future<NfcEnrollment> startNfcEnrollment(String id) => _call(
+        () => _dio.post<dynamic>(
+          '/users/$id/nfc-enrollments',
+          data: <String, Object>{},
         ),
-        (json) => switch (json['status']) {
-          final String status => status,
-          _ => throw const FormatException('Estado NFC inválido'),
-        },
+        NfcEnrollment.fromJson,
+      );
+
+  Future<NfcEnrollment> getNfcEnrollment(String id, String requestId) => _call(
+        () => _dio.get<dynamic>('/users/$id/nfc-enrollments/$requestId'),
+        NfcEnrollment.fromJson,
       );
 
   /// `PATCH /users/{id}/status`: ativa ou desativa (o histórico é preservado).

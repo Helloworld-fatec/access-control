@@ -3,6 +3,12 @@ import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hashTerminalKey } from "../config/terminal-key.js";
 import { app } from "../index.js";
+import { requestDoorUnlock } from "../services/door-unlock.service.js";
+
+vi.mock("../services/door-unlock.service.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../services/door-unlock.service.js")>(),
+  requestDoorUnlock: vi.fn(),
+}));
 
 const db = vi.hoisted(() => ({
   terminal: { findUnique: vi.fn(), update: vi.fn() },
@@ -95,6 +101,10 @@ describe("captura facial do terminal", () => {
         confidence: 0.75,
       }),
     });
+    const [logged] = db.accesslog.create.mock.calls[0]!;
+    expect(requestDoorUnlock).toHaveBeenCalledExactlyOnceWith({
+      accessLogId: logged.data.id, terminalId, userId, method: "FACE",
+    });
   });
 
   it("recusa um rosto reconhecido quando falta autorizacao", async () => {
@@ -104,6 +114,7 @@ describe("captura facial do terminal", () => {
     expect(response.status).toBe(403);
     expect(response.body).toMatchObject({ allowed: false, reason: "NO_AUTHORIZATION" });
     expect(db.authorization.updateMany).not.toHaveBeenCalled();
+    expect(requestDoorUnlock).not.toHaveBeenCalled();
     expect(db.accesslog.create).toHaveBeenCalledExactlyOnceWith({
       data: expect.objectContaining({ userId, terminalId, result: "DENIED" }),
     });

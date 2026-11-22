@@ -8,6 +8,7 @@ import { accessLogRoutes } from "./access-log.routes.js";
 import { authRoutes } from "./auth.routes.js";
 import { accessRoutes } from "./access.routes.js";
 import { dashboardRoutes } from "./dashboard.routes.js";
+import { mqttStatus } from "../services/mqtt.service.js";
 
 export const routes = Router();
 
@@ -301,7 +302,7 @@ export const sendLandingPage = (req: import("express").Request, res: import("exp
 routes.get("/", sendLandingPage);
 
 routes.get("/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", timestamp: new Date().toISOString(), mqtt: mqttStatus() });
 });
 
 // Cada router aplica a autenticação apropriada aos seus consumidores.

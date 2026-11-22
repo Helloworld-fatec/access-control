@@ -30,6 +30,7 @@ model user {
 
   nfcTags        nfctag[]
   nfcCredential  nfccredential?
+  nfcEnrollments nfcEnrollment[]
   faceTemplate   facetemplate?
   photo          userphoto?
   authorizations authorization[] @relation("authorization_user")
@@ -49,6 +50,7 @@ model nfctag {
   createdAt DateTime @default(now())
 
   user user @relation(fields: [userId], references: [id], onDelete: Cascade, map: "nfc_tags_user_id_fkey")
+  credential nfccredential?
 
   @@index([userId], map: "nfc_tags_user_id_idx")
   @@map("nfc_tags")
@@ -59,10 +61,29 @@ model nfccredential {
   codeHex   String   @unique @db.VarChar(6)
   status    String   @default("PENDING")
   createdAt DateTime @default(now())
+  tagId     String?  @unique
 
   user user @relation(fields: [userId], references: [id], onDelete: Cascade, map: "nfc_credentials_user_id_fkey")
+  tag  nfctag? @relation(fields: [tagId], references: [id], onDelete: SetNull)
 
   @@map("nfc_credentials")
+}
+
+model nfcEnrollment {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String
+  terminalId  String
+  expectedUid String?
+  status      String   @default("PENDING")
+  reason      String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  user     user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  terminal terminal @relation(fields: [terminalId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("nfc_enrollments")
 }
 
 model facetemplate {
@@ -120,11 +141,16 @@ model terminal {
   online         Boolean   @default(false)
   lastPresenceAt DateTime?
   lastSeenAt     DateTime?
+  mqttPresenceAt DateTime?
+  mqttDoorState  String?
+  mqttDoorStateAt DateTime?
   createdAt      DateTime  @default(now())
 
   location   location   @relation(fields: [locationId], references: [id], map: "terminals_location_id_fkey")
   accessLogs accesslog[]
   qrNonces   qrnonce[]
+  nfcEnrollments nfcEnrollment[]
+  mqttDoorCommands mqttDoorCommand[]
 
   @@index([locationId], map: "terminals_location_id_idx")
   @@map("terminals")
@@ -181,12 +207,41 @@ model accesslog {
   user          user?          @relation(fields: [userId], references: [id], onDelete: SetNull, map: "access_logs_user_id_fkey")
   terminal      terminal       @relation(fields: [terminalId], references: [id], map: "access_logs_terminal_id_fkey")
   authorization authorization? @relation(fields: [authorizationId], references: [id], onDelete: SetNull, map: "access_logs_authorization_id_fkey")
+  mqttDoorCommand mqttDoorCommand?
 
   @@index([createdAt], map: "access_logs_created_at_idx")
   @@index([userId, createdAt], map: "access_logs_user_created_at_idx")
   @@index([terminalId, createdAt], map: "access_logs_terminal_created_at_idx")
   @@unique([terminalId, faceAttemptId], map: "access_logs_terminal_face_attempt_key")
   @@map("access_logs")
+}
+
+model mqttDoorCommand {
+  id          String   @id @default(uuid()) @db.Uuid
+  accessLogId String   @unique
+  terminalId  String
+  issuedAt    DateTime
+  expiresAt   DateTime
+  ackResult   String?
+  ackAt       DateTime?
+
+  accessLog accesslog @relation(fields: [accessLogId], references: [id], onDelete: Cascade)
+  terminal  terminal  @relation(fields: [terminalId], references: [id], onDelete: Restrict)
+
+  @@index([ackResult, expiresAt])
+  @@map("mqtt_door_commands")
+}
+
+model mqttNfcRequest {
+  terminalId  String
+  requestId   String   @db.Uuid
+  fingerprint String
+  expiresAt   DateTime
+  decision    Json?
+
+  @@id([terminalId, requestId])
+  @@index([expiresAt])
+  @@map("mqtt_nfc_requests")
 }
 
 model qrnonce {

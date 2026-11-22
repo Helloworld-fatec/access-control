@@ -1,9 +1,14 @@
 // Modo demonstração (npm run dev:mock): responde a /api/* com dados em memória,
 // sem backend. Só é carregado quando VITE_MOCK=true; não vai para a build normal.
 import { METHOD_LABEL, REASON_LABEL, todayInSaoPaulo } from "./format";
-import type { AccessLog, Location, Role, User } from "./types";
+import type { AccessLog, Location, NfcEnrollment, Role, User } from "./types";
 
-interface MUser extends User { face: boolean; tags: { id: string; uid: string; active: boolean; createdAt: string }[] }
+interface MUser extends User {
+  face: boolean;
+  tags: { id: string; uid: string; active: boolean; createdAt: string }[];
+  enrollment?: NfcEnrollment;
+  enrolledTagId?: string;
+}
 interface MTerminal { id: string; name: string; locationId: string; latitude: number; longitude: number; online: boolean; lastPresenceAt: string | null; lastSeenAt: string | null }
 interface MAuth { id: string; userId: string; locationId: string; startDate: string; endDate: string; startTime: string; endTime: string; maxUses: number | null; usedCount: number; canceled: boolean }
 interface MLog { id: string; userId: string | null; terminalId: string; method: AccessLog["method"]; result: AccessLog["result"]; reason: string | null; nfcUid: string | null; createdAt: string }
@@ -177,7 +182,10 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
     }
     const u = find(users, rid, "Usuário");
     if (!sub) {
-      if (method === "GET") return ok({ ...publicUser(u), hasFace: u.face, hasPhoto: false, nfcTags: u.tags.map((t) => ({ ...t, userId: u.id })) });
+      if (method === "GET") return ok({ ...publicUser(u), hasFace: u.face, hasPhoto: false,
+        nfcTags: u.tags.map((t) => ({ ...t, userId: u.id })),
+        nfcCredential: u.enrolledTagId ? { status: "ACTIVE" } : null,
+        nfcEnrollment: u.enrollment ?? null });
       if (b.email && users.some((x) => x.id !== u.id && x.email === String(b.email).trim().toLowerCase())) throw new HttpErr(409, "CONFLICT", "Já existe um usuário com esse e-mail.", [{ path: "email", message: "Já existe um usuário com esse e-mail." }]);
       if (b.name) u.name = String(b.name).trim();
       if (b.email) u.email = String(b.email).trim().toLowerCase();
@@ -187,8 +195,37 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
     }
     if (sub === "status") { u.active = Boolean(b.active); return ok(publicUser(u)); }
     if (sub === "face") { u.face = false; return none; }
+    if (sub === "nfc-enrollments") {
+      if (method === "GET" && u.enrollment?.id === sid) return ok(u.enrollment);
+      if (method !== "POST") throw new HttpErr(404, "NOT_FOUND", "Pedido de gravação não encontrado.");
+      if (u.enrollment?.status === "PENDING") return ok(u.enrollment, 202);
+      if (u.enrolledTagId) throw new HttpErr(409, "NFC_CREDENTIAL_ACTIVE", "Remova a tag ativa antes de gravar outra.");
+      const uid = String(b.expectedUid ?? Array.from(
+        crypto.getRandomValues(new Uint8Array(4)), (byte) => byte.toString(16).padStart(2, "0"),
+      ).join("")).toUpperCase();
+      if (!/^[0-9A-F]{8,20}$/.test(uid)) throw bad("expectedUid", "UID deve ser hexadecimal, com 8 a 20 caracteres");
+      const request: NfcEnrollment = {
+        id: id(), status: "PENDING", reason: null, expiresAt: new Date(Date.now() + 30_000).toISOString(),
+      };
+      u.enrollment = request;
+      setTimeout(() => {
+        if (users.some((other) => other.id !== u.id && other.tags.some((tag) => tag.uid === uid))) {
+          u.enrollment = { ...request, status: "FAILED", reason: "TAG_CONFLICT" };
+          return;
+        }
+        const tag = u.tags.find((item) => item.uid === uid) ?? { id: id(), uid, active: true, createdAt: new Date().toISOString() };
+        if (!u.tags.includes(tag)) u.tags.push(tag);
+        u.enrolledTagId = tag.id;
+        u.enrollment = { ...request, status: "WRITTEN" };
+      }, 1_500);
+      return ok(request, 202);
+    }
     if (sub === "tags") {
-      if (method === "DELETE") { u.tags = u.tags.filter((t) => t.id !== sid); return none; }
+      if (method === "DELETE") {
+        u.tags = u.tags.filter((t) => t.id !== sid);
+        if (u.enrolledTagId === sid) { u.enrolledTagId = undefined; u.enrollment = undefined; }
+        return none;
+      }
       const uidv = String(b.uid ?? "").replace(/[\s:-]/g, "").toUpperCase();
       if (!/^[0-9A-F]{8,20}$/.test(uidv)) throw bad("uid", "UID deve ser hexadecimal, com 8 a 20 caracteres");
       if (users.some((x) => x.tags.some((t) => t.uid === uidv))) throw new HttpErr(409, "CONFLICT", "Essa tag já está vinculada a um usuário.");

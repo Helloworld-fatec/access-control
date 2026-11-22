@@ -21,6 +21,7 @@ class TerminalController extends ChangeNotifier {
   final ConfigStorage _configStorage;
   final TerminalApiClient _apiClient;
   static const _qrFailureDelay = Duration(seconds: 10);
+  static const _presencePollDelay = Duration(seconds: 2);
 
   TerminalConfig _config = const TerminalConfig();
   TerminalState _state = TerminalState.idle;
@@ -34,11 +35,13 @@ class TerminalController extends ChangeNotifier {
   bool _capturing = false;
   bool _initialized = false;
   bool _disposed = false;
+  bool _presenceDetected = false;
   int _operationGeneration = 0;
 
   Timer? _inactivityTimer;
   Timer? _qrRefreshTimer;
   Timer? _qrExpiryTimer;
+  Timer? _presenceTimer;
 
   TerminalController({
     required ConfigStorage configStorage,
@@ -67,6 +70,7 @@ class TerminalController extends ChangeNotifier {
     _config = config;
     _apiClient.updateConfig(config);
     _initialized = true;
+    _schedulePresencePoll();
     notifyListeners();
   }
 
@@ -89,6 +93,7 @@ class TerminalController extends ChangeNotifier {
 
     _qrKeyRejected = false;
     _qrRetryAt = null;
+    _presenceDetected = false;
     _config = verified;
     _apiClient.updateConfig(verified);
     returnToIdle();
@@ -126,7 +131,27 @@ class TerminalController extends ChangeNotifier {
     if (next == TerminalState.choosing || next == TerminalState.facial) {
       _resetInactivityTimer();
     }
+    if (next == TerminalState.idle) _schedulePresencePoll();
     notifyListeners();
+  }
+
+  void _schedulePresencePoll([Duration delay = _presencePollDelay]) {
+    if (!_config.isConfigured || _disposed || _state != TerminalState.idle) return;
+    _presenceTimer?.cancel();
+    final generation = _operationGeneration;
+    _presenceTimer = Timer(delay, () async {
+      var nextDelay = _presencePollDelay;
+      try {
+        final detected = await _apiClient.fetchPresence();
+        if (!_isCurrent(generation)) return;
+        final justDetected = detected && !_presenceDetected;
+        _presenceDetected = detected;
+        if (justDetected) activate();
+      } on Exception {
+        nextDelay = _qrFailureDelay;
+      }
+      if (_isCurrent(generation)) _schedulePresencePoll(nextDelay);
+    });
   }
 
   void _resetInactivityTimer() {
@@ -292,6 +317,7 @@ class TerminalController extends ChangeNotifier {
     _inactivityTimer?.cancel();
     _qrRefreshTimer?.cancel();
     _qrExpiryTimer?.cancel();
+    _presenceTimer?.cancel();
   }
 
   @override

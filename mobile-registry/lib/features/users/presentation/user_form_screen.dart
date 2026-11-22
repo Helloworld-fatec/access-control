@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -35,12 +34,12 @@ class UserFormScreen extends StatefulWidget {
 
 class _UserFormScreenState extends State<UserFormScreen> {
   final _model = UserFormModel();
-  final _random = Random.secure();
   UserSummary? _user;
   Uint8List? _photo;
   Future<Uint8List?> Function()? _loadSavedPhoto;
-  String? _nfcCode;
   String? _nfcStatus;
+  NfcEnrollment? _nfcEnrollment;
+  Timer? _nfcPoll;
   String? _notice;
   String? _faceError;
   String? _nfcError;
@@ -60,6 +59,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
 
   @override
   void dispose() {
+    _nfcPoll?.cancel();
     _model.dispose();
     super.dispose();
   }
@@ -78,7 +78,9 @@ class _UserFormScreenState extends State<UserFormScreen> {
         _hasFace = detail.hasFace;
         _loadSavedPhoto = detail.hasPhoto ? () => widget.repository.getPhoto(id) : null;
         _nfcStatus = detail.nfcCredentialStatus;
+        _nfcEnrollment = detail.nfcEnrollment;
       });
+      _scheduleNfcPoll(id);
     } catch (error) {
       if (mounted) setState(() => _loadError = userMessageFor(error));
     } finally {
@@ -109,37 +111,41 @@ class _UserFormScreenState extends State<UserFormScreen> {
     }
   }
 
-  String _newNfcCode() =>
-      _random.nextInt(1 << 24).toRadixString(16).padLeft(6, '0').toUpperCase();
-
   Future<void> _linkNfc(UsersRepository repository, String id) async {
     try {
-      String status;
-      try {
-        status = await repository.linkNfcCredential(
-          id,
-          _nfcCode ??= _newNfcCode(),
-        );
-      } catch (error) {
-        if (ApiException.from(error).code != 'NFC_CODE_CONFLICT' || !mounted) {
-          rethrow;
-        }
-        status =
-            await repository.linkNfcCredential(id, _nfcCode = _newNfcCode());
-      }
+      final enrollment = await repository.startNfcEnrollment(id);
       if (!mounted) return;
       setState(() {
-        _nfcStatus = status;
-        _nfcCode = null;
+        _nfcEnrollment = enrollment;
+        _nfcStatus = 'PENDING';
       });
+      _scheduleNfcPoll(id);
     } catch (error) {
       if (!mounted) return;
-      final api = ApiException.from(error);
-      setState(() {
-        _nfcError = api.message;
-        if (api.code == 'NFC_CODE_CONFLICT') _nfcCode = null;
-      });
+      setState(() => _nfcError = userMessageFor(error));
     }
+  }
+
+  void _scheduleNfcPoll(String userId) {
+    _nfcPoll?.cancel();
+    final request = _nfcEnrollment;
+    if (request == null || request.status != 'PENDING') return;
+    _nfcPoll = Timer(const Duration(seconds: 2), () async {
+      try {
+        final result = await widget.repository.getNfcEnrollment(userId, request.id);
+        if (!mounted || _nfcEnrollment?.id != request.id) return;
+        setState(() {
+          _nfcEnrollment = result;
+          if (result.status == 'WRITTEN') _nfcStatus = 'ACTIVE';
+          _nfcError = null;
+        });
+        if (result.status == 'WRITTEN') unawaited(widget.onChanged());
+      } catch (error) {
+        if (!mounted || _nfcEnrollment?.id != request.id) return;
+        setState(() => _nfcError = userMessageFor(error));
+      }
+      _scheduleNfcPoll(userId);
+    });
   }
 
   Future<void> _saveFace(UsersRepository repository, String id) async {
@@ -381,21 +387,33 @@ class _UserFormScreenState extends State<UserFormScreen> {
               onPressed: _busy ? null : _capture,
             ),
             const Divider(),
-            Text(switch (_nfcStatus) {
-              'PENDING' => 'NFC pendente de gravação',
-              final String status => 'NFC: $status',
-              null => editing
-                  ? 'NFC sem código vinculado'
-                  : 'O código NFC será gerado ao salvar.',
+            Text(switch (_nfcEnrollment?.status) {
+              'PENDING' => 'Aproxime a tag do ESP32 para gravar.',
+              'WRITTEN' when _nfcStatus == 'ACTIVE' =>
+                'Gravação NFC confirmada pelo ESP32.',
+              'EXPIRED' => 'O prazo de gravação NFC terminou.',
+              'FAILED' => switch (_nfcEnrollment?.reason) {
+                  'TAG_CONFLICT' => 'Esta tag já está cadastrada.',
+                  'UID_MISMATCH' => 'A tag aproximada tem outro UID.',
+                  'READBACK_MISMATCH' => 'O código relido diverge do enviado.',
+                  _ => 'A gravação NFC falhou.',
+                },
+              _ when _nfcStatus == 'ACTIVE' => 'Tag NFC ativa.',
+              _ when editing => 'Nenhuma gravação NFC em andamento.',
+              _ => 'A gravação NFC será solicitada depois de salvar.',
             }),
             if (_nfcError case final String message)
               StatusMessage(kind: StatusKind.error, message: 'NFC: $message'),
-            if (_user != null && _nfcStatus == null)
+            if (_user != null &&
+                _nfcStatus != 'ACTIVE' &&
+                _nfcEnrollment?.status != 'PENDING')
               TextButton(
                 onPressed: _busy ? null : _retryNfc,
-                child: Text(_nfcError == null
-                    ? 'Vincular código NFC'
-                    : 'Tentar NFC novamente'),
+                child: Text(_nfcError != null ||
+                        _nfcEnrollment?.status == 'FAILED' ||
+                        _nfcEnrollment?.status == 'EXPIRED'
+                    ? 'Tentar NFC novamente'
+                    : 'Gravar tag NFC'),
               ),
             const SizedBox(height: 20),
             AppPrimaryButton(

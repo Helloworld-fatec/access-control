@@ -25,11 +25,11 @@ void main() {
 
   Finder field(String label) => find.widgetWithText(TextFormField, label);
 
-  testWidgets('cria e retenta só o NFC com o mesmo código', (tester) async {
+  testWidgets('cria o usuário, retenta o NFC e consulta a confirmação', (tester) async {
     final adapter = RoutedAdapter({
       'GET /users': usersPage([]),
       'POST /users': FakeAdapter.json(201, userJson()),
-      'PUT /users/u-1/nfc-credential': apiError(502, 'UNAVAILABLE', 'Falha'),
+      'POST /users/u-1/nfc-enrollments': apiError(503, 'NFC_READER_OFFLINE', 'Falha'),
     });
     await start(tester, adapter);
     await tapVisible(tester, find.text('Novo usuário'));
@@ -39,21 +39,19 @@ void main() {
     await tapVisible(tester, find.text('Condômino').last);
     await tapVisible(tester, find.text('Salvar usuário'));
 
-    final attempts =
-        adapter.requests.where((r) => r.path.endsWith('nfc-credential'));
-    final first = attempts.first;
-    expect((first.data as Map)['codeHex'], matches(RegExp(r'^[0-9A-F]{6}$')));
-    expect(attempts.map((r) => (r.data as Map)['codeHex']).toSet(), {
-      (first.data as Map)['codeHex'],
-    });
+    expect(adapter.callsTo('POST /users/u-1/nfc-enrollments'), 1);
     expect(find.text('Usuário criado.'), findsOneWidget);
 
-    adapter.routes['PUT /users/u-1/nfc-credential'] =
-        FakeAdapter.json(200, {'status': 'PENDING'});
+    adapter.routes['POST /users/u-1/nfc-enrollments'] =
+        FakeAdapter.json(202, {'id': 'req-1', 'status': 'PENDING'});
+    adapter.routes['GET /users/u-1/nfc-enrollments/req-1'] =
+        FakeAdapter.json(200, {'id': 'req-1', 'status': 'WRITTEN'});
     await tapVisible(tester, find.text('Tentar NFC novamente'));
-    expect(adapter.requests.last.data, first.data);
     expect(adapter.callsTo('POST /users'), 1);
-    expect(find.text('NFC pendente de gravação'), findsOneWidget);
+    expect(find.text('Aproxime a tag do ESP32 para gravar.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(find.text('Gravação NFC confirmada pelo ESP32.'), findsOneWidget);
   });
 
   testWidgets('envia foto consentida como JPEG e permite retentar só a foto',
@@ -123,7 +121,7 @@ void main() {
     await tester.enterText(field('Nome completo'), 'Maria Costa');
     await tapVisible(tester, find.text('Salvar usuário'));
     expect(adapter.callsTo('PUT /users/u-1'), 1);
-    expect(adapter.callsTo('PUT /users/u-1/nfc-credential'), 0);
+    expect(adapter.callsTo('POST /users/u-1/nfc-enrollments'), 0);
     await tapVisible(tester, find.text('Excluir usuário'));
     await tapVisible(tester, find.text('Cancelar'));
     expect(adapter.callsTo('DELETE /users/u-1'), 0);

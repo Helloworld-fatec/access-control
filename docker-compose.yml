@@ -1,4 +1,25 @@
 services:
+  mosquitto:
+    build: ./mqtt
+    restart: unless-stopped
+    environment:
+      MQTT_LAN_HOST: ${MQTT_LAN_HOST:-}
+      MQTT_BACKEND_PASSWORD: ${MQTT_BACKEND_PASSWORD:?Defina MQTT_BACKEND_PASSWORD no arquivo .env}
+      ESP32_TERMINAL_ID: ${ESP32_TERMINAL_ID:-}
+      MQTT_ESP32_PASSWORD: ${MQTT_ESP32_PASSWORD:-}
+      MQTT_SIMULATOR_TERMINAL_ID: ${MQTT_SIMULATOR_TERMINAL_ID:-}
+      MQTT_SIMULATOR_PASSWORD: ${MQTT_SIMULATOR_PASSWORD:-}
+    ports:
+      - "${MQTT_BIND_ADDRESS:-127.0.0.1}:${MQTT_PORT:-8883}:8883"
+    volumes:
+      - mqtt_data:/mosquitto/data
+      - mqtt_ca:/mqtt-ca
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h mosquitto -p 8883 --cafile /mqtt-ca/ca.crt -u backend -P \"$$MQTT_BACKEND_PASSWORD\" -t '$$SYS/broker/version' -C 1 -W 3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
@@ -42,13 +63,21 @@ services:
       MAX_PHOTO_BYTES: ${MAX_PHOTO_BYTES:-102400}
       FACE_RECOGNITION_URL: http://face-recognition:8000
       FACE_RECOGNITION_TIMEOUT_MS: ${FACE_RECOGNITION_TIMEOUT_MS:-5000}
+      ESP32_TERMINAL_ID: ${ESP32_TERMINAL_ID:-}
+      MQTT_SIMULATOR_TERMINAL_ID: ${MQTT_SIMULATOR_TERMINAL_ID:-}
+      MQTT_URL: mqtts://mosquitto:8883
+      MQTT_CA_FILE: /mqtt-ca/ca.crt
+      MQTT_BACKEND_PASSWORD: ${MQTT_BACKEND_PASSWORD:?Defina MQTT_BACKEND_PASSWORD no arquivo .env}
       PHOTOS_DIR: /app/uploads
     ports:
       - "3333:3333"
     volumes:
       - access_control_photos:/app/uploads
+      - mqtt_ca:/mqtt-ca:ro
     depends_on:
       postgres:
+        condition: service_healthy
+      mosquitto:
         condition: service_healthy
     healthcheck:
       test:
@@ -72,7 +101,28 @@ services:
       backend:
         condition: service_healthy
 
+  simulator:
+    profiles: [simulacao]
+    build: ./backend
+    healthcheck:
+      disable: true
+    command: ["./node_modules/.bin/tsx", "src/scripts/mqtt-simulator.ts"]
+    environment:
+      MQTT_URL: mqtts://mosquitto:8883
+      MQTT_CA_FILE: /mqtt-ca/ca.crt
+      MQTT_SIMULATOR_TERMINAL_ID: ${MQTT_SIMULATOR_TERMINAL_ID:-}
+      MQTT_SIMULATOR_PASSWORD: ${MQTT_SIMULATOR_PASSWORD:-}
+    volumes:
+      - mqtt_ca:/mqtt-ca:ro
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
 volumes:
+  mqtt_data:
+  mqtt_ca:
   access_control_pgdata:
     name: access_control_pgdata
   access_control_photos:

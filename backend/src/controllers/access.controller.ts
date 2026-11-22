@@ -1,10 +1,12 @@
 // backend/src/controllers/access.controller.ts
+import { createHmac, randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import type { Prisma } from "../generated/prisma/client.js";
+import { env } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
-import { faceAccessSchema, nfcAccessSchema } from "../models/dtos/index.js";
+import { esp32NfcAccessSchema, faceAccessSchema, nfcAccessSchema } from "../models/dtos/index.js";
 import { todayInSaoPaulo } from "../models/index.js";
 import {
   FACE_MODEL_VERSION,
@@ -12,6 +14,7 @@ import {
   isCompatibleFaceEmbedding,
   matchFace,
 } from "../services/face-recognition.service.js";
+import { requestDoorUnlock } from "../services/door-unlock.service.js";
 import {
   ACCESS_METHODS,
   ACCESS_RESULTS,
@@ -56,6 +59,7 @@ interface EvaluateAccessParams {
   nfcUid?: string;
   confidence?: number;
   faceAttemptId?: string;
+  accessLogId?: string;
 }
 
 /**
@@ -67,8 +71,9 @@ async function evaluateUserAccess(
   params: EvaluateAccessParams,
   db: Pick<Prisma.TransactionClient, "user" | "authorization" | "accesslog"> = prisma,
 ) {
-  const { userId, terminalId, locationId, method, nfcUid, confidence, faceAttemptId } = params;
+  const { userId, terminalId, locationId, method, nfcUid, confidence, faceAttemptId, accessLogId } = params;
   const log = {
+    ...(accessLogId === undefined ? {} : { id: accessLogId }),
     terminalId,
     method,
     nfcUid: nfcUid ?? null,
@@ -230,38 +235,7 @@ export async function validateNfcAccess(req: Request, res: Response) {
     throw new AppError(404, "Terminal não encontrado", "TERMINAL_NOT_FOUND");
   }
 
-  const tag = await prisma.nfctag.findUnique({
-    where: { uid: dto.uid },
-  });
-
-  if (!tag || !tag.active) {
-    await prisma.accesslog.create({
-      data: {
-        userId: tag?.userId ?? null,
-        terminalId: terminal.id,
-        method: ACCESS_METHODS.NFC,
-        result: ACCESS_RESULTS.DENIED,
-        reason: DENY_REASONS.INVALID_CREDENTIAL,
-        nfcUid: dto.uid,
-      },
-    });
-
-    res.status(403).json({
-      result: ACCESS_RESULTS.DENIED,
-      allowed: false,
-      reason: DENY_REASONS.INVALID_CREDENTIAL,
-      message: FRIENDLY_DENY_MESSAGES.INVALID_CREDENTIAL,
-    });
-    return;
-  }
-
-  const outcome = await evaluateUserAccess({
-    userId: tag.userId,
-    terminalId: terminal.id,
-    locationId: terminal.locationId,
-    method: ACCESS_METHODS.NFC,
-    nfcUid: dto.uid,
-  });
+  const outcome = await evaluateNfcAccess(terminal, dto.uid, prisma);
 
   if (outcome.granted) {
     res.status(200).json({
@@ -279,6 +253,138 @@ export async function validateNfcAccess(req: Request, res: Response) {
     reason: outcome.reason,
     message: outcome.message,
   });
+}
+
+async function evaluateNfcAccess(
+  terminal: { id: string; locationId: string },
+  uid: string,
+  db: Pick<Prisma.TransactionClient, "nfctag" | "user" | "authorization" | "accesslog">,
+) {
+  const tag = await db.nfctag.findUnique({ where: { uid } });
+  if (!tag?.active) {
+    await db.accesslog.create({
+      data: {
+        userId: tag?.userId ?? null,
+        terminalId: terminal.id,
+        method: ACCESS_METHODS.NFC,
+        result: ACCESS_RESULTS.DENIED,
+        reason: DENY_REASONS.INVALID_CREDENTIAL,
+        nfcUid: uid,
+      },
+    });
+    return {
+      granted: false as const,
+      reason: DENY_REASONS.INVALID_CREDENTIAL,
+      message: FRIENDLY_DENY_MESSAGES.INVALID_CREDENTIAL,
+    };
+  }
+
+  return evaluateUserAccess({
+    userId: tag.userId,
+    terminalId: terminal.id,
+    locationId: terminal.locationId,
+    method: ACCESS_METHODS.NFC,
+    nfcUid: uid,
+  }, db);
+}
+
+/** Entrada interna para o assinante MQTT, após receber a mensagem do broker. */
+export async function recordEsp32NfcAccess(
+  topic: string,
+  input: unknown,
+  request?: { requestId: string; occurredAt: string; expiresAt: Date },
+) {
+  const dto = esp32NfcAccessSchema.parse(input);
+  if ((dto.terminalId !== env.ESP32_TERMINAL_ID && dto.terminalId !== env.MQTT_SIMULATOR_TERMINAL_ID) ||
+      topic !== `access/v1/terminals/${dto.terminalId}/access/request`) {
+    throw new AppError(403, "Terminal ESP32 divergente da configuração ou do tópico", "TERMINAL_MISMATCH");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    if (!request) return evaluateEsp32NfcAccess(tx, dto);
+
+    const key = { terminalId: dto.terminalId, requestId: request.requestId };
+    const fingerprint = createHmac("sha256", env.JWT_SECRET)
+      .update(JSON.stringify([dto.credential.value, request.occurredAt])).digest("hex");
+    const { count } = await tx.mqttNfcRequest.createMany({
+      data: { ...key, fingerprint, expiresAt: request.expiresAt },
+      skipDuplicates: true,
+    });
+    const where = { terminalId_requestId: key };
+    if (count === 0) {
+      const saved = await tx.mqttNfcRequest.findUnique({ where });
+      if (saved?.fingerprint !== fingerprint || !saved.decision) return null;
+      return saved.decision as Awaited<ReturnType<typeof evaluateEsp32NfcAccess>> & { decidedAt: string };
+    }
+    if (request.expiresAt.getTime() <= Date.now()) return null;
+    const decision = { ...await evaluateEsp32NfcAccess(tx, dto), decidedAt: new Date().toISOString() };
+    await tx.mqttNfcRequest.update({ where, data: { decision } });
+    return decision;
+  });
+}
+
+async function evaluateEsp32NfcAccess(
+  tx: Prisma.TransactionClient,
+  dto: z.infer<typeof esp32NfcAccessSchema>,
+) {
+  const terminal = await tx.terminal.findUnique({
+    where: { id: dto.terminalId },
+    select: { id: true, locationId: true },
+  });
+  if (!terminal) throw new AppError(404, "Terminal não encontrado", "TERMINAL_NOT_FOUND");
+
+  const credential = await tx.nfccredential.findUnique({
+    where: { codeHex: dto.credential.value },
+    select: { userId: true, status: true },
+  });
+  const accessLogId = randomUUID();
+  if (credential?.status !== "ACTIVE") {
+    await tx.accesslog.create({
+      data: {
+        id: accessLogId,
+        terminalId: terminal.id,
+        method: ACCESS_METHODS.NFC,
+        result: ACCESS_RESULTS.DENIED,
+        reason: DENY_REASONS.INVALID_CREDENTIAL,
+      },
+    });
+    return { accessLogId, granted: false as const, reason: DENY_REASONS.INVALID_CREDENTIAL };
+  }
+
+  const outcome = await evaluateUserAccess({
+    accessLogId,
+    userId: credential.userId,
+    terminalId: terminal.id,
+    locationId: terminal.locationId,
+    method: ACCESS_METHODS.NFC,
+  }, tx);
+  return outcome.granted
+    ? { accessLogId, granted: true as const }
+    : { accessLogId, granted: false as const, reason: outcome.reason };
+}
+
+/** Marca a execução de uma concessão NFC confirmada pela placa. */
+export async function recordEsp32NfcUnlockAck(topic: string, input: unknown) {
+  const ack = z.object({
+    terminalId: z.uuid(),
+    accessLogId: z.uuid(),
+    result: z.literal("UNLOCKED"),
+  }).parse(input);
+  if ((ack.terminalId !== env.ESP32_TERMINAL_ID && ack.terminalId !== env.MQTT_SIMULATOR_TERMINAL_ID) ||
+      topic !== `access/v1/terminals/${ack.terminalId}/door/ack`) {
+    throw new AppError(403, "Terminal ESP32 divergente da configuração ou do tópico", "TERMINAL_MISMATCH");
+  }
+
+  const { count } = await prisma.accesslog.updateMany({
+    where: {
+      id: ack.accessLogId,
+      terminalId: ack.terminalId,
+      method: ACCESS_METHODS.NFC,
+      result: ACCESS_RESULTS.GRANTED,
+    },
+    data: { commandAcked: true },
+  });
+  return count > 0;
 }
 
 // POST /access/face (US-14: validação de acesso via reconhecimento facial local do terminal)
@@ -387,13 +493,21 @@ export async function validateFaceCapture(req: Request, res: Response) {
       return;
     }
 
+    const accessLogId = randomUUID();
     const outcome = await prisma.$transaction((tx) => evaluateUserAccess({
       ...key,
+      accessLogId,
       userId: match.userId,
       locationId: terminal.locationId,
       method: ACCESS_METHODS.FACE,
       confidence: match.score,
     }, tx));
+    if (outcome.granted) {
+      await requestDoorUnlock({
+        terminalId: terminal.id, userId: match.userId,
+        accessLogId, method: ACCESS_METHODS.FACE,
+      });
+    }
     sendFaceOutcome(res, outcome);
   } catch (err) {
     if (err && typeof err === "object" && "code" in err &&

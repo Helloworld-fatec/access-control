@@ -2,12 +2,20 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, apiBlob } from "../../shared/api";
-import type { Authorization, Paginated, UserDetail } from "../../shared/types";
+import type { Authorization, NfcEnrollment, Paginated, UserDetail } from "../../shared/types";
 import { formatDateOnly, formatDateTime, locationLabel, maskDocument, normalizeUid, ROLE_LABEL, STATUS_LABEL } from "../../shared/format";
 import { useToast } from "../../shared/toast";
 import { Badge, ConfirmDialog, errorMessage, PageHeader, QueryState } from "../../shared/ui";
 
 type Confirm = { kind: "status" } | { kind: "tag"; tagId: string; uid: string } | { kind: "face" } | null;
+
+const enrollmentErrors: Record<string, string> = {
+  WRITE_FAILED: "O ESP32 não conseguiu gravar a tag.",
+  READBACK_MISMATCH: "O código relido diverge do código enviado.",
+  UID_MISMATCH: "A tag aproximada tem outro UID.",
+  TAG_CONFLICT: "Esta tag já está cadastrada.",
+  TAG_REMOVED: "A tag foi removida durante a gravação.",
+};
 
 export default function UserDetailPage() {
   const { id } = useParams();
@@ -18,6 +26,20 @@ export default function UserDetailPage() {
   const [tagError, setTagError] = useState<string | null>(null);
 
   const user = useQuery({ queryKey: ["user", id], queryFn: () => api<UserDetail>(`/users/${id}`) });
+  const enrollmentId = user.data?.nfcEnrollment?.id;
+  const enrollmentQuery = useQuery({
+    queryKey: ["nfc-enrollment", id, enrollmentId],
+    queryFn: () => api<NfcEnrollment>(`/users/${id}/nfc-enrollments/${enrollmentId}`),
+    enabled: user.data?.nfcEnrollment?.status === "PENDING",
+    refetchInterval: (query) => !query.state.data || query.state.data.status === "PENDING" ? 2_000 : false,
+  });
+  const completedEnrollmentStatus = enrollmentQuery.data?.status;
+  useEffect(() => {
+    if (completedEnrollmentStatus && completedEnrollmentStatus !== "PENDING") {
+      void qc.invalidateQueries({ queryKey: ["user", id] });
+    }
+  }, [completedEnrollmentStatus, id, qc]);
+  const enrollment = enrollmentQuery.data ?? user.data?.nfcEnrollment;
   const auths = useQuery({
     queryKey: ["authorizations", { userId: id, page: 1 }],
     queryFn: () => api<Paginated<Authorization>>("/authorizations", { query: { userId: id, pageSize: 10 } }),
@@ -65,12 +87,14 @@ export default function UserDetailPage() {
     onSuccess: refresh,
   });
   const addTag = useMutation({
-    mutationFn: (value: string) => api(`/users/${id}/tags`, { method: "POST", body: { uid: value } }),
-    onSuccess: () => {
+    mutationFn: (value: string) => api<NfcEnrollment>(`/users/${id}/nfc-enrollments`, {
+      method: "POST", body: value ? { expectedUid: value } : {},
+    }),
+    onSuccess: (request) => {
       setUid("");
       setTagError(null);
-      toast("Tag vinculada.");
-      refresh();
+      qc.setQueryData<UserDetail>(["user", id], (current) =>
+        current ? { ...current, nfcEnrollment: request } : current);
     },
     onError: (e) => setTagError(errorMessage(e)),
   });
@@ -120,17 +144,30 @@ export default function UserDetailPage() {
                 onSubmit={(e) => {
                   e.preventDefault();
                   const v = normalizeUid(uid);
-                  if (v) addTag.mutate(v);
+                  setTagError(null);
+                  addTag.mutate(v);
                 }}
               >
                 <label className="field">
-                  <span className="field-label">UID da tag</span>
+                  <span className="field-label">UID da tag (opcional)</span>
                   <input value={uid} onChange={(e) => setUid(e.target.value)} placeholder="04A32F1B" autoComplete="off" spellCheck={false} />
-                  <span className="field-hint">Use o leitor USB ou digite. Separadores e minúsculas são ajustados.</span>
+                  <span className="field-hint">Se informado, o ESP32 confere o UID antes de gravar.</span>
                   {tagError && <span className="field-error" role="alert">{tagError}</span>}
                 </label>
-                <button className="btn btn-primary" disabled={addTag.isPending || !uid.trim()}>Vincular tag</button>
+                <button className="btn btn-primary"
+                  disabled={addTag.isPending || enrollment?.status === "PENDING" || u.nfcCredential?.status === "ACTIVE"}>
+                  {enrollment?.status === "FAILED" || enrollment?.status === "EXPIRED" ? "Tentar novamente" : "Gravar tag"}
+                </button>
               </form>
+              {enrollment?.status === "PENDING" && <p role="status">Aproxime a tag do ESP32 para gravar.</p>}
+              {enrollment?.status === "WRITTEN" && u.nfcCredential?.status !== "REVOKED" &&
+                <p role="status">Gravação confirmada pelo ESP32.</p>}
+              {enrollment?.status === "EXPIRED" && <p role="status">O prazo de gravação terminou.</p>}
+              {enrollment?.status === "FAILED" && <p role="alert">
+                {enrollmentErrors[enrollment.reason ?? ""] ?? "A gravação da tag falhou."}
+              </p>}
+              {enrollmentQuery.isError && user.data?.nfcEnrollment?.status === "PENDING" &&
+                <p role="status">Tentando consultar a gravação novamente…</p>}
             </section>
 
             <section className="panel">

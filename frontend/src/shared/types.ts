@@ -29,7 +29,16 @@ export interface NfcTag {
   active: boolean;
   createdAt: string;
 }
+export interface NfcEnrollment {
+  id: string;
+  status: "PENDING" | "WRITTEN" | "FAILED" | "EXPIRED";
+  reason: string | null;
+  expiresAt: string;
+}
+
 export interface UserDetail extends User {
+  nfcCredential?: { status: string } | null;
+  nfcEnrollment?: NfcEnrollment | null;
   hasFace: boolean;
   hasPhoto: boolean;
   nfcTags: NfcTag[];

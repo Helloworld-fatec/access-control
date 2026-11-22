@@ -99,6 +99,27 @@ class TerminalApiClient {
     throw const TerminalApiException('Resposta incompatível do servidor.');
   }
 
+  Future<bool> fetchPresence() async {
+    final request = http.Request(
+      'GET',
+      _buildUri('/terminals/${_config.terminalId}/status'),
+    )
+      ..followRedirects = false
+      ..headers.addAll(_headers);
+    final response = await _httpClient
+        .send(request)
+        .then(http.Response.fromStream)
+        .timeout(requestTimeout);
+    if (response.statusCode != 200) {
+      throw TerminalApiException('Presença indisponível.', statusCode: response.statusCode);
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is Map && decoded['presenceActive'] is bool) {
+      return decoded['presenceActive'] as bool;
+    }
+    throw const TerminalApiException('Resposta de presença inválida.');
+  }
+
   Uri _buildUri(String path) {
     final cleanPath = path.startsWith('/') ? path : '/$path';
     return Uri.parse('${_config.backendBaseUrl}$cleanPath');

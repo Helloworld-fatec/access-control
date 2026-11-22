@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { api, apiFile, ApiError } from "./api";
 import { installMock } from "./mock";
-import type { Authorization, DashboardSummary, HourBucket, Paginated, TerminalStatus, User } from "./types";
+import type { Authorization, DashboardSummary, HourBucket, NfcEnrollment, Paginated, TerminalStatus, User, UserDetail } from "./types";
 
 // O modo demonstração precisa seguir o contrato do backend real.
 describe("API simulada (modo demonstração)", () => {
@@ -33,6 +33,21 @@ describe("API simulada (modo demonstração)", () => {
     await api("/authorizations/a2/cancel", { method: "PATCH", body: {} });
     const again = (await api("/authorizations/a2/cancel", { method: "PATCH", body: {} }).catch((e) => e)) as ApiError;
     expect(again.status).toBe(409);
+  });
+
+  it("vincula a tag somente após a confirmação da gravação simulada", async () => {
+    const user = await api<User>("/users", { method: "POST", body: {
+      name: "Cadastro NFC", email: "cadastro-nfc@teste.com", password: "123456", role: "RESIDENT",
+    } });
+    const path = `/users/${user.id}`;
+    const enrollment = await api<NfcEnrollment>(`${path}/nfc-enrollments`, { method: "POST", body: {} });
+    expect(enrollment.status).toBe("PENDING");
+    expect((await api<UserDetail>(path)).nfcTags).toHaveLength(0);
+    await expect.poll(async () => (await api<NfcEnrollment>(`${path}/nfc-enrollments/${enrollment.id}`)).status,
+      { timeout: 3_000 }).toBe("WRITTEN");
+    const detail = await api<UserDetail>(path);
+    expect(detail.nfcCredential?.status).toBe("ACTIVE");
+    expect(detail.nfcTags).toHaveLength(1);
   });
 });
 

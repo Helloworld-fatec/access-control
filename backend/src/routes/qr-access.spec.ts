@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "../config/env.js";
 import { hashTerminalKey } from "../config/terminal-key.js";
 import { app } from "../index.js";
+import { requestDoorUnlock } from "../services/door-unlock.service.js";
 
 const db = vi.hoisted(() => ({
   terminal: { findUnique: vi.fn(), update: vi.fn() },
@@ -112,6 +113,9 @@ describe("emissao e consumo oficial de QR", () => {
     expect(replay.body.reason).toBe("REPLAYED_CREDENTIAL");
     expect(db.authorization.updateMany).toHaveBeenCalledTimes(1);
     expect(db.accesslog.create).toHaveBeenCalledTimes(2);
+    expect(requestDoorUnlock).toHaveBeenCalledExactlyOnceWith({
+      terminalId: terminal.id, accessLogId: "qr-log", userId, method: "QR",
+    });
   });
 
   it("recusa um usuario sem autorizacao e registra a decisao", async () => {

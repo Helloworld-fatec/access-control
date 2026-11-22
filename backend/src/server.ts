@@ -4,9 +4,11 @@ import { env } from "./config/env.js";
 import { prisma } from "./config/prisma.js";
 import { ensurePhotosDir } from "./config/photos.js";
 import { app } from "./index.js";
+import { startMqtt, stopMqtt } from "./services/mqtt.service.js";
 
 // Cria a pasta de fotos se ela ainda não existir (nenhum erro se já existir).
 ensurePhotosDir();
+startMqtt();
 
 const server = app.listen(env.PORT, "0.0.0.0", (err?: Error) => {
   if (err) return; // no Express 5 o callback também recebe o erro; ele é tratado em server.on("error")
@@ -21,6 +23,8 @@ const qrNonceCleanup = setInterval(() => {
   void prisma.qrnonce
     .deleteMany({ where: { expiresAt: { lt: retentionCutoff } } })
     .catch((error) => console.error("Falha ao limpar QR codes expirados:", error));
+  void prisma.mqttNfcRequest.deleteMany({ where: { expiresAt: { lt: retentionCutoff } } })
+    .catch(() => console.error("Falha ao limpar pedidos MQTT expirados."));
 }, 60 * 60 * 1000);
 qrNonceCleanup.unref();
 
@@ -38,6 +42,7 @@ async function shutdown(signal: string) {
   console.log(`\n${signal} recebido, encerrando...`);
   clearInterval(qrNonceCleanup);
   server.close(async () => {
+    await stopMqtt();
     await prisma.$disconnect();
     process.exit(0);
   });

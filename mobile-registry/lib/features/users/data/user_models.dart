@@ -172,6 +172,21 @@ class NfcTag {
   }
 }
 
+@immutable
+class NfcEnrollment {
+  const NfcEnrollment({required this.id, required this.status, this.reason});
+
+  final String id;
+  final String status;
+  final String? reason;
+
+  factory NfcEnrollment.fromJson(Map<String, dynamic> json) => NfcEnrollment(
+        id: _requiredString(json, 'id'),
+        status: _requiredString(json, 'status'),
+        reason: _optionalString(json, 'reason'),
+      );
+}
+
 /// Usuário completo (`GET /users/{id}`).
 @immutable
 class UserDetail {
@@ -181,6 +196,7 @@ class UserDetail {
     required this.hasPhoto,
     required this.nfcTags,
     this.nfcCredentialStatus,
+    this.nfcEnrollment,
   });
 
   final UserSummary user;
@@ -188,6 +204,7 @@ class UserDetail {
   final bool hasPhoto;
   final List<NfcTag> nfcTags;
   final String? nfcCredentialStatus;
+  final NfcEnrollment? nfcEnrollment;
 
   factory UserDetail.fromJson(Map<String, dynamic> json) {
     final rawTags = json['nfcTags'];
@@ -208,6 +225,9 @@ class UserDetail {
           ? null
           : _requiredString(
               _asMap(json['nfcCredential'], 'Credencial NFC'), 'status'),
+      nfcEnrollment: json['nfcEnrollment'] == null
+          ? null
+          : NfcEnrollment.fromJson(_asMap(json['nfcEnrollment'], 'Gravação NFC')),
     );
   }
 
@@ -218,6 +238,7 @@ class UserDetail {
         hasPhoto: hasPhoto,
         nfcTags: List.unmodifiable(tags),
         nfcCredentialStatus: nfcCredentialStatus,
+        nfcEnrollment: nfcEnrollment,
       );
 
   UserDetail withUser(UserSummary updated) => UserDetail(
@@ -226,6 +247,7 @@ class UserDetail {
         hasPhoto: hasPhoto,
         nfcTags: nfcTags,
         nfcCredentialStatus: nfcCredentialStatus,
+        nfcEnrollment: nfcEnrollment,
       );
 }
 

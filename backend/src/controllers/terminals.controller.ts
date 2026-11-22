@@ -2,6 +2,8 @@
 import { createHmac, randomBytes } from "node:crypto";
 import type { Request, Response } from "express";
 import type { Prisma } from "../generated/prisma/client.js";
+import { env } from "../config/env.js";
+import { heartbeatWindowMs } from "../services/mqtt-messages.js";
 import { prisma } from "../config/prisma.js";
 import { generateTerminalKey, hashTerminalKey } from "../config/terminal-key.js";
 import { AppError } from "../middlewares/error.middleware.js";
@@ -57,6 +59,12 @@ export async function listTerminals(req: Request, res: Response) {
   res.json(paginate(rows.map(toTerminalResponse), total, q.page, q.pageSize));
 }
 
+function isRecent(value: Date | null, limit: number, now = Date.now()) {
+  if (!value) return false;
+  const age = now - value.getTime();
+  return age >= 0 && age <= limit;
+}
+
 // GET /terminals/status
 export async function listTerminalStatus(_req: Request, res: Response) {
   const terminals = await prisma.terminal.findMany({
@@ -64,16 +72,13 @@ export async function listTerminalStatus(_req: Request, res: Response) {
     orderBy: [{ name: "asc" }, { id: "asc" }],
   });
   const now = Date.now();
-  const isRecent = (value: Date | null, limit: number) => {
-    if (!value) return false;
-    const age = now - value.getTime();
-    return age >= 0 && age <= limit;
-  };
   res.json({
     data: terminals.map((terminal) => ({
       ...terminal,
-      online: isRecent(terminal.lastSeenAt, 120_000),
-      presenceActive: isRecent(terminal.lastPresenceAt, 5_000),
+      online: isRecent(terminal.lastSeenAt,
+        terminal.id === env.ESP32_TERMINAL_ID || terminal.id === env.MQTT_SIMULATOR_TERMINAL_ID
+          ? heartbeatWindowMs : 120_000, now),
+      presenceActive: isRecent(terminal.lastPresenceAt, 5_000, now),
     })),
   });
 }
@@ -143,17 +148,27 @@ export async function getTerminalStatus(req: Request, res: Response) {
   const terminal = await prisma.terminal.findUnique({ where: { id } });
   if (!terminal) throw notFound();
 
+  const physicalId = env.ESP32_TERMINAL_ID ?? env.MQTT_SIMULATOR_TERMINAL_ID;
+  const esp32 = physicalId && physicalId !== terminal.id
+    ? await prisma.terminal.findFirst({
+      where: { id: physicalId, locationId: terminal.locationId },
+    })
+    : null;
+  const presenceSource = esp32 ?? terminal;
+
   // Considera presença ativa se lastPresenceAt foi atualizado nos últimos 5 segundos
   const presenceActive =
-    terminal.lastPresenceAt != null &&
-    Date.now() - terminal.lastPresenceAt.getTime() <= 5_000;
+    presenceSource.lastPresenceAt != null &&
+    Date.now() - presenceSource.lastPresenceAt.getTime() <= 5_000;
 
   res.json({
     id: terminal.id,
-    online: terminal.online,
+    online: id === env.ESP32_TERMINAL_ID || id === env.MQTT_SIMULATOR_TERMINAL_ID
+      ? isRecent(terminal.lastSeenAt, heartbeatWindowMs)
+      : terminal.online,
     presence: presenceActive,
     presenceActive,
-    lastPresenceAt: terminal.lastPresenceAt,
+    lastPresenceAt: presenceSource.lastPresenceAt,
     lastSeenAt: terminal.lastSeenAt,
   });
 }

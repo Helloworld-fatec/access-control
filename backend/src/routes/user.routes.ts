@@ -22,6 +22,8 @@ userRoutes.patch("/:id/status", h(users.updateUserStatus));
 userRoutes.post("/:id/tags", h(users.addTag));
 userRoutes.delete("/:id/tags/:tagId", h(users.removeTag));
 userRoutes.put("/:id/nfc-credential", h(users.linkNfcCredential));
+userRoutes.post("/:id/nfc-enrollments", h(users.startNfcEnrollment));
+userRoutes.get("/:id/nfc-enrollments/:requestId", h(users.getNfcEnrollment));
 
 // Rosto e foto
 // multipart/form-data: consent=true e photo (JPEG)
