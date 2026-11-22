@@ -7,7 +7,7 @@ Origem: `docs/access-control-visao-geral.docx`, PDF do desafio e imagens de arqu
 
 | ID | Decisão | Por que importa | Dono | Status |
 |---|---|---|---|---|
-| D1 | Reconhecimento facial é obrigatório ou extra? | A imagem de arquitetura diz "obrigatória"; o docx e o PDF tratam como extra | Suelen | aberto |
+| D1 | Reconhecimento facial é obrigatório ou extra? | A imagem de arquitetura diz "obrigatória"; o docx e o PDF tratam como extra | Suelen | o time segue com o facial como extra; confirmar com o professor na Review 3 |
 | D2 | Raio de proximidade: "pelo menos 100 m" (PDF) ou "no máximo 100 m" (docx)? | Define a regra de validação do QR (RF13) | Suelen | aberto |
 | D3 | Banco e deploy em nuvem (RNF06, RP11) com demonstração em LAN: aceitável ter os dois? | Entrega final roda local com Docker (decisão do PO); backend já publicado em nuvem no desenvolvimento | Suelen / Bruno | aberto |
 | D4 | Locais e autorizações só no frontend: aceito, ou o mobile-registry precisa dessas telas? | O desafio descreve a administração como função do app móvel | Suelen | aberto |
@@ -23,7 +23,7 @@ Origem: `docs/access-control-visao-geral.docx`, PDF do desafio e imagens de arqu
 | R2 | Contrato da API muda e quebra os três clientes | Publicar especificação OpenAPI versionada. Hoje as rotas estão descritas em [`docs/api.md`](../docs/api.md), sem OpenAPI | Bruno / Pedro | aberto |
 | R3 | Embeddings faciais incompatíveis entre mobile-registry e mobile-readings | Pacote Dart comum para extração | Ryan / Nicolas | aberto |
 | R4 | Código duplicado entre os três apps Flutter | Pacote Dart interno compartilhado | Ryan / Nicolas / Bruno | aberto |
-| R5 | Sem pipeline de CI com testes o projeto não é aceito (RP10) | Pipeline mínimo (build, lint, testes). Em 15/11 só o mobile-registry tem workflow; os demais serviços ficam para a Sprint 3 | Bruno / Suelen | aberto |
+| R5 | Sem pipeline de CI com testes o projeto não é aceito (RP10) | Pipeline mínimo (build, lint, testes). Em 22/11 a `main` só tem o workflow do mobile-registry, cujos últimos runs falharam no passo `flutter build apk`. A branch `feat/estrutura` (Bruno) traz 6 workflows (backend, frontend, três apps e ESP32), ainda não mesclados | Bruno / Suelen | em andamento |
 | R6 | Alimentação da trava e HC-SR04 instáveis na bancada | Fonte separada, diodo de flyback, testar antes de integrar | Bruna | aberto |
 | R7 | Precisão do GPS em ambiente fechado | Enviar `accuracy`, calibrar raio no local | Bruno | aberto |
 | R8 | Escopo grande (cerca de 170 histórias) para 3 sprints | Priorizar Must por sprint, adiar Could | Suelen | aberto |
@@ -35,7 +35,8 @@ Origem: `docs/access-control-visao-geral.docx`, PDF do desafio e imagens de arqu
 | R14 | Tag copiada com o código dentro seria aceita como a original | Revogar a tag no backend; avaliar conferir também o UID | Bruno | aberto |
 | R15 | O leitor RC522 do terminal físico tem possível falha na soldagem | Levar a avaliação ao professor; manter o teste isolado que funcionou e o firmware com a leitura desativada até a revisão | Bruna / Suelen | aberto |
 | R16 | A compilação do mobile-registry é extremamente lenta e atrasa os testes | Investigar como reduzir o tempo de compilação e relatar na daily | Ryan | aberto |
-| R17 | A integração backend e ESP32 por MQTT só existe no contrato (rascunho); o backend simula a publicação | Validar o contrato em reunião e implementar a publicação no backend e o consumo no firmware | Bruno / Bruna / Nicolas | aberto |
+| R17 | O contrato MQTT v1 já é usado pelo mobile-readings e foi implementado no backend na branch `feat/estrutura`, ainda não mesclada; na `main` o backend simula a publicação | Validar o contrato em reunião e implementar a publicação no backend e o consumo no firmware. A branch `feat/estrutura` já traz a dependência MQTT e um simulador, ainda não mesclados | Bruno / Bruna / Nicolas | em andamento |
 | R18 | O acesso por QR não valida a proximidade e usa dois formatos de token | Unificar o QR, enviar a localização do app e calcular a distância no backend | Bruno | aberto |
 | R19 | As rotas de usuários, locais e histórico não exigem login | Exigir o JWT de administrador nessas rotas | Bruno / Pedro | aberto |
 | R20 | O QR exibido no OLED ainda não é lido direto pela câmera do celular | Ajustar o QR Code do display e testar com mais de um aparelho | Bruna | aberto |
+| R21 | A `develop` está 26 commits à frente da `main` e a `feat/estrutura` está 26 commits atrás da `develop`: o código da Sprint 3 pode chegar à `main` tarde ou com conflitos | Mesclar na ordem `feat/estrutura` na `develop`, depois `develop` na `main`, até 23/11, e conferir os pipelines. Fluxo em [`CONTRIBUTING.md`](../CONTRIBUTING.md) | Bruno / Suelen | aberto |

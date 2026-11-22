@@ -1,6 +1,30 @@
 # Pauta de esclarecimentos com o professor
 
-Dúvidas de requisitos e escopo a alinhar com o prof. Leandro Toss Hoffmann antes da Sprint Review 1 (21/10/2026, 19h30). Cada item traz a proposta do grupo para facilitar a decisão.
+Dúvidas de requisitos e escopo a alinhar com o prof. Leandro Toss Hoffmann. A pauta nasceu antes da Sprint Review 1 (21/10/2026) e foi atualizada em 22/11/2026, antes da Sprint Review 3 (25/11/2026, 19h30). Cada item traz a proposta do grupo para facilitar a decisão.
+
+## Situação em 22/11/2026
+
+| # | Tema | Situação |
+|---|---|---|
+| 1 | Reconhecimento facial: obrigatório ou extra? | Sem decisão do professor registrada. O time seguiu com o facial como extra e o implementou na Sprint 3 (microserviço de reconhecimento e captura no terminal) |
+| 2 | Raio de proximidade do QR Code | Sem decisão registrada. O backend ainda não valida a distância |
+| 3 | Banco de dados e deploy em nuvem | Sem decisão registrada. Não há evidência de banco em nuvem no repositório |
+| 4 | Administração no aplicativo móvel | Sem decisão registrada. Locais e autorizações seguem no frontend |
+| 5 | Leitor NFC no ESP32 | **Decidido pelo professor** e aplicado na arquitetura e no mobile-readings |
+| 6 | Receptor GPS do terminal | **Decidido na Review 1** (ver o item 6) |
+| 7 | Login do visitante | Sem decisão registrada |
+| 8 | Comportamento da trava sem energia | Sem decisão registrada |
+| 9 | Plataforma dos aplicativos móveis | Sem decisão registrada. Os apps são desenvolvidos para Android |
+
+### Para levar à Review 3
+
+Os itens abaixo ainda não têm resposta do professor registrada e afetam a entrega final:
+
+1. **Proximidade do QR (item 2):** pelo menos ou no máximo 100 m, e qual raio usar.
+2. **Banco e deploy em nuvem (item 3):** a demonstração local com Docker Compose atende ao RNF06 e ao RP11?
+3. **Reconhecimento facial (item 1):** confirmar que é extra.
+4. **Leitor RC522 do terminal:** possível falha na soldagem, para avaliação (veja [`sprint-2.md`](./sprints/sprint-2.md), seção 6).
+5. **Apresentação final:** data e formato, que o professor define. Não há outro documento a escrever além da documentação técnica do repositório (RP07).
 
 | # | Tema | Impacta |
 |---|---|---|
@@ -74,7 +98,7 @@ Dúvidas de requisitos e escopo a alinhar com o prof. Leandro Toss Hoffmann ante
 
 **Proposta do grupo:** cadastrar a **coordenada fixa** do terminal no backend e, se houver tempo, incluir um módulo GPS conectado ao ESP32 para comprovar o componente.
 
-**Decisão do professor:** ______________________________
+**Decisão do professor:** na Review 1 (21/10/2026), o professor disse que é importante colocar o GPS e fazer uma configuração de teste, com a localização configurada ([`sprint-1.md`](./sprints/sprint-1.md), seção 6.1). O módulo físico será testado na Sprint 3.
 
 ---
 
