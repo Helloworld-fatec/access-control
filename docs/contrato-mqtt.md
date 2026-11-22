@@ -1,6 +1,6 @@
 # Contrato MQTT entre ESP32, terminal de leitura e backend
 
-> **RASCUNHO PARA DISCUSSÃO:** este contrato precisa ser validado em reunião com as equipes de backend, firmware e terminal de leitura. Tópicos, campos e regras podem ser alterados após essa validação.
+> **Contrato v1.** Adotado pelo backend (branch `feat/estrutura`) e pelo mobile-readings. As mensagens de comando, confirmação e gravação de tag estão na seção 7.
 
 ## 1. Objetivo e participantes
 
@@ -134,10 +134,10 @@ O backend é a autoridade da decisão. Se a resposta não chegar antes do timeou
 ## 5. Confirmações, disponibilidade e segurança
 
 - Usar QoS 1 para solicitações e decisões; consumidores devem aceitar entrega duplicada sem repetir a ação física.
-- O ESP32 deve publicar uma confirmação de execução da decisão, incluindo `requestId`, resultado (`UNLOCKED`, `DENIED` ou `ERROR`) e horário. O tópico final dessa confirmação precisa ser acordado na reunião.
+- O ESP32 deve publicar uma confirmação de execução da decisão, incluindo `requestId`, resultado (`UNLOCKED`, `EXPIRED` ou `ERROR`) e horário. A confirmação é publicada em `door/ack` (seção 7).
 - Configurar `clientId` exclusivo por dispositivo, autenticação individual, TLS e ACL por tópico no broker.
 - Comandos de decisão não devem ser retidos (*retained*), para que uma autorização antiga não seja aplicada após reconexão.
-- Definir na reunião os timeouts, frequência de heartbeat, retenção de eventos, limites de payload e política de reconexão.
+- Valores adotados: pedido de acesso válido por 5 segundos, sinal de vida a cada 30 segundos, abertura de 3 segundos e payload de até 2 KiB. O backend ignora mensagens retidas.
 - Registrar no backend os pedidos, decisões, eventos de porta e confirmações necessários para auditoria.
 
 ## 6. Fluxo resumido
@@ -147,3 +147,54 @@ O backend é a autoridade da decisão. Se a resposta não chegar antes do timeou
 3. O backend valida a credencial e publica `access/decision` com o mesmo `requestId`.
 4. O ESP32 libera a fechadura apenas se a decisão for positiva, válida e dentro do prazo; depois publica a confirmação.
 5. O sensor informa mudanças da porta em `door/state`, e o backend mantém o estado registrado.
+
+## 7. Comando, confirmação e gravação de tag
+
+Mensagens usadas pelo backend, além das descritas nas seções 4 e 5. Todas levam `schemaVersion`, `terminalId`, `eventId` e `occurredAt`, e usam QoS 1.
+
+### 7.1 Comando de abertura
+
+**Tópico:** `access/v1/terminals/{terminalId}/door/command` (backend para ESP32, não retido)
+
+```json
+{
+  "schemaVersion": 1,
+  "terminalId": "<uuid do terminal>",
+  "eventId": "<uuid>",
+  "requestId": "<uuid do registro de acesso>",
+  "accessLogId": "<uuid do registro de acesso>",
+  "method": "QR",
+  "unlockDurationMs": 3000,
+  "occurredAt": "2026-11-20T19:08:45.350Z",
+  "expiresAt": "2026-11-20T19:08:50.350Z"
+}
+```
+
+### 7.2 Confirmação da porta
+
+**Tópico:** `access/v1/terminals/{terminalId}/door/ack` (ESP32 para backend)
+
+Correlaciona o `requestId` e o `accessLogId` do comando ou da decisão e informa o resultado em `result`: `UNLOCKED`, `EXPIRED` ou `ERROR`.
+
+### 7.3 Pedido de gravação de tag
+
+**Tópico:** `access/v1/terminals/{terminalId}/nfc/enroll` (backend para ESP32)
+
+```json
+{
+  "schemaVersion": 1,
+  "terminalId": "<uuid do terminal>",
+  "eventId": "<uuid>",
+  "requestId": "<uuid do pedido>",
+  "credentialHex": "<código gerado pelo backend>",
+  "expectedUid": "<UID esperado, opcional>",
+  "occurredAt": "2026-11-20T19:10:00.000Z",
+  "expiresAt": "2026-11-20T19:10:30.000Z"
+}
+```
+
+O ESP32 grava o código na próxima tag apresentada, lê de volta para conferir e responde em `nfc/enroll/ack`. O pedido expira em `expiresAt`.
+
+### 7.4 Sinal de vida
+
+**Tópico:** `access/v1/terminals/{terminalId}/status` (ESP32 para backend). O backend registra o último contato do terminal.
