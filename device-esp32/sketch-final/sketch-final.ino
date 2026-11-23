@@ -844,6 +844,7 @@ void atualizarNFC() {
 void setup() {
   Serial.begin(115200);
   delay(1000);
+  Serial.println("[BOOT] Setup iniciado.");
 
   pinMode(PRESENCA, INPUT_PULLUP);
 
@@ -862,6 +863,7 @@ void setup() {
   atualizarLeds();
 
   // OLED
+  Serial.println("[BOOT] Inicializando OLED.");
   Wire.begin(21, 13);
 
   if (!display.begin(
@@ -880,6 +882,7 @@ void setup() {
   }
 
   // RC522
+  Serial.println("[BOOT] Inicializando RC522.");
   pinMode(SS_PIN, OUTPUT);
   digitalWrite(SS_PIN, HIGH);
 
@@ -917,10 +920,6 @@ void setup() {
   );
 
   Serial.println(
-    "Aguardando ordens MQTT."
-  );
-
-  Serial.println(
     "Motor inicia na posicao fechada."
   );
 
@@ -929,7 +928,9 @@ void setup() {
   );
 
   mostrarGPS();
-  iniciarMqttPorta();
+  // Teste de bancada por USB, antes da implementacao da ponte serial.
+  Serial.println("[BOOT] Teste USB: Wi-Fi e MQTT desativados.");
+  Serial.println("[BOOT] Setup concluido.");
 }
 
 // ======================================

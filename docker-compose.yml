@@ -3,7 +3,7 @@ services:
     build: ./mqtt
     restart: unless-stopped
     environment:
-      MQTT_LAN_HOST: ${MQTT_LAN_HOST:-}
+      MQTT_LAN_HOST: ${MQTT_LAN_HOST:-127.0.0.1}
       MQTT_BACKEND_PASSWORD: ${MQTT_BACKEND_PASSWORD:?Defina MQTT_BACKEND_PASSWORD no arquivo .env}
       ESP32_TERMINAL_ID: ${ESP32_TERMINAL_ID:-}
       MQTT_ESP32_PASSWORD: ${MQTT_ESP32_PASSWORD:-}

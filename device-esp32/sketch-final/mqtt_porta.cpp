@@ -22,6 +22,7 @@ constexpr int64_t PRAZO_ACK_MS = 10000;
 constexpr size_t LIMITE_JSON = 2048;
 constexpr int TOTAL_REGISTROS = 16;
 constexpr char CHAVE_CICLO[] = "ciclo";
+constexpr unsigned long INTERVALO_DIAGNOSTICO_MS = 10000;
 
 struct Ordem {
   char pedido[37];
@@ -234,37 +235,60 @@ void registrarDesconexao() {
   xQueueReset(respostasQr);
 }
 
+void registrarErroMqtt(const esp_mqtt_error_codes_t* erro) {
+  if (!erro) {
+    Serial.println("[MQTT] Erro de conexao sem detalhes.");
+    return;
+  }
+  if (erro->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+    Serial.printf("[MQTT] Broker recusou CONNECT (CONNACK=%d).\n",
+                  erro->connect_return_code);
+    return;
+  }
+  Serial.printf("[MQTT] Erro tipo=%d esp_tls=0x%x tls=%d cert=0x%x socket=%d.\n",
+                erro->error_type, erro->esp_tls_last_esp_err, erro->esp_tls_stack_err,
+                erro->esp_tls_cert_verify_flags, erro->esp_transport_sock_errno);
+}
+
 void eventoMqtt(void*, esp_event_base_t, int32_t tipo, void* dados) {
   auto evento = static_cast<esp_mqtt_event_handle_t>(dados);
   switch (tipo) {
     case MQTT_EVENT_CONNECTED:
+      Serial.println("[MQTT] Broker aceitou a conexao. Solicitando assinaturas.");
       desconectado = false;
       confirmadas = 0;
       assinaturas[0] = esp_mqtt_client_subscribe(mqtt, topicoOrdem, 1);
       assinaturas[1] = esp_mqtt_client_subscribe(mqtt, topicoDecisao, 1);
       assinaturas[2] = esp_mqtt_client_subscribe(mqtt, topicoQr, 1);
-      if (assinaturas[0] < 0 || assinaturas[1] < 0 || assinaturas[2] < 0) registrarDesconexao();
+      if (assinaturas[0] < 0 || assinaturas[1] < 0 || assinaturas[2] < 0) {
+        Serial.println("[MQTT] Falha ao enviar solicitacao de assinatura.");
+        registrarDesconexao();
+      }
       break;
     case MQTT_EVENT_SUBSCRIBED:
       for (unsigned i = 0; i < 3; ++i) {
         if (evento->msg_id != assinaturas[i]) continue;
         if (!evento->data || evento->data_len < 1 || evento->data[0] != 1) {
+          const int qos = evento->data && evento->data_len > 0
+            ? static_cast<uint8_t>(evento->data[0]) : -1;
+          Serial.printf("[MQTT] SUBACK sem QoS 1 (pacote=%d, retorno=%d).\n", evento->msg_id, qos);
           registrarDesconexao();
           return;
         }
         confirmadas |= 1u << i;
       }
       if (confirmadas == 7 && !desconectado) {
-        conectado = true;
         ++sessoes;
+        conectado = true;
         Serial.println("[MQTT] Conectado, assinaturas QoS 1 confirmadas.");
       }
       break;
     case MQTT_EVENT_DISCONNECTED:
+      Serial.println("[MQTT] Sessao desconectada.");
       registrarDesconexao();
       break;
     case MQTT_EVENT_ERROR:
-      Serial.println("[MQTT] Falha de conexao. Confira rede, hora, CA e credenciais.");
+      registrarErroMqtt(evento->error_handle);
       break;
     case MQTT_EVENT_DATA: {
       if (!conectado || evento->retain || evento->qos != 1 ||
@@ -292,31 +316,70 @@ void eventoMqtt(void*, esp_event_base_t, int32_t tipo, void* dados) {
   }
 }
 
+bool iniciarClienteMqtt() {
+  Serial.printf("[MQTT] Conectando a %s:%d via TLS.\n", MQTT_HOST, MQTT_PORTA);
+  const esp_err_t resultado = esp_mqtt_client_start(mqtt);
+  if (resultado == ESP_OK) return true;
+  Serial.printf("[MQTT] Falha ao iniciar cliente: %s.\n", esp_err_to_name(resultado));
+  return false;
+}
+
 void tarefaRede(void*) {
+  bool wifiConectado = false;
   bool iniciouSntp = false;
+  bool informouHora = false;
   bool iniciouMqtt = false;
   unsigned intervalo = 1000;
   unsigned long ultimaTentativa = 0;
+  unsigned long ultimoDiagnostico = millis();
   for (;;) {
-    if (WiFi.status() == WL_CONNECTED) {
+    const unsigned long agora = millis();
+    const wl_status_t statusWifi = WiFi.status();
+    if (statusWifi == WL_CONNECTED) {
+      if (!wifiConectado) {
+        const IPAddress ip = WiFi.localIP();
+        Serial.printf("[WiFi] Conectado. IP=%s.\n", ip.toString().c_str());
+        wifiConectado = true;
+        ultimoDiagnostico = agora;
+      }
       if (!iniciouSntp) {
+        Serial.println("[NTP] Sincronizando relogio para validar TLS.");
         esp_sntp_set_time_sync_notification_cb([](timeval*) { relogioSincronizado = true; });
         configTime(0, 0, "pool.ntp.org", "time.google.com");
         iniciouSntp = true;
       }
-      if (!iniciouMqtt && relogioSincronizado && millis() - ultimaTentativa >= 1000) {
-        ultimaTentativa = millis();
-        iniciouMqtt = esp_mqtt_client_start(mqtt) == ESP_OK;
+      if (!informouHora && relogioSincronizado) {
+        char utc[25];
+        formatarUtc(agoraUtc(), utc);
+        Serial.printf("[NTP] Hora sincronizada: %s.\n", utc);
+        informouHora = true;
+      }
+      if (!informouHora && agora - ultimoDiagnostico >= INTERVALO_DIAGNOSTICO_MS) {
+        Serial.println("[NTP] Ainda aguardando resposta dos servidores de horario.");
+        ultimoDiagnostico = agora;
+      }
+      if (!iniciouMqtt && informouHora && agora - ultimaTentativa >= intervalo) {
+        ultimaTentativa = agora;
+        iniciouMqtt = iniciarClienteMqtt();
+        if (!iniciouMqtt) intervalo = min(30000u, intervalo * 2);
       }
       if (conectado) intervalo = 1000;
       if (iniciouMqtt && desconectado && millis() - falhaEm >= intervalo) {
-        ultimaTentativa = millis();
-        desconectado = false;
-        conectado = false;
-        esp_mqtt_client_stop(mqtt);
-        iniciouMqtt = esp_mqtt_client_start(mqtt) == ESP_OK;
+        const esp_err_t resultado = esp_mqtt_client_stop(mqtt);
+        if (resultado == ESP_OK) {
+          desconectado = false;
+          ultimaTentativa = millis();
+          iniciouMqtt = iniciarClienteMqtt();
+        } else {
+          Serial.printf("[MQTT] Falha ao parar cliente: %s.\n", esp_err_to_name(resultado));
+          falhaEm = millis();
+        }
         intervalo = min(30000u, intervalo * 2);
       }
+    } else if (wifiConectado || agora - ultimoDiagnostico >= INTERVALO_DIAGNOSTICO_MS) {
+      wifiConectado = false;
+      ultimoDiagnostico = agora;
+      Serial.printf("[WiFi] Aguardando conexao (status=%d).\n", statusWifi);
     }
     Publicacao mensagem;
     if (xQueueReceive(publicacoes, &mensagem, pdMS_TO_TICKS(50)) == pdTRUE && conectado) {
@@ -324,6 +387,18 @@ void tarefaRede(void*) {
                               0, 1, 0, true);
     }
   }
+}
+
+void liberarRecursosMqtt() {
+  if (mqtt) esp_mqtt_client_destroy(mqtt);
+  if (ordens) vQueueDelete(ordens);
+  if (respostasQr) vQueueDelete(respostasQr);
+  if (publicacoes) vQueueDelete(publicacoes);
+  mqtt = nullptr;
+  ordens = nullptr;
+  respostasQr = nullptr;
+  publicacoes = nullptr;
+  memoria.end();
 }
 
 bool publicar(const char* sufixo, const char* evento, int64_t horario, const char* campos) {
@@ -436,7 +511,11 @@ void iniciarMqttPorta() {
   ordens = xQueueCreate(8, sizeof(MensagemOrdem));
   respostasQr = xQueueCreate(4, sizeof(RespostaQr));
   publicacoes = xQueueCreate(TOTAL_REGISTROS + 8, sizeof(Publicacao));
-  if (!ordens || !respostasQr || !publicacoes) return;
+  if (!ordens || !respostasQr || !publicacoes) {
+    Serial.println("[MQTT] Memoria insuficiente para criar filas.");
+    liberarRecursosMqtt();
+    return;
+  }
   snprintf(topicoOrdem, sizeof(topicoOrdem), "access/v1/terminals/%s/door/command", MQTT_TERMINAL_ID);
   snprintf(topicoDecisao, sizeof(topicoDecisao), "access/v1/terminals/%s/access/decision", MQTT_TERMINAL_ID);
   snprintf(topicoQr, sizeof(topicoQr), "access/v1/terminals/%s/qr/display", MQTT_TERMINAL_ID);
@@ -454,12 +533,26 @@ void iniciarMqttPorta() {
   config.network.disable_auto_reconnect = true;
   config.buffer.size = LIMITE_JSON + 128;
   mqtt = esp_mqtt_client_init(&config);
-  if (!mqtt || esp_mqtt_client_register_event(mqtt, MQTT_EVENT_ANY, eventoMqtt, nullptr) != ESP_OK) return;
+  if (!mqtt) {
+    Serial.println("[MQTT] Falha ao criar cliente.");
+    liberarRecursosMqtt();
+    return;
+  }
+  const esp_err_t resultado = esp_mqtt_client_register_event(mqtt, MQTT_EVENT_ANY, eventoMqtt, nullptr);
+  if (resultado != ESP_OK) {
+    Serial.printf("[MQTT] Falha ao registrar eventos: %s.\n", esp_err_to_name(resultado));
+    liberarRecursosMqtt();
+    return;
+  }
 
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
+  Serial.println("[WiFi] Iniciando conexao.");
   WiFi.begin(WIFI_SSID, WIFI_SENHA);
-  xTaskCreate(tarefaRede, "mqtt-porta", 4096, nullptr, 1, nullptr);
+  if (xTaskCreate(tarefaRede, "mqtt-porta", 4096, nullptr, 1, nullptr) != pdPASS) {
+    Serial.println("[MQTT] Falha ao criar tarefa de rede.");
+    liberarRecursosMqtt();
+  }
 }
 
 bool solicitarAcessoNfc(const unsigned char* uid, unsigned int tamanho) {
