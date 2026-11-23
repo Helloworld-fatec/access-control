@@ -97,18 +97,44 @@ Na raiz do projeto:
 
 ```powershell
 copy .env.docker.example .env
+notepad .env
 ```
 
-Edite o `.env` (principalmente `JWT_SECRET` e `POSTGRES_PASSWORD`) e rode:
+Preencha as duas linhas **obrigatórias** do `.env`. Não existe senha nem segredo padrão: o Compose se recusa a subir enquanto elas estiverem vazias.
+
+| Variável | O que colocar |
+| --- | --- |
+| `POSTGRES_PASSWORD` | Uma senha só com letras e números (caracteres como `@`, `#`, `/` e `:` quebram a URL do banco) |
+| `JWT_SECRET` | Texto com 32 caracteres ou mais. Gere com `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
+
+O `.env` não vai para o Git (está no `.gitignore`) e nenhum segredo está escrito no `docker-compose.yml`. Depois:
 
 ```powershell
-docker compose up --build
+docker compose up --build -d
+docker compose ps
 docker compose exec backend npm run admin:create -- admin@teste.com SuaSenha123 "Administrador"
 ```
 
-O front fica em http://localhost:8080 (o Nginx encaminha `/api` ao backend) e a API em http://localhost:3000/api, que é o endereço que os aplicativos e o ESP32 usam. As migrações rodam sozinhas ao subir o backend.
+O `docker compose ps` deve mostrar `db`, `backend` e `frontend` como **healthy**. O backend só fica saudável depois que as migrações rodaram e a API respondeu, e o front só sobe depois do backend. O front fica em http://localhost:8080 (o Nginx encaminha `/api` ao backend) e a API em http://localhost:3000/api, que é o endereço que os aplicativos e o ESP32 usam. O banco não abre porta no computador: só os outros serviços o alcançam.
 
-> Os arquivos Docker (`docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile`, `frontend/deploy/nginx.conf`) foram preparados mas **o Docker em si não foi executado** na validação. O Nginx foi testado separadamente (rotas do React, proxy da API e `config.json`). Se algo falhar no `docker compose up`, envie a mensagem de erro.
+### Quando algo falha
+
+```powershell
+docker compose ps -a                          # qual serviço caiu ou está "unhealthy"
+docker compose logs --tail=100 backend        # troque por db ou frontend
+docker compose down                           # para tudo (mantém o banco)
+docker compose down -v                        # para tudo e APAGA o banco e as fotos
+```
+
+| Mensagem ou sintoma | Causa provável |
+| --- | --- |
+| `Defina POSTGRES_PASSWORD no arquivo .env` ou `Defina JWT_SECRET ...` | O `.env` não existe na raiz ou a linha está vazia |
+| Backend em loop de reinício, log com `password authentication failed` | Você trocou o `POSTGRES_PASSWORD` depois de o banco já existir. Rode `docker compose down -v` (apaga os dados) e suba de novo |
+| Backend `unhealthy` e log com `Variáveis de ambiente inválidas` | `JWT_SECRET` com menos de 32 caracteres |
+| Front abre, mas o login mostra "Não foi possível conectar" | Backend ainda não está `healthy`; veja `docker compose ps` |
+| `port is already allocated` | Outra coisa usa a porta 8080 ou 3000; mude `FRONTEND_PORT` ou `BACKEND_PORT` no `.env` |
+
+> **Estado da validação:** o roteiro completo (subir, esperar ficar saudável, criar admin, fazer login e consultar o painel) está no GitHub Actions (`.github/workflows/ci.yml`, job `docker compose`), mas **ainda não rodou**: quem abrir o primeiro Pull Request deve conferir se o job passou. Onde este documento foi escrito não havia acesso ao Docker Hub, então as imagens não foram construídas ali. A sintaxe do Compose foi validada com `docker compose config` e o Nginx foi testado separadamente (rotas do React, proxy da API e `config.json`).
 
 ## Problemas comuns
 
