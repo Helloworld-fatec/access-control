@@ -1,0 +1,37 @@
+{
+  "id": "111",
+  "numero": 111,
+  "nome": "Rhyhorn",
+  "nome_en": "rhyhorn",
+  "categoria": "Spikes Pokémon",
+  "descricao": "Its massive bones are 1000 times harder than human bones. It can easily knock a trailer flying.",
+  "tipos": [
+    "Terra",
+    "Pedra"
+  ],
+  "altura_m": 1.0,
+  "peso_kg": 115.0,
+  "habilidades": [
+    {
+      "nome": "Lightning Rod",
+      "oculta": false
+    },
+    {
+      "nome": "Rock Head",
+      "oculta": false
+    },
+    {
+      "nome": "Reckless",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 80,
+    "attack": 85,
+    "defense": 95,
+    "special-attack": 30,
+    "special-defense": 30,
+    "speed": 25
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/111.png"
+}

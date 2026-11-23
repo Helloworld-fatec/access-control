@@ -1,0 +1,36 @@
+{
+  "id": "052",
+  "numero": 52,
+  "nome": "Meowth",
+  "nome_en": "meowth",
+  "categoria": "Scratch Cat Pokémon",
+  "descricao": "Adores circular objects. Wanders the streets on a nightly basis to look for dropped loose change.",
+  "tipos": [
+    "Normal"
+  ],
+  "altura_m": 0.4,
+  "peso_kg": 4.2,
+  "habilidades": [
+    {
+      "nome": "Pickup",
+      "oculta": false
+    },
+    {
+      "nome": "Technician",
+      "oculta": false
+    },
+    {
+      "nome": "Unnerve",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 40,
+    "attack": 45,
+    "defense": 35,
+    "special-attack": 40,
+    "special-defense": 40,
+    "speed": 90
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/052.png"
+}

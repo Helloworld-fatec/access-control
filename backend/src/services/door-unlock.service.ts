@@ -1,7 +1,7 @@
 import { env } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
 import { ACCESS_RESULTS, type AccessMethod } from "../types/index.js";
-import { accessWindowMs, heartbeatWindowMs } from "./mqtt-messages.js";
+import { accessWindowMs, doorAckTiming, type DoorAck } from "./mqtt-messages.js";
 
 export interface DoorUnlockRequest {
   terminalId: string;
@@ -41,24 +41,18 @@ export async function requestDoorUnlock(request: DoorUnlockRequest): Promise<voi
   }
 }
 
-export async function recordDoorCommandAck(ack: {
-  terminalId: string;
-  requestId: string;
-  accessLogId: string;
-  result: "UNLOCKED" | "EXPIRED" | "ERROR";
-  occurredAt: string;
-}) {
+export async function recordDoorCommandAck(ack: DoorAck) {
   if (ack.requestId !== ack.accessLogId) return false;
-  const occurredAt = new Date(ack.occurredAt);
+  const timing = doorAckTiming(ack);
+  if (!timing) return false;
   return prisma.$transaction(async (tx) => {
     const { count } = await tx.mqttDoorCommand.updateMany({
       where: {
         accessLogId: ack.accessLogId, terminalId: ack.terminalId, ackResult: null,
-        issuedAt: { lte: occurredAt },
-        expiresAt: { gt: ack.result === "UNLOCKED"
-          ? occurredAt : new Date(occurredAt.getTime() - heartbeatWindowMs) },
+        issuedAt: { lte: timing.acceptedAt ?? timing.occurredAt },
+        expiresAt: timing.expiration,
       },
-      data: { ackResult: ack.result, ackAt: occurredAt },
+      data: { ackResult: ack.result, ackAt: timing.occurredAt },
     });
     if (count === 0) return false;
     await tx.accesslog.update({

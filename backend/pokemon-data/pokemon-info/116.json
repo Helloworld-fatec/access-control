@@ -1,0 +1,36 @@
+{
+  "id": "116",
+  "numero": 116,
+  "nome": "Horsea",
+  "nome_en": "horsea",
+  "categoria": "Dragon Pokémon",
+  "descricao": "Known to shoot down flying bugs with precision blasts of ink from the surface of the water.",
+  "tipos": [
+    "Água"
+  ],
+  "altura_m": 0.4,
+  "peso_kg": 8.0,
+  "habilidades": [
+    {
+      "nome": "Swift Swim",
+      "oculta": false
+    },
+    {
+      "nome": "Sniper",
+      "oculta": false
+    },
+    {
+      "nome": "Damp",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 30,
+    "attack": 40,
+    "defense": 70,
+    "special-attack": 70,
+    "special-defense": 25,
+    "speed": 60
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/116.png"
+}

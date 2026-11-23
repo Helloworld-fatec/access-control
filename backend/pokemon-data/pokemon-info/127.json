@@ -1,0 +1,36 @@
+{
+  "id": "127",
+  "numero": 127,
+  "nome": "Pinsir",
+  "nome_en": "pinsir",
+  "categoria": "Stag Beetle Pokémon",
+  "descricao": "If it fails to crush the victim in its pincers, it will swing it around and toss it hard.",
+  "tipos": [
+    "Inseto"
+  ],
+  "altura_m": 1.5,
+  "peso_kg": 55.0,
+  "habilidades": [
+    {
+      "nome": "Hyper Cutter",
+      "oculta": false
+    },
+    {
+      "nome": "Mold Breaker",
+      "oculta": false
+    },
+    {
+      "nome": "Moxie",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 65,
+    "attack": 125,
+    "defense": 100,
+    "special-attack": 55,
+    "special-defense": 70,
+    "speed": 85
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/127.png"
+}

@@ -1,0 +1,36 @@
+{
+  "id": "143",
+  "numero": 143,
+  "nome": "Snorlax",
+  "nome_en": "snorlax",
+  "categoria": "Sleeping Pokémon",
+  "descricao": "Very lazy. Just eats and sleeps. As its rotund bulk builds, it becomes steadily more slothful.",
+  "tipos": [
+    "Normal"
+  ],
+  "altura_m": 2.1,
+  "peso_kg": 460.0,
+  "habilidades": [
+    {
+      "nome": "Immunity",
+      "oculta": false
+    },
+    {
+      "nome": "Thick Fat",
+      "oculta": false
+    },
+    {
+      "nome": "Gluttony",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 160,
+    "attack": 110,
+    "defense": 65,
+    "special-attack": 65,
+    "special-defense": 110,
+    "speed": 30
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/143.png"
+}

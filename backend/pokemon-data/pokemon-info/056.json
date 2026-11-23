@@ -1,0 +1,36 @@
+{
+  "id": "056",
+  "numero": 56,
+  "nome": "Mankey",
+  "nome_en": "mankey",
+  "categoria": "Pig Monkey Pokémon",
+  "descricao": "Extremely quick to anger. It could be docile one moment then thrashing away the next instant.",
+  "tipos": [
+    "Lutador"
+  ],
+  "altura_m": 0.5,
+  "peso_kg": 28.0,
+  "habilidades": [
+    {
+      "nome": "Vital Spirit",
+      "oculta": false
+    },
+    {
+      "nome": "Anger Point",
+      "oculta": false
+    },
+    {
+      "nome": "Defiant",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 40,
+    "attack": 80,
+    "defense": 35,
+    "special-attack": 35,
+    "special-defense": 45,
+    "speed": 70
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/056.png"
+}

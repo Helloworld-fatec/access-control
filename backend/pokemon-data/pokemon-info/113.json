@@ -1,0 +1,36 @@
+{
+  "id": "113",
+  "numero": 113,
+  "nome": "Chansey",
+  "nome_en": "chansey",
+  "categoria": "Egg Pokémon",
+  "descricao": "A rare and elusive POKéMON that is said to bring happiness to those who manage to get it.",
+  "tipos": [
+    "Normal"
+  ],
+  "altura_m": 1.1,
+  "peso_kg": 34.6,
+  "habilidades": [
+    {
+      "nome": "Natural Cure",
+      "oculta": false
+    },
+    {
+      "nome": "Serene Grace",
+      "oculta": false
+    },
+    {
+      "nome": "Healer",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 250,
+    "attack": 5,
+    "defense": 5,
+    "special-attack": 35,
+    "special-defense": 105,
+    "speed": 50
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/113.png"
+}

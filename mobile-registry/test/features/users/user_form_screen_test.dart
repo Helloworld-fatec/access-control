@@ -25,11 +25,11 @@ void main() {
 
   Finder field(String label) => find.widgetWithText(TextFormField, label);
 
-  testWidgets('cria o usuário, retenta o NFC e consulta a confirmação', (tester) async {
+  testWidgets('cria o usuário e permite vincular a tag pelo UID', (tester) async {
     final adapter = RoutedAdapter({
       'GET /users': usersPage([]),
       'POST /users': FakeAdapter.json(201, userJson()),
-      'POST /users/u-1/nfc-enrollments': apiError(503, 'NFC_READER_OFFLINE', 'Falha'),
+      'POST /users/u-1/tags': FakeAdapter.json(201, tagJson()),
     });
     await start(tester, adapter);
     await tapVisible(tester, find.text('Novo usuário'));
@@ -39,19 +39,16 @@ void main() {
     await tapVisible(tester, find.text('Condômino').last);
     await tapVisible(tester, find.text('Salvar usuário'));
 
-    expect(adapter.callsTo('POST /users/u-1/nfc-enrollments'), 1);
+    expect(adapter.callsTo('POST /users/u-1/tags'), 0);
     expect(find.text('Usuário criado.'), findsOneWidget);
 
-    adapter.routes['POST /users/u-1/nfc-enrollments'] =
-        FakeAdapter.json(202, {'id': 'req-1', 'status': 'PENDING'});
-    adapter.routes['GET /users/u-1/nfc-enrollments/req-1'] =
-        FakeAdapter.json(200, {'id': 'req-1', 'status': 'WRITTEN'});
-    await tapVisible(tester, find.text('Tentar NFC novamente'));
+    await tester.ensureVisible(field('UID da tag NFC'));
+    await tester.enterText(field('UID da tag NFC'), '04:a3:2f:1b');
+    await tapVisible(tester, find.text('Vincular tag NFC'));
     expect(adapter.callsTo('POST /users'), 1);
-    expect(find.text('Aproxime a tag do ESP32 para gravar.'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
-    expect(find.text('Gravação NFC confirmada pelo ESP32.'), findsOneWidget);
+    expect(adapter.requests.singleWhere((req) => req.path == '/users/u-1/tags').data,
+        {'uid': '04A32F1B'});
+    expect(find.text('04A32F1B'), findsOneWidget);
   });
 
   testWidgets('envia foto consentida como JPEG e permite retentar só a foto',

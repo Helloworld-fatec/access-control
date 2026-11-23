@@ -1,0 +1,37 @@
+{
+  "id": "124",
+  "numero": 124,
+  "nome": "Jynx",
+  "nome_en": "jynx",
+  "categoria": "Human Shape Pokémon",
+  "descricao": "It seductively wiggles its hips as it walks. It can cause people to dance in unison with it.",
+  "tipos": [
+    "Gelo",
+    "Psíquico"
+  ],
+  "altura_m": 1.4,
+  "peso_kg": 40.6,
+  "habilidades": [
+    {
+      "nome": "Oblivious",
+      "oculta": false
+    },
+    {
+      "nome": "Forewarn",
+      "oculta": false
+    },
+    {
+      "nome": "Dry Skin",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 65,
+    "attack": 50,
+    "defense": 35,
+    "special-attack": 115,
+    "special-defense": 95,
+    "speed": 95
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/124.png"
+}

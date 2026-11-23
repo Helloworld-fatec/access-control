@@ -6,6 +6,7 @@ import { env } from "../config/env.js";
 import { hashTerminalKey } from "../config/terminal-key.js";
 import { app } from "../index.js";
 import { requestDoorUnlock } from "../services/door-unlock.service.js";
+import { issueQrToken } from "../services/qr-token.service.js";
 
 const db = vi.hoisted(() => ({
   terminal: { findUnique: vi.fn(), update: vi.fn() },
@@ -80,6 +81,16 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("emissao e consumo oficial de QR", () => {
+  it("consome o token compacto do OLED com a mesma autorização e bloqueia reuso", async () => {
+    const { token } = await issueQrToken(terminal.id, true);
+    expect(token).toMatch(/^Q[A-Z0-9]{19}$/);
+    expect((await consume(token)).body.result).toBe("GRANTED");
+    expect((await consume(token)).body.reason).toBe("REPLAYED_CREDENTIAL");
+    expect(requestDoorUnlock).toHaveBeenCalledExactlyOnceWith({
+      terminalId: terminal.id, accessLogId: "qr-log", userId, method: "QR",
+    });
+  });
+
   it("emite o JSON do scanner a cada dez segundos por mais de um minuto", async () => {
     const tokens = new Set<string>();
     for (let seconds = 0; seconds <= 70; seconds += 10) {

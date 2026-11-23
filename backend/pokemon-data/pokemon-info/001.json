@@ -1,0 +1,33 @@
+{
+  "id": "001",
+  "numero": 1,
+  "nome": "Bulbasaur",
+  "nome_en": "bulbasaur",
+  "categoria": "Seed Pokémon",
+  "descricao": "A strange seed was planted on its back at birth. The plant sprouts and grows with this POKéMON.",
+  "tipos": [
+    "Planta",
+    "Venenoso"
+  ],
+  "altura_m": 0.7,
+  "peso_kg": 6.9,
+  "habilidades": [
+    {
+      "nome": "Overgrow",
+      "oculta": false
+    },
+    {
+      "nome": "Chlorophyll",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 45,
+    "attack": 49,
+    "defense": 49,
+    "special-attack": 65,
+    "special-defense": 65,
+    "speed": 45
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/001.png"
+}

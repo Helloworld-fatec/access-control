@@ -1,0 +1,37 @@
+{
+  "id": "079",
+  "numero": 79,
+  "nome": "Slowpoke",
+  "nome_en": "slowpoke",
+  "categoria": "Dopey Pokémon",
+  "descricao": "Incredibly slow and dopey. It takes 5 seconds for it to feel pain when under attack.",
+  "tipos": [
+    "Água",
+    "Psíquico"
+  ],
+  "altura_m": 1.2,
+  "peso_kg": 36.0,
+  "habilidades": [
+    {
+      "nome": "Oblivious",
+      "oculta": false
+    },
+    {
+      "nome": "Own Tempo",
+      "oculta": false
+    },
+    {
+      "nome": "Regenerator",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 90,
+    "attack": 65,
+    "defense": 65,
+    "special-attack": 40,
+    "special-defense": 40,
+    "speed": 15
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/079.png"
+}

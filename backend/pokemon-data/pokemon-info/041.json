@@ -1,0 +1,33 @@
+{
+  "id": "041",
+  "numero": 41,
+  "nome": "Zubat",
+  "nome_en": "zubat",
+  "categoria": "Bat Pokémon",
+  "descricao": "Forms colonies in perpetually dark places. Uses ultrasonic waves to identify and approach targets.",
+  "tipos": [
+    "Venenoso",
+    "Voador"
+  ],
+  "altura_m": 0.8,
+  "peso_kg": 7.5,
+  "habilidades": [
+    {
+      "nome": "Inner Focus",
+      "oculta": false
+    },
+    {
+      "nome": "Infiltrator",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 40,
+    "attack": 45,
+    "defense": 35,
+    "special-attack": 30,
+    "special-defense": 40,
+    "speed": 55
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/041.png"
+}

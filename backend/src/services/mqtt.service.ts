@@ -6,8 +6,9 @@ import { prisma } from "../config/prisma.js";
 import { recordEsp32NfcAccess, recordEsp32NfcUnlockAck } from "../controllers/access.controller.js";
 import { recordEnrollmentAck } from "./nfc-enrollment.service.js";
 import { recordDoorCommandAck } from "./door-unlock.service.js";
+import { issueOledQr } from "./oled-qr.service.js";
 import {
-  accessWindowMs, decodeMqttJson, heartbeatWindowMs, mqttEvent, mqttPrefix, mqttRequest, unlockDurationMs,
+  accessWindowMs, decodeMqttJson, doorAck, doorAckTiming, heartbeatWindowMs, mqttEvent, mqttPrefix, mqttRequest, unlockDurationMs,
 } from "./mqtt-messages.js";
 
 let client: MqttClient | undefined;
@@ -16,9 +17,9 @@ let enrollmentTimer: NodeJS.Timeout | undefined;
 let sendingEnrollment = false;
 let doorCommandTimer: NodeJS.Timeout | undefined;
 let sendingDoorCommands = false;
+let oledQrRequest: { id: string; receivedAt: number; response: ReturnType<typeof issueOledQr> } | undefined;
 const presenceEvent = mqttEvent.extend({ detected: z.boolean(), distanceCm: z.number().nonnegative().optional() });
 const doorEvent = mqttEvent.extend({ state: z.enum(["OPEN", "CLOSED"]) });
-const doorAck = mqttRequest.extend({ result: z.enum(["UNLOCKED", "EXPIRED", "ERROR"]), accessLogId: z.uuid() });
 
 export function mqttStatus() {
   if (!env.MQTT_URL) return "disabled";
@@ -29,8 +30,11 @@ export function startMqtt() {
   const { MQTT_URL: url, MQTT_CA_FILE: caFile, MQTT_BACKEND_PASSWORD: password } = env;
   if (client || !url || !caFile || !password) return;
   const terminalIds = [env.ESP32_TERMINAL_ID, env.MQTT_SIMULATOR_TERMINAL_ID].filter((id) => id !== undefined);
-  const suffixes = ["status", "presence", "door/state", "access/request", "door/ack", "nfc/enroll/ack"];
+  const suffixes = ["status", "presence", "door/state", "access/request", "door/ack"];
   const topics = new Set(terminalIds.flatMap((id) => suffixes.map((suffix) => `${mqttPrefix(id)}/${suffix}`)));
+  const simulatorId = env.MQTT_SIMULATOR_TERMINAL_ID;
+  if (simulatorId) topics.add(`${mqttPrefix(simulatorId)}/nfc/enroll/ack`);
+  if (env.ESP32_TERMINAL_ID) topics.add(`${mqttPrefix(env.ESP32_TERMINAL_ID)}/qr/request`);
   const connection = connect(url, {
     username: "backend",
     password,
@@ -65,9 +69,9 @@ export function startMqtt() {
       .catch(() => console.warn("MQTT: evento inválido ou falha de processamento em", topic));
   });
   enrollmentTimer = setInterval(() => {
-    if (sendingEnrollment || mqttStatus() !== "connected") return;
+    if (!simulatorId || sendingEnrollment || mqttStatus() !== "connected") return;
     sendingEnrollment = true;
-    void sendPendingEnrollments(connection, terminalIds)
+    void sendPendingEnrollments(connection, simulatorId)
       .catch(() => console.warn("MQTT: falha ao enviar gravação NFC."))
       .finally(() => { sendingEnrollment = false; });
   }, 1_000);
@@ -94,6 +98,7 @@ export async function stopMqtt() {
   const connection = client;
   client = undefined;
   subscribed = false;
+  oledQrRequest = undefined;
   clearInterval(enrollmentTimer);
   clearInterval(doorCommandTimer);
   await connection?.endAsync(true);
@@ -122,9 +127,9 @@ async function sendPendingDoorCommands(connection: MqttClient, terminalIds: stri
   }
 }
 
-async function sendPendingEnrollments(connection: MqttClient, terminalIds: string[]) {
+async function sendPendingEnrollments(connection: MqttClient, terminalId: string) {
   const pending = await prisma.nfcEnrollment.findMany({
-    where: { terminalId: { in: terminalIds }, status: "PENDING", expiresAt: { gt: new Date() } },
+    where: { terminalId, status: "PENDING", expiresAt: { gt: new Date() } },
     include: { user: { select: { nfcCredential: { select: { status: true, codeHex: true } } } } },
   });
   for (const enrollment of pending) {
@@ -182,6 +187,25 @@ async function handleEsp32Message(connection: MqttClient, topic: string, input: 
       });
       break;
     }
+    case "qr/request": {
+      if (id !== env.ESP32_TERMINAL_ID || age >= accessWindowMs || !connection.connected) return;
+      const { requestId } = mqttRequest.parse(input);
+      if (oledQrRequest?.id !== requestId) {
+        if (oledQrRequest && receivedAt - oledQrRequest.receivedAt < 2_000) return;
+        const response = issueOledQr(id, requestId).catch((error: unknown) => {
+          if (oledQrRequest?.response === response) oledQrRequest = undefined;
+          throw error;
+        });
+        oledQrRequest = { id: requestId, receivedAt, response };
+      }
+      const display = await oledQrRequest.response;
+      const remainingMs = Date.parse(display.expiresAt) - Date.now();
+      if (!connection.connected || remainingMs <= 0 || Date.now() - occurredAt.getTime() >= accessWindowMs) return;
+      await connection.publishAsync(`${prefix}/qr/display`, JSON.stringify(display), {
+        qos: 1, retain: false, properties: { messageExpiryInterval: Math.ceil(remainingMs / 1000) },
+      });
+      break;
+    }
     case "access/request": {
       if (age >= accessWindowMs || !connection.connected) return;
       const { requestId } = mqttRequest.parse(input);
@@ -209,15 +233,22 @@ async function handleEsp32Message(connection: MqttClient, topic: string, input: 
         await recordDoorCommandAck(ack);
         return;
       }
-      if (ack.result !== "UNLOCKED") return;
+      const timing = doorAckTiming(ack);
+      if (!timing) return;
       const saved = await prisma.mqttNfcRequest.findUnique({
         where: { terminalId_requestId: { terminalId: id, requestId: ack.requestId } },
         select: { decision: true, expiresAt: true },
       });
-      const decision = z.object({ accessLogId: z.uuid(), granted: z.literal(true) }).safeParse(saved?.decision);
-      if (saved && occurredAt <= saved.expiresAt && decision.success && decision.data.accessLogId === ack.accessLogId) {
-        await recordEsp32NfcUnlockAck(topic, ack);
-      }
+      const decision = z.object({
+        accessLogId: z.uuid(), granted: z.literal(true), decidedAt: z.iso.datetime(),
+      }).safeParse(saved?.decision);
+      if (!saved || !decision.success || decision.data.accessLogId !== ack.accessLogId) return;
+      const { expiration, acceptedAt } = timing;
+      if (acceptedAt && acceptedAt.getTime() < Date.parse(decision.data.decidedAt)) return;
+      if (expiration.gt && saved.expiresAt <= expiration.gt) return;
+      if (expiration.gte && saved.expiresAt < expiration.gte) return;
+      if (expiration.lte && saved.expiresAt > expiration.lte) return;
+      await recordEsp32NfcUnlockAck(topic, ack);
       break;
     }
   }

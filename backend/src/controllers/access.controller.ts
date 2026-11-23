@@ -259,11 +259,13 @@ async function evaluateNfcAccess(
   terminal: { id: string; locationId: string },
   uid: string,
   db: Pick<Prisma.TransactionClient, "nfctag" | "user" | "authorization" | "accesslog">,
+  accessLogId?: string,
 ) {
   const tag = await db.nfctag.findUnique({ where: { uid } });
   if (!tag?.active) {
     await db.accesslog.create({
       data: {
+        ...(accessLogId === undefined ? {} : { id: accessLogId }),
         userId: tag?.userId ?? null,
         terminalId: terminal.id,
         method: ACCESS_METHODS.NFC,
@@ -285,6 +287,7 @@ async function evaluateNfcAccess(
     locationId: terminal.locationId,
     method: ACCESS_METHODS.NFC,
     nfcUid: uid,
+    accessLogId,
   }, db);
 }
 
@@ -305,7 +308,7 @@ export async function recordEsp32NfcAccess(
 
     const key = { terminalId: dto.terminalId, requestId: request.requestId };
     const fingerprint = createHmac("sha256", env.JWT_SECRET)
-      .update(JSON.stringify([dto.credential.value, request.occurredAt])).digest("hex");
+      .update(JSON.stringify([dto.uid, request.occurredAt])).digest("hex");
     const { count } = await tx.mqttNfcRequest.createMany({
       data: { ...key, fingerprint, expiresAt: request.expiresAt },
       skipDuplicates: true,
@@ -333,31 +336,8 @@ async function evaluateEsp32NfcAccess(
   });
   if (!terminal) throw new AppError(404, "Terminal não encontrado", "TERMINAL_NOT_FOUND");
 
-  const credential = await tx.nfccredential.findUnique({
-    where: { codeHex: dto.credential.value },
-    select: { userId: true, status: true },
-  });
   const accessLogId = randomUUID();
-  if (credential?.status !== "ACTIVE") {
-    await tx.accesslog.create({
-      data: {
-        id: accessLogId,
-        terminalId: terminal.id,
-        method: ACCESS_METHODS.NFC,
-        result: ACCESS_RESULTS.DENIED,
-        reason: DENY_REASONS.INVALID_CREDENTIAL,
-      },
-    });
-    return { accessLogId, granted: false as const, reason: DENY_REASONS.INVALID_CREDENTIAL };
-  }
-
-  const outcome = await evaluateUserAccess({
-    accessLogId,
-    userId: credential.userId,
-    terminalId: terminal.id,
-    locationId: terminal.locationId,
-    method: ACCESS_METHODS.NFC,
-  }, tx);
+  const outcome = await evaluateNfcAccess(terminal, dto.uid, tx, accessLogId);
   return outcome.granted
     ? { accessLogId, granted: true as const }
     : { accessLogId, granted: false as const, reason: outcome.reason };
@@ -368,7 +348,7 @@ export async function recordEsp32NfcUnlockAck(topic: string, input: unknown) {
   const ack = z.object({
     terminalId: z.uuid(),
     accessLogId: z.uuid(),
-    result: z.literal("UNLOCKED"),
+    result: z.enum(["UNLOCKED", "EXPIRED", "ERROR"]),
   }).parse(input);
   if ((ack.terminalId !== env.ESP32_TERMINAL_ID && ack.terminalId !== env.MQTT_SIMULATOR_TERMINAL_ID) ||
       topic !== `access/v1/terminals/${ack.terminalId}/door/ack`) {
@@ -381,8 +361,9 @@ export async function recordEsp32NfcUnlockAck(topic: string, input: unknown) {
       terminalId: ack.terminalId,
       method: ACCESS_METHODS.NFC,
       result: ACCESS_RESULTS.GRANTED,
+      commandAcked: null,
     },
-    data: { commandAcked: true },
+    data: { commandAcked: ack.result === "UNLOCKED" },
   });
   return count > 0;
 }

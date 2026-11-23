@@ -29,7 +29,7 @@ export function toEnrollmentResponse(enrollment: Pick<nfcEnrollment, keyof typeo
 }
 
 export function enrollmentTerminalId() {
-  return env.ESP32_TERMINAL_ID ?? env.MQTT_SIMULATOR_TERMINAL_ID;
+  return env.MQTT_SIMULATOR_TERMINAL_ID;
 }
 
 export async function lockEnrollmentUser(tx: Prisma.TransactionClient, userId: string) {

@@ -27,12 +27,17 @@ device_acl() {
   mosquitto_passwd -b "$data/passwd" "$account" "$password"
   prefix="access/v1/terminals/$uuid"
   printf '\nuser %s\n' "$account" >> "$data/acl"
-  for suffix in status presence door/state access/request door/ack nfc/enroll/ack; do
+  for suffix in status presence door/state access/request door/ack; do
     printf 'topic write %s/%s\n' "$prefix" "$suffix" >> "$data/acl"
   done
-  for suffix in access/decision door/command nfc/enroll; do
+  for suffix in access/decision door/command; do
     printf 'topic read %s/%s\n' "$prefix" "$suffix" >> "$data/acl"
   done
+  if [ "$account" = simulator ]; then
+    printf 'topic write %s/nfc/enroll/ack\ntopic read %s/nfc/enroll\n' "$prefix" "$prefix" >> "$data/acl"
+  else
+    printf 'topic write %s/qr/request\ntopic read %s/qr/display\n' "$prefix" "$prefix" >> "$data/acl"
+  fi
 }
 
 require_password MQTT_BACKEND_PASSWORD "${MQTT_BACKEND_PASSWORD:-}"
@@ -43,10 +48,10 @@ fi
 mosquitto_passwd -b -c "$data/passwd" backend "$MQTT_BACKEND_PASSWORD"
 {
   printf 'user backend\ntopic read $SYS/broker/version\n'
-  for suffix in status presence door/state access/request door/ack nfc/enroll/ack; do
+  for suffix in status presence door/state access/request door/ack nfc/enroll/ack qr/request; do
     printf 'topic read access/v1/terminals/+/%s\n' "$suffix"
   done
-  for suffix in access/decision door/command nfc/enroll; do
+  for suffix in access/decision door/command nfc/enroll qr/display; do
     printf 'topic write access/v1/terminals/+/%s\n' "$suffix"
   done
 } > "$data/acl"

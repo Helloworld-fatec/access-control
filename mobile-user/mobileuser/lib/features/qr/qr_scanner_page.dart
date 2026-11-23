@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -8,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../core/api/api_client.dart';
 import '../../core/session/session_scope.dart';
 import '../../core/theme/app_colors.dart';
+import 'access_qr.dart';
 
 class QrScannerPage extends StatefulWidget {
   const QrScannerPage({super.key});
@@ -84,21 +84,12 @@ class _QrScannerPageState extends State<QrScannerPage>
         .whereType<String>()
         .firstOrNull;
     if (raw == null) return;
-    dynamic parsed;
-    try {
-      parsed = jsonDecode(raw);
-    } on FormatException {
+    final token = accessQrToken(raw);
+    if (token == null) {
       _showMalformed();
       return;
     }
-    if (parsed is! Map ||
-        parsed['v'] != 1 ||
-        parsed['token'] is! String ||
-        !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(parsed['token'] as String)) {
-      _showMalformed();
-      return;
-    }
-    unawaited(_consume(parsed['token'] as String));
+    unawaited(_consume(token));
   }
 
   void _showMalformed() {

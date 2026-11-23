@@ -1,0 +1,36 @@
+{
+  "id": "058",
+  "numero": 58,
+  "nome": "Growlithe",
+  "nome_en": "growlithe",
+  "categoria": "Puppy Pokémon",
+  "descricao": "Very protective of its territory. It will bark and bite to repel intruders from its space.",
+  "tipos": [
+    "Fogo"
+  ],
+  "altura_m": 0.7,
+  "peso_kg": 19.0,
+  "habilidades": [
+    {
+      "nome": "Intimidate",
+      "oculta": false
+    },
+    {
+      "nome": "Flash Fire",
+      "oculta": false
+    },
+    {
+      "nome": "Justified",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 55,
+    "attack": 70,
+    "defense": 45,
+    "special-attack": 70,
+    "special-defense": 50,
+    "speed": 60
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/058.png"
+}

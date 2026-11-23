@@ -5,7 +5,7 @@ const { terminalId, db } = vi.hoisted(() => ({
   terminalId: "df96f695-a94c-4a4d-9ac5-f90beca3cd71",
   db: {
     terminal: { findUnique: vi.fn() },
-    nfccredential: { findUnique: vi.fn() },
+    nfctag: { findUnique: vi.fn() },
     user: { findUnique: vi.fn() },
     authorization: { findMany: vi.fn(), updateMany: vi.fn() },
     accesslog: { create: vi.fn(), updateMany: vi.fn() },
@@ -17,7 +17,7 @@ vi.mock("../config/env.js", () => ({ env: { ESP32_TERMINAL_ID: terminalId, JWT_S
 vi.mock("../config/prisma.js", () => ({ prisma: db }));
 
 const topic = `access/v1/terminals/${terminalId}/access/request`;
-const payload = { terminalId, credential: { type: "NFC", value: "a1b2c3" } };
+const payload = { terminalId, uid: "00:a1:b2:c3" };
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -30,7 +30,7 @@ afterEach(() => vi.useRealTimers());
 
 describe("NFC do ESP32", () => {
   it("usa o local da placa e registra a autorização concedida com seu UUID", async () => {
-    db.nfccredential.findUnique.mockResolvedValue({ status: "ACTIVE", userId: "morador" });
+    db.nfctag.findUnique.mockResolvedValue({ active: true, userId: "morador" });
     db.user.findUnique.mockResolvedValue({ id: "morador", active: true, name: "Morador" });
     db.authorization.findMany.mockResolvedValue([{
       id: "autorizacao", status: "ACTIVE", startDate: new Date("2026-11-21"),
@@ -51,32 +51,37 @@ describe("NFC do ESP32", () => {
     const outcome = await recordEsp32NfcAccess(topic, payload, request);
 
     expect(outcome).toMatchObject({ granted: true, accessLogId: expect.any(String) });
-    expect(db.nfccredential.findUnique).toHaveBeenCalledWith(expect.objectContaining({
-      where: { codeHex: "A1B2C3" },
-    }));
+    expect(db.nfctag.findUnique).toHaveBeenCalledWith({ where: { uid: "00A1B2C3" } });
     expect(db.authorization.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { locationId: "porta", userId: "morador" },
     }));
     expect(db.accesslog.create).toHaveBeenCalledWith({ data: expect.objectContaining({
       id: outcome?.accessLogId, terminalId, authorizationId: "autorizacao",
-      method: "NFC", result: "GRANTED", nfcUid: null,
+      method: "NFC", result: "GRANTED", nfcUid: "00A1B2C3",
     }) });
     await expect(recordEsp32NfcAccess(topic, payload, request)).resolves.toEqual(outcome);
     await expect(recordEsp32NfcAccess(topic, {
-      ...payload, credential: { type: "NFC", value: "000000" },
+      ...payload, uid: "00000000",
     }, request)).resolves.toBeNull();
     expect(db.accesslog.create).toHaveBeenCalledTimes(1);
     expect(db.authorization.updateMany).toHaveBeenCalledTimes(1);
   });
 
-  it("registra a negativa no terminal da placa quando a tag ainda está pendente", async () => {
-    db.nfccredential.findUnique.mockResolvedValue({ status: "PENDING", userId: "morador" });
+  it.each([null, { active: false, userId: "morador" }])("registra a negativa para tag desconhecida ou inativa (%j)", async (tag) => {
+    db.nfctag.findUnique.mockResolvedValue(tag);
     const outcome = await recordEsp32NfcAccess(topic, payload);
     expect(outcome).toMatchObject({ granted: false, accessLogId: expect.any(String) });
     expect(db.accesslog.create).toHaveBeenCalledWith({ data: expect.objectContaining({
       id: outcome?.accessLogId, terminalId, method: "NFC", result: "DENIED", reason: "INVALID_CREDENTIAL",
+      nfcUid: "00A1B2C3",
     }) });
     expect(db.authorization.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejeita o código legado e um UID com tamanho incompatível", async () => {
+    await expect(recordEsp32NfcAccess(topic, { terminalId, credential: { type: "NFC", value: "A1B2C3" } })).rejects.toThrow();
+    await expect(recordEsp32NfcAccess(topic, { terminalId, uid: "0000000000" })).rejects.toThrow();
+    expect(db.$transaction).not.toHaveBeenCalled();
   });
 
   it("recusa um tópico divergente antes de consultar o banco", async () => {
@@ -93,7 +98,7 @@ describe("NFC do ESP32", () => {
       { terminalId, accessLogId, result: "UNLOCKED" },
     )).resolves.toBe(true);
     expect(db.accesslog.updateMany).toHaveBeenCalledWith({
-      where: { id: accessLogId, terminalId, method: "NFC", result: "GRANTED" },
+      where: { id: accessLogId, terminalId, method: "NFC", result: "GRANTED", commandAcked: null },
       data: { commandAcked: true },
     });
   });

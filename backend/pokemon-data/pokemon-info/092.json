@@ -1,0 +1,29 @@
+{
+  "id": "092",
+  "numero": 92,
+  "nome": "Gastly",
+  "nome_en": "gastly",
+  "categoria": "Gas Pokémon",
+  "descricao": "Almost invisible, this gaseous POKéMON cloaks the target and puts it to sleep without notice.",
+  "tipos": [
+    "Fantasma",
+    "Venenoso"
+  ],
+  "altura_m": 1.3,
+  "peso_kg": 0.1,
+  "habilidades": [
+    {
+      "nome": "Levitate",
+      "oculta": false
+    }
+  ],
+  "stats": {
+    "hp": 30,
+    "attack": 35,
+    "defense": 30,
+    "special-attack": 100,
+    "special-defense": 35,
+    "speed": 80
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/092.png"
+}

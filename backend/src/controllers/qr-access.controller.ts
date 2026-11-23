@@ -1,14 +1,11 @@
-import { createHash, randomBytes } from "node:crypto";
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
 import { consumeQrSchema } from "../models/dtos/qr-access.dto.js";
 import { ACCESS_METHODS, ACCESS_RESULTS, DENY_REASONS } from "../types/index.js";
 import { requestDoorUnlock } from "../services/door-unlock.service.js";
+import { hashQrToken, issueQrToken, qrRefreshSeconds } from "../services/qr-token.service.js";
 
-const QR_TTL_SECONDS = 20;
-const QR_REFRESH_SECONDS = 10;
-const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
 
 function saoPauloNow(now: Date) {
@@ -34,21 +31,12 @@ function saoPauloNow(now: Date) {
 export async function issueQr(req: Request, res: Response) {
   if (!req.terminal) throw new AppError(401, "Terminal não autenticado", "TERMINAL_UNAUTHORIZED");
 
-  const token = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + QR_TTL_SECONDS * 1000);
-
-  await prisma.qrnonce.create({
-    data: {
-      nonce: hashToken(token),
-      terminalId: req.terminal.id,
-      expiresAt,
-    },
-  });
+  const { token, expiresAt } = await issueQrToken(req.terminal.id);
 
   res.json({
     payload: { v: 1, token },
     expiresAt: expiresAt.toISOString(),
-    refreshAfterSeconds: QR_REFRESH_SECONDS,
+    refreshAfterSeconds: qrRefreshSeconds,
   });
 }
 
@@ -57,7 +45,7 @@ export async function consumeQr(req: Request, res: Response) {
   if (!req.auth) throw new AppError(401, "Usuário não autenticado", "UNAUTHORIZED");
   const userId = req.auth.userId;
   const { token } = consumeQrSchema.parse(req.body);
-  const tokenHash = hashToken(token);
+  const tokenHash = hashQrToken(token);
   const now = new Date();
   const { today, time } = saoPauloNow(now);
   const todayDate = new Date(`${today}T00:00:00.000Z`);

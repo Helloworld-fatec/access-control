@@ -1,0 +1,33 @@
+{
+  "id": "145",
+  "numero": 145,
+  "nome": "Zapdos",
+  "nome_en": "zapdos",
+  "categoria": "Electric Pokémon",
+  "descricao": "A legendary bird POKéMON that is said to appear from clouds while dropping enormous lightning bolts.",
+  "tipos": [
+    "Elétrico",
+    "Voador"
+  ],
+  "altura_m": 1.6,
+  "peso_kg": 52.6,
+  "habilidades": [
+    {
+      "nome": "Pressure",
+      "oculta": false
+    },
+    {
+      "nome": "Static",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 90,
+    "attack": 90,
+    "defense": 85,
+    "special-attack": 125,
+    "special-defense": 90,
+    "speed": 100
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/145.png"
+}

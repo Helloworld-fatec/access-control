@@ -1,0 +1,36 @@
+{
+  "id": "118",
+  "numero": 118,
+  "nome": "Goldeen",
+  "nome_en": "goldeen",
+  "categoria": "Goldfish Pokémon",
+  "descricao": "Its tail fin billows like an elegant ballroom dress, giving it the nickname of the Water Queen.",
+  "tipos": [
+    "Água"
+  ],
+  "altura_m": 0.6,
+  "peso_kg": 15.0,
+  "habilidades": [
+    {
+      "nome": "Swift Swim",
+      "oculta": false
+    },
+    {
+      "nome": "Water Veil",
+      "oculta": false
+    },
+    {
+      "nome": "Lightning Rod",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 45,
+    "attack": 67,
+    "defense": 60,
+    "special-attack": 35,
+    "special-defense": 50,
+    "speed": 63
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/118.png"
+}

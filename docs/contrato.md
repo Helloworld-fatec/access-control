@@ -21,8 +21,8 @@ Prefixo comum: `access/v1/terminals/{terminalId}/`. Cada payload é um objeto JS
 | `access/decision` | Backend → ESP32 | 1 | Não |
 | `door/command` | Backend → ESP32 | 1 | Não |
 | `door/ack` | ESP32 → backend | 1 | Não |
-| `nfc/enroll` | Backend → ESP32 | 1 | Não |
-| `nfc/enroll/ack` | ESP32 → backend | 1 | Não |
+| `qr/request` | ESP32 → backend | 1 | Não |
+| `qr/display` | Backend → ESP32 | 1 | Não |
 
 ## Estado da placa e da porta
 
@@ -72,7 +72,7 @@ Se houver sensor físico, publique o estado após conectar e a cada mudança. Va
 
 ### `access/request`
 
-Leia os bytes da credencial gravada e publique `credential.value` com **seis dígitos hexadecimais maiúsculos**, incluindo zeros à esquerda. O código identifica a credencial cadastrada em `nfc_credentials`. O backend exige que ela esteja ativa, valida a autorização para o local da placa e grava a decisão. O backend descarta pedidos recebidos depois de **5 s** da leitura. O firmware aguarda até **5 s** pelo resultado e mantém a fechadura travada se o prazo terminar. Enquanto a mesma tag permanecer no campo, trate a leitura como uma única apresentação.
+Leia o UID físico de **4, 7 ou 10 bytes** e publique `uid` em hexadecimal maiúsculo sem separadores, preservando zeros à esquerda. O administrador vincula o UID ao usuário pelo painel ou mobile-registry, usando `POST /api/users/{id}/tags` com `{"uid":"04A32F1B"}`. A memória da tag permanece intacta. O backend consulta a tag ativa em `nfc_tags`, valida a autorização do usuário para o local da placa e grava a decisão. O backend descarta pedidos recebidos depois de **5 s** da leitura. O firmware aguarda até **5 s** pelo resultado e mantém a porta fechada se o prazo terminar. Enquanto houver uma tag no campo, trate a leitura como uma única apresentação.
 
 ```json
 {
@@ -80,7 +80,7 @@ Leia os bytes da credencial gravada e publique `credential.value` com **seis dí
   "terminalId": "df96f695-a94c-4a4d-9ac5-f90beca3cd71",
   "eventId": "5b1e029e-a24c-4322-a20c-61fc42542d47",
   "requestId": "a1a84eb7-ba8f-4e29-bb6a-a373ad0bcda0",
-  "credential": { "type": "NFC", "value": "00A3F9" },
+  "uid": "04A32F1B",
   "occurredAt": "2026-11-23T12:00:02Z"
 }
 ```
@@ -103,6 +103,14 @@ O backend responde com o mesmo `requestId` e com o `accessLogId` gravado. A plac
   "expiresAt": "2026-11-23T12:00:07Z"
 }
 ```
+
+## QR do OLED e QR do celular
+
+O OLED solicita um QR em `qr/request` com o envelope comum, `occurredAt` e um novo `requestId` após 3 s de presença confirmada. O backend aceita pedidos recentes da placa configurada. Em `qr/display`, responde com o envelope, o mesmo `requestId`, `expiresAt` (20 s após a emissão), `refreshAfterSeconds: 10` e `bitmap`. O bitmap tem 112 caracteres hexadecimais que representam 56 bytes. Os 441 módulos de um QR versão 1 ocupam os bits em ordem de linha da esquerda para a direita, começando pelo bit mais significativo de cada byte. Um bit 1 representa um módulo escuro. Os sete bits finais ficam em zero.
+
+O ESP32 aceita apenas uma resposta que corresponda ao pedido pendente. Aplica escala de 2 pixels por módulo e margem de 4 módulos, totalizando 58 × 58 pixels no OLED de 128 × 64. O OLED deixa de mostrar o código quando a presença termina, quando a conexão é perdida ou quando o código expira. A renovação usa um novo pedido enquanto houver presença.
+
+O QR do OLED codifica um token de 20 caracteres alfanuméricos maiúsculos com prefixo `Q`. O QR do mobile-readings continua usando o JSON `{"v":1,"token":"..."}` emitido por `POST /api/terminals/me/qr`. O usuário abre o leitor de QR do mobile-user e escaneia qualquer um dos dois. O app envia o token extraído para `POST /api/access/qr/consume` com o JWT do usuário. Ambos os tokens expiram e são de uso único. Uma concessão válida gera `door/command` com `method: "QR"`.
 
 ## Abertura iniciada por QR ou reconhecimento facial
 
@@ -128,7 +136,13 @@ Use `method: "FACE"` para reconhecimento facial.
 
 ### `door/ack`
 
-Após tentar executar uma concessão NFC ou um comando de abertura, a placa devolve o `requestId` e o `accessLogId` recebidos. Use `UNLOCKED` quando o acionamento for executado e `ERROR` quando a execução falhar. Um comando vencido pode retornar `EXPIRED`. Uma decisão NFC negada encerra a espera no firmware e já está registrada no backend. O backend valida a correlação com a concessão ou comando enviado àquela placa. Apenas `UNLOCKED` marca a abertura como confirmada.
+O prazo de 5 s limita o **aceite** da ordem. A placa valida a ordem antes de `expiresAt` e registra `acceptedAt` em UTC. Se puder atuar, registra a tentativa de forma persistente antes de mover o motor. O prazo inicial de bancada para concluir os passos de abertura e datar o ACK é de **10 s após `acceptedAt`**. O backend verifica as duas janelas separadamente. O horário do ACK pode ultrapassar `expiresAt`.
+
+A placa devolve o `requestId` e o `accessLogId` da ordem. Use `UNLOCKED` ao concluir os passos comandados de abertura. Esse resultado confirma o acionamento, enquanto `door/state` é reservado à posição observada por sensor. A duração de `unlockDurationMs` começa ao terminar a abertura. No sketch são 3000 ms, seguidos de fechamento automático sob controle local.
+
+Use `ERROR` se uma ordem válida não puder ser executada ou se a tentativa falhar. Se já houver um ciclo em andamento, registre `acceptedAt` como o instante de avaliação da ordem válida, devolva `ERROR` e mantenha o ciclo em andamento. Use `EXPIRED` opcionalmente para uma ordem vencida, sem `acceptedAt` e com `occurredAt` entre `expiresAt` e 10 s após o vencimento. Uma negativa NFC encerra a espera e dispensa ACK. O primeiro ACK válido encerra a confirmação no backend. Em QR e face, o backend preserva o resultado específico do ACK. Em NFC, o histórico registra sucesso, falha ou confirmação pendente.
+
+Uma repetição conserva o ACK e seus horários originais. Após reinício, se a placa já registrou uma tentativa mas perdeu o resultado, não repete a atuação. O sketch atual assume posição inicial fechada e a recuperação da posição deve ser validada em bancada.
 
 ```json
 {
@@ -138,11 +152,14 @@ Após tentar executar uma concessão NFC ou um comando de abertura, a placa devo
   "requestId": "a1a84eb7-ba8f-4e29-bb6a-a373ad0bcda0",
   "accessLogId": "01e13323-bb93-4c82-8e35-06c7e62704fc",
   "result": "UNLOCKED",
-  "occurredAt": "2026-11-23T12:00:04Z"
+  "acceptedAt": "2026-11-23T12:00:04Z",
+  "occurredAt": "2026-11-23T12:00:09.120Z"
 }
 ```
 
-## Gravação da tag NFC
+## Gravação legada no simulador
+
+Os tópicos abaixo são exclusivos do simulador quando ele estiver configurado. Eles mantêm a compatibilidade com o ensaio legado. O cadastro e a autorização por UID independem desse ensaio.
 
 ### `nfc/enroll`
 
@@ -185,11 +202,11 @@ A placa grava, relê a mesma tag e compara os bytes. Só publique `WRITTEN` se a
 ## Duplicatas, expiração e reconexão
 
 - O backend deve persistir a decisão NFC por par `(terminalId, requestId)` junto do registro de acesso, de forma atômica com a contagem de uso. Uma repetição recebe a decisão original enquanto o pedido ainda for válido. O backend ignora a reutilização do mesmo identificador com dados diferentes. Confirmações repetidas não criam novas concessões ou ativações.
-- O firmware executa no máximo uma vez por `requestId`. Deve registrar a execução ou a tentativa antes de acionar ou gravar, conservar essa informação até o vencimento mesmo se reiniciar e, ao reconhecer uma repetição, poder reenviar o resultado conhecido. Na dúvida sobre uma execução após reinício, não repetir a ação.
-- A placa sincroniza o relógio por NTP/SNTP antes de aceitar comandos temporizados e também usa um relógio monotônico para aguardar a decisão NFC. Com relógio indisponível, mantém a porta travada e suspende gravações. O backend descarta eventos de telemetria fora de ordem e mensagens operacionais vencidas.
+- O firmware executa no máximo uma vez por `requestId`. Deve registrar a tentativa antes de acionar, conservar essa informação até o vencimento mesmo se reiniciar e, ao reconhecer uma repetição, poder reenviar o resultado conhecido. Na dúvida sobre uma execução após reinício, não repetir a ação.
+- A placa sincroniza o relógio por NTP/SNTP antes de aceitar comandos temporizados e também usa um relógio monotônico para aguardar a decisão NFC. Com relógio indisponível, mantém a porta fechada. O backend descarta eventos de telemetria fora de ordem e mensagens operacionais vencidas.
 - Em desconexão, o ESP32 tenta novamente após **1 s**, aumentando o intervalo progressivamente até **30 s**. Ao reconectar, refaz as assinaturas e publica heartbeat e estados atuais. Use sessão limpa para a placa e descarte ordens expiradas mesmo após reconexão.
-- Limite o acesso aos tópicos que transportam o código NFC e evite gravar payloads com esse código em logs. O código de seis dígitos segue o esquema existente da demonstração e pode ser copiado de uma tag. O hash de releitura verifica a consistência da gravação, sem autenticar a tag.
+- Limite o acesso aos tópicos que transportam o UID. O UID identifica a tag cadastrada e pode ser copiado em alguns tipos de cartão.
 
 ## Pontos para validar no hardware
 
-Confirmar biblioteca MQTT com TLS e publicação QoS 1, sincronização de horário em LAN, área de armazenamento da tag e releitura dos três bytes. Confirmar quais sensores existem, como o firmware identifica uma execução da fechadura e se consegue preservar a deduplicação após reinício. Até a integração com a placa, o simulador deve reproduzir o contrato. A persistência dos pedidos, a ponte com o broker e a confirmação de gravação serão implementadas nas próximas etapas.
+Validar TLS e QoS 1 pela LAN, sincronização de horário, leitura dos UIDs das tags reais, remoção da tag antes do rearme e deduplicação após reinício. Confirmar o comportamento do motor e do sensor durante o ciclo.

@@ -1,0 +1,36 @@
+{
+  "id": "109",
+  "numero": 109,
+  "nome": "Koffing",
+  "nome_en": "koffing",
+  "categoria": "Poison Gas Pokémon",
+  "descricao": "Because it stores several kinds of toxic gases in its body, it is prone to exploding without warning.",
+  "tipos": [
+    "Venenoso"
+  ],
+  "altura_m": 0.6,
+  "peso_kg": 1.0,
+  "habilidades": [
+    {
+      "nome": "Levitate",
+      "oculta": false
+    },
+    {
+      "nome": "Neutralizing Gas",
+      "oculta": false
+    },
+    {
+      "nome": "Stench",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 40,
+    "attack": 65,
+    "defense": 95,
+    "special-attack": 60,
+    "special-defense": 45,
+    "speed": 35
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/109.png"
+}

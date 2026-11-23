@@ -1,0 +1,36 @@
+{
+  "id": "098",
+  "numero": 98,
+  "nome": "Krabby",
+  "nome_en": "krabby",
+  "categoria": "River Crab Pokémon",
+  "descricao": "Its pincers are not only powerful weapons, they are used for balance when walking sideways.",
+  "tipos": [
+    "Água"
+  ],
+  "altura_m": 0.4,
+  "peso_kg": 6.5,
+  "habilidades": [
+    {
+      "nome": "Hyper Cutter",
+      "oculta": false
+    },
+    {
+      "nome": "Shell Armor",
+      "oculta": false
+    },
+    {
+      "nome": "Sheer Force",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 30,
+    "attack": 105,
+    "defense": 90,
+    "special-attack": 25,
+    "special-defense": 25,
+    "speed": 50
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/098.png"
+}

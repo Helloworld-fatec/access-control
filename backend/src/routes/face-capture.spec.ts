@@ -1,21 +1,38 @@
 import { randomUUID } from "node:crypto";
+import { EventEmitter } from "node:events";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hashTerminalKey } from "../config/terminal-key.js";
 import { app } from "../index.js";
 import { requestDoorUnlock } from "../services/door-unlock.service.js";
+import { startMqtt, stopMqtt } from "../services/mqtt.service.js";
 
+const placaId = vi.hoisted(() => "bd33d8b8-419a-4f59-b8f0-5b0da2af669c");
+const connectMqtt = vi.hoisted(() => vi.fn());
+vi.mock("mqtt", () => ({ connect: connectMqtt }));
+vi.mock("node:fs", async (importOriginal) => ({
+  ...await importOriginal<typeof import("node:fs")>(),
+  readFileSync: vi.fn(() => Buffer.from("CA de teste")),
+}));
+vi.mock("../config/env.js", async (importOriginal) => {
+  const { env } = await importOriginal<typeof import("../config/env.js")>();
+  return { env: {
+    ...env, ESP32_TERMINAL_ID: placaId, MQTT_URL: "mqtts://test",
+    MQTT_CA_FILE: "test-ca.crt", MQTT_BACKEND_PASSWORD: "test-password",
+  } };
+});
 vi.mock("../services/door-unlock.service.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../services/door-unlock.service.js")>(),
   requestDoorUnlock: vi.fn(),
 }));
 
 const db = vi.hoisted(() => ({
-  terminal: { findUnique: vi.fn(), update: vi.fn() },
+  terminal: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
   facetemplate: { findMany: vi.fn() },
   user: { findUnique: vi.fn() },
   authorization: { findMany: vi.fn(), updateMany: vi.fn() },
-  accesslog: { findUnique: vi.fn(), create: vi.fn() },
+  accesslog: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+  mqttDoorCommand: { createMany: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
   $transaction: vi.fn(),
 }));
 vi.mock("../config/prisma.js", () => ({ prisma: db }));
@@ -29,6 +46,7 @@ const photo = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
 const template = { userId, embedding: Array.from({ length: 1764 }, () => 0.25) };
 const match = { result: "MATCH", userId, score: 0.75 };
 const python = vi.fn<typeof fetch>();
+let nextTestStart = Date.parse("2026-11-21T15:00:00Z");
 const upload = (attemptId: string = randomUUID(), credential = key) => request(app)
   .post(path)
   .set("x-terminal-key", credential)
@@ -40,7 +58,9 @@ const addPhoto = (uploadRequest: ReturnType<typeof upload>) =>
 beforeEach(() => {
   vi.resetAllMocks();
   vi.stubGlobal("fetch", python);
-  vi.setSystemTime(new Date("2026-11-21T15:00:00Z"));
+  // Cada caso exerce o limitador real em sua própria janela.
+  vi.setSystemTime(nextTestStart);
+  nextTestStart += 120_000;
   db.terminal.findUnique.mockImplementation(({ where }) =>
     where.apiKeyHash === hashTerminalKey(key) ? { id: terminalId, locationId } : null,
   );
@@ -61,7 +81,8 @@ beforeEach(() => {
   python.mockResolvedValue(Response.json(match));
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await stopMqtt();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.useRealTimers();
@@ -120,6 +141,94 @@ describe("captura facial do terminal", () => {
     });
   });
 
+  it.each([true, false])("encaminha a concessão facial com a placa inicialmente online=%s", async (online) => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    const emitido = new Date();
+    const commandId = randomUUID();
+    let placaOnline = online;
+    const recebeuOrdem = vi.fn();
+    const client = Object.assign(new EventEmitter(), {
+      connected: true,
+      subscribe: vi.fn((topics: string[], _options, callback) =>
+        callback(null, topics.map(() => ({ qos: 1 })))),
+      publishAsync: vi.fn((topic: string, message: string, _options: { qos: number; retain: boolean }) => {
+        if (placaOnline) recebeuOrdem(topic, message);
+      }),
+      endAsync: vi.fn(),
+    });
+    connectMqtt.mockReturnValue(client);
+    const atual = await vi.importActual<typeof import("../services/door-unlock.service.js")>(
+      "../services/door-unlock.service.js",
+    );
+    vi.mocked(requestDoorUnlock).mockImplementation(atual.requestDoorUnlock);
+    db.accesslog.findFirst.mockImplementation(({ where }) => {
+      const registro = db.accesslog.create.mock.calls[0]?.[0].data;
+      if (!registro || where.id !== registro.id || where.terminalId !== registro.terminalId ||
+          where.userId !== registro.userId || where.method !== registro.method || where.result !== registro.result) return null;
+      return { createdAt: emitido, terminal: { locationId } };
+    });
+    db.terminal.findFirst.mockImplementation(({ where }) =>
+      where.id === placaId && where.locationId === locationId ? { id: placaId } : null,
+    );
+    db.mqttDoorCommand.findMany.mockImplementation(() => {
+      const ordem = db.mqttDoorCommand.createMany.mock.calls[0]?.[0].data;
+      return ordem ? [{ ...ordem, id: commandId, accessLog: { method: "FACE" } }] : [];
+    });
+    db.mqttDoorCommand.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValue({ count: 0 });
+
+    startMqtt();
+    client.emit("connect");
+    expect((await upload()).status).toBe(200);
+    const acesso = db.accesslog.create.mock.calls[0]![0].data;
+    const expira = new Date(emitido.getTime() + 5000);
+    expect(db.mqttDoorCommand.createMany).toHaveBeenCalledExactlyOnceWith({
+      data: { terminalId: placaId, accessLogId: acesso.id, issuedAt: emitido, expiresAt: expira },
+      skipDuplicates: true,
+    });
+    expect(acesso).toMatchObject({ terminalId, method: "FACE", result: "GRANTED" });
+
+    if (!online) {
+      await vi.advanceTimersByTimeAsync(5500);
+      expect(client.publishAsync).toHaveBeenCalled();
+      expect(recebeuOrdem).not.toHaveBeenCalled();
+      client.publishAsync.mockClear();
+      placaOnline = true;
+      await vi.advanceTimersByTimeAsync(500);
+      expect(client.publishAsync).not.toHaveBeenCalled();
+      expect(recebeuOrdem).not.toHaveBeenCalled();
+      expect(db.accesslog.update).not.toHaveBeenCalled();
+      return;
+    }
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(recebeuOrdem).toHaveBeenCalledTimes(1);
+    const [topico, mensagem, opcoes] = client.publishAsync.mock.calls[0]!;
+    const ordem = JSON.parse(mensagem);
+    expect(topico).toBe(`access/v1/terminals/${placaId}/door/command`);
+    expect(ordem).toMatchObject({
+      terminalId: placaId, method: "FACE", requestId: acesso.id, accessLogId: acesso.id,
+      unlockDurationMs: 3000, expiresAt: expira.toISOString(),
+    });
+    expect(opcoes).toMatchObject({ qos: 1, retain: false });
+    const acceptedAt = new Date().toISOString();
+    await vi.advanceTimersByTimeAsync(5120);
+    const ack = Buffer.from(JSON.stringify({
+      schemaVersion: 1, terminalId: placaId, eventId: randomUUID(),
+      requestId: ordem.requestId, accessLogId: ordem.accessLogId,
+      result: "UNLOCKED", acceptedAt, occurredAt: new Date().toISOString(),
+    }));
+    client.emit("message", `access/v1/terminals/${placaId}/door/ack`, ack, { retain: false });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(db.mqttDoorCommand.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        terminalId: placaId, accessLogId: acesso.id, expiresAt: { gt: new Date(acceptedAt) },
+      }),
+    }));
+    expect(db.accesslog.update).toHaveBeenCalledExactlyOnceWith({
+      where: { id: acesso.id }, data: { commandAcked: true },
+    });
+  });
+
   it.each(["UNKNOWN_FACE", "AMBIGUOUS_FACE"])("registra %s sem vincular usuario", async (result) => {
     python.mockResolvedValue(Response.json({ result }));
     const response = await upload();
@@ -127,6 +236,7 @@ describe("captura facial do terminal", () => {
     expect(response.status).toBe(403);
     expect(response.body).toMatchObject({ allowed: false, reason: result });
     expect(db.authorization.updateMany).not.toHaveBeenCalled();
+    expect(requestDoorUnlock).not.toHaveBeenCalled();
     expect(db.accesslog.create).toHaveBeenCalledExactlyOnceWith({
       data: expect.objectContaining({ terminalId, result: "DENIED", reason: result }),
     });

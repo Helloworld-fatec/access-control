@@ -1,0 +1,36 @@
+{
+  "id": "106",
+  "numero": 106,
+  "nome": "Hitmonlee",
+  "nome_en": "hitmonlee",
+  "categoria": "Kicking Pokémon",
+  "descricao": "When in a hurry, its legs lengthen progressively. It runs smoothly with extra long, loping strides.",
+  "tipos": [
+    "Lutador"
+  ],
+  "altura_m": 1.5,
+  "peso_kg": 49.8,
+  "habilidades": [
+    {
+      "nome": "Limber",
+      "oculta": false
+    },
+    {
+      "nome": "Reckless",
+      "oculta": false
+    },
+    {
+      "nome": "Unburden",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 50,
+    "attack": 120,
+    "defense": 53,
+    "special-attack": 35,
+    "special-defense": 110,
+    "speed": 87
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/106.png"
+}

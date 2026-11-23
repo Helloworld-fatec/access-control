@@ -1,0 +1,37 @@
+{
+  "id": "131",
+  "numero": 131,
+  "nome": "Lapras",
+  "nome_en": "lapras",
+  "categoria": "Transport Pokémon",
+  "descricao": "A POKéMON that has been over­ hunted almost to extinction. It can ferry people across the water.",
+  "tipos": [
+    "Água",
+    "Gelo"
+  ],
+  "altura_m": 2.5,
+  "peso_kg": 220.0,
+  "habilidades": [
+    {
+      "nome": "Water Absorb",
+      "oculta": false
+    },
+    {
+      "nome": "Shell Armor",
+      "oculta": false
+    },
+    {
+      "nome": "Hydration",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 130,
+    "attack": 85,
+    "defense": 80,
+    "special-attack": 85,
+    "special-defense": 95,
+    "speed": 60
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/131.png"
+}

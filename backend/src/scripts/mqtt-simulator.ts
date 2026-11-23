@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { connect } from "mqtt";
 import { z } from "zod";
 import {
-  accessWindowMs, decodeMqttJson, mqttEnvelope, mqttPrefix, mqttRequest, unlockDurationMs,
+  accessWindowMs, decodeMqttJson, doorAckWindowMs, doorOpeningMs, mqttEnvelope, mqttPrefix, mqttRequest, unlockDurationMs,
 } from "../services/mqtt-messages.js";
 
 const terminalId = z.uuid().parse(process.env.MQTT_SIMULATOR_TERMINAL_ID || undefined);
@@ -28,13 +28,13 @@ const client = connect(url, {
 let ready = false;
 let detected = false;
 let doorState = "CLOSED";
-const tags = new Map<string, string>();
 let writeFault: "FAILED" | "TIMEOUT" | undefined;
-let closeTimer: NodeJS.Timeout | undefined;
+let activeDoorRequest: string | undefined;
 let uid = "04A32F1B";
 const pendingReads = new Map<string, number>();
 const completed = new Map<string, { expiresAt: number; topic: string; message: object; readyAt?: number }>();
 const code = z.string().regex(/^[0-9A-F]{6}$/);
+const uidSchema = z.string().regex(/^(?:[0-9A-F]{8}|[0-9A-F]{14}|[0-9A-F]{20})$/);
 const expiry = z.iso.datetime();
 const decision = mqttEnvelope.extend({
   requestId: z.uuid(), accessLogId: z.uuid(), authorized: z.boolean(), expiresAt: expiry,
@@ -73,6 +73,9 @@ client.on("connect", () => {
       publish("status", event());
       publish("presence", event({ detected }));
       publish("door/state", event({ state: doorState }));
+      for (const outcome of completed.values()) {
+        if (outcome.topic === "door/ack" && outcome.expiresAt > Date.now()) publish(outcome.topic, outcome.message);
+      }
       console.log("Simulador MQTT conectado.");
     });
 });
@@ -85,12 +88,15 @@ client.on("message", (topic, payload, packet) => {
     const nfcDecision = topic === `${prefix}/access/decision`;
     const order = enroll ? enrollment.parse(input) : nfcDecision ? decision.parse(input) : command.parse(input);
     const expiresAt = Date.parse(order.expiresAt);
-    if (order.terminalId !== terminalId || expiresAt <= Date.now()) return;
+    if (order.terminalId !== terminalId || order.requestId === activeDoorRequest) return;
     const previous = completed.get(order.requestId);
     if (previous) {
-      if (!previous.readyAt || Date.now() >= previous.readyAt) publish(previous.topic, previous.message);
+      if (Date.now() < previous.expiresAt && (!previous.readyAt || Date.now() >= previous.readyAt)) {
+        publish(previous.topic, previous.message);
+      }
       return;
     }
+    if (expiresAt <= Date.now()) return;
 
     if ("credentialHex" in order) {
       if (writeFault === "TIMEOUT") {
@@ -108,7 +114,6 @@ client.on("message", (topic, payload, packet) => {
         });
       } else {
         const tagBytes = Buffer.from(order.credentialHex, "hex");
-        tags.set(uid, tagBytes.toString("hex").toUpperCase());
         finish(order.requestId, expiresAt, "nfc/enroll/ack", {
           result: "WRITTEN", uid, readbackSha256: createHash("sha256").update(tagBytes).digest("hex"),
         });
@@ -123,14 +128,26 @@ client.on("message", (topic, payload, packet) => {
       if (!order.authorized || order.unlockDurationMs === 0) return;
     }
 
-    doorState = "OPEN";
-    publish("door/state", event({ state: doorState }));
-    finish(order.requestId, expiresAt, "door/ack", { accessLogId: order.accessLogId, result: "UNLOCKED" });
-    clearTimeout(closeTimer);
-    closeTimer = setTimeout(() => {
-      doorState = "CLOSED";
+    const accepted = Date.now();
+    if (accepted >= expiresAt) return;
+    const acceptedAt = new Date(accepted).toISOString();
+    const ackDeadline = accepted + doorAckWindowMs;
+    const ack = { accessLogId: order.accessLogId, acceptedAt };
+    if (activeDoorRequest) {
+      finish(order.requestId, ackDeadline, "door/ack", { ...ack, result: "ERROR" });
+      return;
+    }
+    activeDoorRequest = order.requestId;
+    setTimeout(() => {
+      doorState = "OPEN";
       publish("door/state", event({ state: doorState }));
-    }, order.unlockDurationMs);
+      finish(order.requestId, ackDeadline, "door/ack", { ...ack, result: "UNLOCKED" });
+      setTimeout(() => {
+        doorState = "CLOSED";
+        activeDoorRequest = undefined;
+        publish("door/state", event({ state: doorState }));
+      }, order.unlockDurationMs + doorOpeningMs);
+    }, doorOpeningMs);
   } catch {
     console.warn("Simulador MQTT recebeu comando inválido.");
   }
@@ -154,17 +171,17 @@ const control = createServer((req, res) => {
     detected = address.searchParams.get("detected") !== "false";
     publish("presence", event({ detected }));
   } else if (address.pathname === "/read") {
-    const credential = code.safeParse(address.searchParams.get("code") ?? tags.get(uid));
+    const tag = uidSchema.safeParse(address.searchParams.get("uid") ?? uid);
     if (!ready) status = 503;
-    else if (!credential.success) status = 409;
+    else if (!tag.success) status = 400;
     else {
       const requestId = randomUUID();
       pendingReads.set(requestId, Date.now() + accessWindowMs);
-      publish("access/request", event({ requestId, credential: { type: "NFC", value: credential.data } }));
+      publish("access/request", event({ requestId, uid: tag.data }));
     }
   } else if (address.pathname === "/tag") {
     const nextUid = address.searchParams.get("uid");
-    if (nextUid && /^[0-9A-F]{8,20}$/.test(nextUid)) uid = nextUid;
+    if (nextUid && uidSchema.safeParse(nextUid).success) uid = nextUid;
     else status = 400;
   } else if (address.pathname === "/write-fault") {
     const fault = address.searchParams.get("mode");

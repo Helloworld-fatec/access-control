@@ -34,12 +34,11 @@ class UserFormScreen extends StatefulWidget {
 
 class _UserFormScreenState extends State<UserFormScreen> {
   final _model = UserFormModel();
+  final _uid = TextEditingController();
   UserSummary? _user;
   Uint8List? _photo;
   Future<Uint8List?> Function()? _loadSavedPhoto;
-  String? _nfcStatus;
-  NfcEnrollment? _nfcEnrollment;
-  Timer? _nfcPoll;
+  List<NfcTag> _tags = [];
   String? _notice;
   String? _faceError;
   String? _nfcError;
@@ -59,7 +58,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
 
   @override
   void dispose() {
-    _nfcPoll?.cancel();
+    _uid.dispose();
     _model.dispose();
     super.dispose();
   }
@@ -77,10 +76,8 @@ class _UserFormScreenState extends State<UserFormScreen> {
         _model.fill(detail.user);
         _hasFace = detail.hasFace;
         _loadSavedPhoto = detail.hasPhoto ? () => widget.repository.getPhoto(id) : null;
-        _nfcStatus = detail.nfcCredentialStatus;
-        _nfcEnrollment = detail.nfcEnrollment;
+        _tags = detail.nfcTags;
       });
-      _scheduleNfcPoll(id);
     } catch (error) {
       if (mounted) setState(() => _loadError = userMessageFor(error));
     } finally {
@@ -111,41 +108,31 @@ class _UserFormScreenState extends State<UserFormScreen> {
     }
   }
 
-  Future<void> _linkNfc(UsersRepository repository, String id) async {
+  Future<void> _linkNfc() async {
+    if (_busy || _user == null) return;
+    final uid = _uid.text.replaceAll(RegExp(r'[\s:-]'), '').toUpperCase();
+    if (!RegExp(r'^(?:[0-9A-F]{8}|[0-9A-F]{14}|[0-9A-F]{20})$').hasMatch(uid)) {
+      setState(() => _nfcError = 'Informe um UID hexadecimal de 4, 7 ou 10 bytes.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _nfcError = null;
+    });
     try {
-      final enrollment = await repository.startNfcEnrollment(id);
+      final tag = await widget.repository.addTag(_user!.id, uid);
       if (!mounted) return;
+      _uid.clear();
       setState(() {
-        _nfcEnrollment = enrollment;
-        _nfcStatus = 'PENDING';
+        _tags = [..._tags, tag];
       });
-      _scheduleNfcPoll(id);
+      unawaited(widget.onChanged());
     } catch (error) {
       if (!mounted) return;
       setState(() => _nfcError = userMessageFor(error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
-  }
-
-  void _scheduleNfcPoll(String userId) {
-    _nfcPoll?.cancel();
-    final request = _nfcEnrollment;
-    if (request == null || request.status != 'PENDING') return;
-    _nfcPoll = Timer(const Duration(seconds: 2), () async {
-      try {
-        final result = await widget.repository.getNfcEnrollment(userId, request.id);
-        if (!mounted || _nfcEnrollment?.id != request.id) return;
-        setState(() {
-          _nfcEnrollment = result;
-          if (result.status == 'WRITTEN') _nfcStatus = 'ACTIVE';
-          _nfcError = null;
-        });
-        if (result.status == 'WRITTEN') unawaited(widget.onChanged());
-      } catch (error) {
-        if (!mounted || _nfcEnrollment?.id != request.id) return;
-        setState(() => _nfcError = userMessageFor(error));
-      }
-      _scheduleNfcPoll(userId);
-    });
   }
 
   Future<void> _saveFace(UsersRepository repository, String id) async {
@@ -225,20 +212,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
         _notice = created ? 'Usuário criado.' : 'Dados do usuário salvos.';
       });
       unawaited(widget.onChanged());
-      if (created) await _linkNfc(repository, savedUser.id);
       if (mounted) await _saveFace(repository, savedUser.id);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _retryNfc() async {
-    setState(() {
-      _busy = true;
-      _nfcError = null;
-    });
-    try {
-      await _linkNfc(widget.repository, _user!.id);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -387,34 +361,23 @@ class _UserFormScreenState extends State<UserFormScreen> {
               onPressed: _busy ? null : _capture,
             ),
             const Divider(),
-            Text(switch (_nfcEnrollment?.status) {
-              'PENDING' => 'Aproxime a tag do ESP32 para gravar.',
-              'WRITTEN' when _nfcStatus == 'ACTIVE' =>
-                'Gravação NFC confirmada pelo ESP32.',
-              'EXPIRED' => 'O prazo de gravação NFC terminou.',
-              'FAILED' => switch (_nfcEnrollment?.reason) {
-                  'TAG_CONFLICT' => 'Esta tag já está cadastrada.',
-                  'UID_MISMATCH' => 'A tag aproximada tem outro UID.',
-                  'READBACK_MISMATCH' => 'O código relido diverge do enviado.',
-                  _ => 'A gravação NFC falhou.',
-                },
-              _ when _nfcStatus == 'ACTIVE' => 'Tag NFC ativa.',
-              _ when editing => 'Nenhuma gravação NFC em andamento.',
-              _ => 'A gravação NFC será solicitada depois de salvar.',
-            }),
+            if (_user == null)
+              const Text('Salve o usuário para vincular uma tag NFC.'),
+            if (_user != null) ...[
+              for (final tag in _tags) Text(tag.uid),
+              TextFormField(
+                controller: _uid,
+                enabled: !_busy,
+                decoration: const InputDecoration(labelText: 'UID da tag NFC'),
+                autocorrect: false,
+              ),
+              TextButton(
+                onPressed: _busy ? null : _linkNfc,
+                child: const Text('Vincular tag NFC'),
+              ),
+            ],
             if (_nfcError case final String message)
               StatusMessage(kind: StatusKind.error, message: 'NFC: $message'),
-            if (_user != null &&
-                _nfcStatus != 'ACTIVE' &&
-                _nfcEnrollment?.status != 'PENDING')
-              TextButton(
-                onPressed: _busy ? null : _retryNfc,
-                child: Text(_nfcError != null ||
-                        _nfcEnrollment?.status == 'FAILED' ||
-                        _nfcEnrollment?.status == 'EXPIRED'
-                    ? 'Tentar NFC novamente'
-                    : 'Gravar tag NFC'),
-              ),
             const SizedBox(height: 20),
             AppPrimaryButton(
               label: 'Salvar usuário',

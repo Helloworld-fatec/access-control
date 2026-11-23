@@ -52,7 +52,7 @@ describe("Comando de abertura por MQTT", () => {
 
   const ack = {
     terminalId: target, accessLogId: logId, requestId: logId,
-    result: "UNLOCKED", occurredAt: "2026-11-23T12:01:02Z",
+    result: "UNLOCKED", acceptedAt: "2026-11-23T12:01:04Z", occurredAt: "2026-11-23T12:01:09.120Z",
   } as const;
 
   it("confirma a abertura no mesmo registro da concessão", async () => {
@@ -60,12 +60,20 @@ describe("Comando de abertura por MQTT", () => {
     expect(db.mqttDoorCommand.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         accessLogId: logId, terminalId: target, ackResult: null,
-        expiresAt: { gt: new Date(ack.occurredAt) },
+        issuedAt: { lte: new Date(ack.acceptedAt) },
+        expiresAt: { gt: new Date(ack.acceptedAt) },
       }),
     }));
     expect(db.accesslog.update).toHaveBeenCalledWith({
       where: { id: logId }, data: { commandAcked: true },
     });
+  });
+
+  it("rejeita relatos fora da janela de execução ou sem data de aceite", async () => {
+    await expect(recordDoorCommandAck({ ...ack, occurredAt: "2026-11-23T12:01:14.001Z" })).resolves.toBe(false);
+    await expect(recordDoorCommandAck({ ...ack, acceptedAt: undefined })).resolves.toBe(false);
+    await expect(recordDoorCommandAck({ ...ack, occurredAt: "2026-11-23T12:01:03Z" })).resolves.toBe(false);
+    expect(db.mqttDoorCommand.updateMany).not.toHaveBeenCalled();
   });
 
   it("ignora confirmação sem correlação ou já processada", async () => {

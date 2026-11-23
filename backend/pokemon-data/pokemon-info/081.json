@@ -1,0 +1,37 @@
+{
+  "id": "081",
+  "numero": 81,
+  "nome": "Magnemite",
+  "nome_en": "magnemite",
+  "categoria": "Magnet Pokémon",
+  "descricao": "Uses anti-gravity to stay suspended. Appears without warning and uses THUNDER WAVE and similar moves.",
+  "tipos": [
+    "Elétrico",
+    "Aço"
+  ],
+  "altura_m": 0.3,
+  "peso_kg": 6.0,
+  "habilidades": [
+    {
+      "nome": "Magnet Pull",
+      "oculta": false
+    },
+    {
+      "nome": "Sturdy",
+      "oculta": false
+    },
+    {
+      "nome": "Analytic",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 25,
+    "attack": 35,
+    "defense": 70,
+    "special-attack": 95,
+    "special-defense": 55,
+    "speed": 45
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/081.png"
+}

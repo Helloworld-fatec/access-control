@@ -1,0 +1,36 @@
+{
+  "id": "133",
+  "numero": 133,
+  "nome": "Eevee",
+  "nome_en": "eevee",
+  "categoria": "Evolution Pokémon",
+  "descricao": "Its genetic code is irregular. It may mutate if it is exposed to radiation from element STONEs.",
+  "tipos": [
+    "Normal"
+  ],
+  "altura_m": 0.3,
+  "peso_kg": 6.5,
+  "habilidades": [
+    {
+      "nome": "Run Away",
+      "oculta": false
+    },
+    {
+      "nome": "Adaptability",
+      "oculta": false
+    },
+    {
+      "nome": "Anticipation",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 55,
+    "attack": 55,
+    "defense": 50,
+    "special-attack": 45,
+    "special-defense": 65,
+    "speed": 55
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/133.png"
+}

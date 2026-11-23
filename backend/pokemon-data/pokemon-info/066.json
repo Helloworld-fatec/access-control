@@ -1,0 +1,36 @@
+{
+  "id": "066",
+  "numero": 66,
+  "nome": "Machop",
+  "nome_en": "machop",
+  "categoria": "Superpower Pokémon",
+  "descricao": "Loves to build its muscles. It trains in all styles of martial arts to become even stronger.",
+  "tipos": [
+    "Lutador"
+  ],
+  "altura_m": 0.8,
+  "peso_kg": 19.5,
+  "habilidades": [
+    {
+      "nome": "Guts",
+      "oculta": false
+    },
+    {
+      "nome": "No Guard",
+      "oculta": false
+    },
+    {
+      "nome": "Steadfast",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 70,
+    "attack": 80,
+    "defense": 50,
+    "special-attack": 35,
+    "special-defense": 35,
+    "speed": 35
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/066.png"
+}

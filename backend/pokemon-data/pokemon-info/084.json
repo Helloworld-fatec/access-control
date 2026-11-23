@@ -1,0 +1,37 @@
+{
+  "id": "084",
+  "numero": 84,
+  "nome": "Doduo",
+  "nome_en": "doduo",
+  "categoria": "Twin Bird Pokémon",
+  "descricao": "A bird that makes up for its poor flying with its fast foot speed. Leaves giant footprints.",
+  "tipos": [
+    "Normal",
+    "Voador"
+  ],
+  "altura_m": 1.4,
+  "peso_kg": 39.2,
+  "habilidades": [
+    {
+      "nome": "Run Away",
+      "oculta": false
+    },
+    {
+      "nome": "Early Bird",
+      "oculta": false
+    },
+    {
+      "nome": "Tangled Feet",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 35,
+    "attack": 85,
+    "defense": 45,
+    "special-attack": 35,
+    "special-defense": 35,
+    "speed": 75
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/084.png"
+}

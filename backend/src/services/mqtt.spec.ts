@@ -4,7 +4,11 @@ import { mqttStatus, startMqtt, stopMqtt } from "./mqtt.service.js";
 
 const { terminalId, db, connect, recordDoorCommandAck } = vi.hoisted(() => ({
   terminalId: "df96f695-a94c-4a4d-9ac5-f90beca3cd71",
-  db: { mqttDoorCommand: { findMany: vi.fn() }, nfcEnrollment: { findMany: vi.fn() } },
+  db: {
+    mqttDoorCommand: { findMany: vi.fn() }, nfcEnrollment: { findMany: vi.fn() },
+    mqttNfcRequest: { findUnique: vi.fn() }, accesslog: { updateMany: vi.fn() },
+    qrnonce: { create: vi.fn() },
+  },
   connect: vi.fn(),
   recordDoorCommandAck: vi.fn(),
 }));
@@ -57,6 +61,30 @@ afterEach(async () => {
 });
 
 describe("Ponte MQTT de abertura", () => {
+  it("emite um único QR do OLED e repete a matriz para pedido duplicado", async () => {
+    const topic = `access/v1/terminals/${terminalId}/qr/request`;
+    const payload = Buffer.from(JSON.stringify({
+      schemaVersion: 1, terminalId, eventId: commandId, requestId: logId,
+      occurredAt: issuedAt.toISOString(),
+    }));
+    client.emit("message", topic, payload, { retain: true });
+    client.emit("message", topic, payload, { retain: false });
+    client.emit("message", topic, payload, { retain: false });
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(db.qrnonce.create).toHaveBeenCalledTimes(1);
+    expect(client.publishAsync).toHaveBeenCalledTimes(2);
+    const [responseTopic, response, options] = client.publishAsync.mock.calls[0]!;
+    expect(responseTopic).toBe(`access/v1/terminals/${terminalId}/qr/display`);
+    expect(JSON.parse(response)).toMatchObject({
+      terminalId, requestId: logId, refreshAfterSeconds: 10,
+      expiresAt: new Date(issuedAt.getTime() + 20000).toISOString(),
+      bitmap: expect.stringMatching(/^[a-f0-9]{110}(00|80)$/),
+    });
+    expect(options).toMatchObject({ qos: 1, retain: false });
+    expect(client.publishAsync.mock.calls[1]![1]).toBe(response);
+  });
+
   it("publica o comando e encaminha a confirmação correlacionada", async () => {
     await vi.advanceTimersByTimeAsync(500);
     const [topic, payload, options] = client.publishAsync.mock.calls[0]!;
@@ -69,7 +97,8 @@ describe("Ponte MQTT de abertura", () => {
 
     const ack = {
       schemaVersion: 1, terminalId, requestId: logId, accessLogId: logId,
-      eventId: commandId, result: "UNLOCKED", occurredAt: new Date().toISOString(),
+      eventId: commandId, result: "UNLOCKED", acceptedAt: issuedAt.toISOString(),
+      occurredAt: new Date().toISOString(),
     };
     const ackTopic = `access/v1/terminals/${terminalId}/door/ack`;
     client.emit("message", ackTopic, Buffer.from(JSON.stringify({ ...ack, terminalId: logId })), { retain: false });
@@ -92,5 +121,32 @@ describe("Ponte MQTT de abertura", () => {
     expect(mqttStatus()).toBe("connected");
     expect(client.subscribe).toHaveBeenCalledTimes(2);
     expect(client.publishAsync).not.toHaveBeenCalled();
+  });
+
+  it("aceita o ACK NFC após o prazo da solicitação somente se a ordem foi aceita a tempo", async () => {
+    vi.setSystemTime(new Date("2026-11-23T12:01:09.120Z"));
+    db.mqttNfcRequest.findUnique.mockResolvedValue({
+      expiresAt: command.expiresAt,
+      decision: { accessLogId: logId, granted: true, decidedAt: issuedAt.toISOString() },
+    });
+    db.accesslog.updateMany.mockResolvedValue({ count: 1 });
+    const ack = {
+      schemaVersion: 1, terminalId, requestId: commandId, accessLogId: logId,
+      eventId: logId, result: "UNLOCKED", occurredAt: new Date().toISOString(),
+    };
+    const topic = `access/v1/terminals/${terminalId}/door/ack`;
+    client.emit("message", topic, Buffer.from(JSON.stringify({
+      ...ack, acceptedAt: command.expiresAt.toISOString(),
+    })), { retain: false });
+    await Promise.resolve();
+    expect(db.accesslog.updateMany).not.toHaveBeenCalled();
+
+    client.emit("message", topic, Buffer.from(JSON.stringify({
+      ...ack, acceptedAt: "2026-11-23T12:01:04Z",
+    })), { retain: false });
+    await Promise.resolve();
+    expect(db.accesslog.updateMany).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      data: { commandAcked: true },
+    }));
   });
 });
