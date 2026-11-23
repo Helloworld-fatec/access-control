@@ -158,19 +158,18 @@ void mostrarMensagem(const char* mensagem) {
 }
 
 void mostrarQR(const uint8_t* bitmap) {
-  constexpr int escala = 2;
+  constexpr int alturaFaixaAmarela = 16;
   constexpr int margem = 4;
-  constexpr int lado = (QR_MODULOS + 2 * margem) * escala;
+  constexpr int lado = QR_MODULOS + 2 * margem;
   const int x = (display.width() - lado) / 2;
-  const int y = (display.height() - lado) / 2;
+  const int y = alturaFaixaAmarela + (display.height() - alturaFaixaAmarela - lado) / 2;
   display.clearDisplay();
   display.fillRect(x, y, lado, lado, SSD1306_WHITE);
   for (int linha = 0; linha < QR_MODULOS; ++linha) {
     for (int coluna = 0; coluna < QR_MODULOS; ++coluna) {
       const int bit = linha * QR_MODULOS + coluna;
       if (bitmap[bit / 8] & (0x80 >> (bit % 8))) {
-        display.fillRect(x + (coluna + margem) * escala,
-                         y + (linha + margem) * escala, escala, escala, SSD1306_BLACK);
+        display.drawPixel(x + margem + coluna, y + margem + linha, SSD1306_BLACK);
       }
     }
   }
@@ -842,6 +841,8 @@ void atualizarNFC() {
 // ======================================
 
 void setup() {
+  Serial.setRxBufferSize(4096);
+  Serial.setTxBufferSize(4096);
   Serial.begin(115200);
   delay(1000);
   Serial.println("[BOOT] Setup iniciado.");
@@ -928,8 +929,7 @@ void setup() {
   );
 
   mostrarGPS();
-  // Teste de bancada por USB, antes da implementacao da ponte serial.
-  Serial.println("[BOOT] Teste USB: Wi-Fi e MQTT desativados.");
+  iniciarMqttPorta();
   Serial.println("[BOOT] Setup concluido.");
 }
 

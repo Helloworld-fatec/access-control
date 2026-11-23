@@ -2,12 +2,8 @@
 
 #include <Arduino.h>
 #include <Preferences.h>
-#include <WiFi.h>
-#include <atomic>
 #include <cJSON.h>
 #include <esp_random.h>
-#include <esp_sntp.h>
-#include <mqtt_client.h>
 #include <sys/time.h>
 
 #if __has_include("mqtt_config.h")
@@ -22,7 +18,10 @@ constexpr int64_t PRAZO_ACK_MS = 10000;
 constexpr size_t LIMITE_JSON = 2048;
 constexpr int TOTAL_REGISTROS = 16;
 constexpr char CHAVE_CICLO[] = "ciclo";
-constexpr unsigned long INTERVALO_DIAGNOSTICO_MS = 10000;
+constexpr size_t LIMITE_QUADRO = 3072;
+constexpr unsigned long INTERVALO_SERIAL_MS = 1000;
+constexpr unsigned long TIMEOUT_SERIAL_MS = 3000;
+constexpr char PREFIXO_SERIAL[] = "@AC ";
 
 struct Ordem {
   char pedido[37];
@@ -65,8 +64,13 @@ struct Registro {
 };
 
 struct Publicacao {
-  char topico[96];
+  const char* rota;
   char corpo[512];
+};
+
+struct ConfirmacaoPublicacao {
+  uint32_t id;
+  unsigned long enviadaEm;
 };
 
 Preferences memoria;
@@ -76,18 +80,22 @@ bool recuperacao = false;
 QueueHandle_t ordens;
 QueueHandle_t respostasQr;
 QueueHandle_t publicacoes;
-esp_mqtt_client_handle_t mqtt;
-std::atomic<bool> relogioSincronizado{false};
-std::atomic<bool> conectado{false};
-std::atomic<bool> desconectado{false};
-std::atomic<unsigned long> falhaEm{0};
-std::atomic<unsigned> sessoes{0};
-int assinaturas[3]{};
-unsigned confirmadas = 0;
-char topicoOrdem[96];
-char topicoDecisao[96];
-char topicoQr[96];
-char clientId[48];
+bool serialIniciada = false;
+bool conectado = false;
+bool sessaoMqttEncerrada = false;
+unsigned sessoes = 0;
+char bootId[37]{};
+char sessionId[37]{};
+unsigned long ultimoLink = 0;
+unsigned long ultimoControle = 0;
+uint32_t ultimoIdRecebido = 0;
+uint32_t ultimoIdEnviado = 0;
+ConfirmacaoPublicacao confirmacoes[8]{};
+char entradaSerial[LIMITE_QUADRO + 2];
+size_t tamanhoEntrada = 0;
+bool descartarLinha = false;
+char saidaSerial[768];
+size_t tamanhoSaida = 0;
 
 int64_t agoraUtc() {
   timeval hora{};
@@ -117,7 +125,7 @@ int64_t lerUtc(const char* texto) {
     }
   }
   if (strcmp(fim, "Z") != 0) return 0;
-  // configTime(0, 0, ...) fixa o fuso usado por mktime em UTC.
+  // A inicializacao do transporte fixa o fuso de mktime em UTC.
   const int64_t instante = static_cast<int64_t>(mktime(&utc)) * 1000 + ms;
   char normalizado[25];
   formatarUtc(instante, normalizado);
@@ -189,11 +197,6 @@ bool lerOrdem(const cJSON* json, MensagemOrdem& mensagem) {
   return true;
 }
 
-bool topicoIgual(esp_mqtt_event_handle_t evento, const char* esperado) {
-  return evento->topic && evento->topic_len == strlen(esperado) &&
-         memcmp(evento->topic, esperado, evento->topic_len) == 0;
-}
-
 int digitoHex(char valor) {
   if (valor >= '0' && valor <= '9') return valor - '0';
   if (valor >= 'a' && valor <= 'f') return valor - 'a' + 10;
@@ -227,178 +230,222 @@ bool lerRespostaQr(const cJSON* json, RespostaQr& resposta) {
   return true;
 }
 
-void registrarDesconexao() {
+void limparSessaoMqtt() {
   conectado = false;
-  falhaEm = millis();
-  desconectado = true;
   xQueueReset(ordens);
   xQueueReset(respostasQr);
+  xQueueReset(publicacoes);
+  memset(confirmacoes, 0, sizeof(confirmacoes));
+  tamanhoSaida = 0;
 }
 
-void registrarErroMqtt(const esp_mqtt_error_codes_t* erro) {
-  if (!erro) {
-    Serial.println("[MQTT] Erro de conexao sem detalhes.");
-    return;
-  }
-  if (erro->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
-    Serial.printf("[MQTT] Broker recusou CONNECT (CONNACK=%d).\n",
-                  erro->connect_return_code);
-    return;
-  }
-  Serial.printf("[MQTT] Erro tipo=%d esp_tls=0x%x tls=%d cert=0x%x socket=%d.\n",
-                erro->error_type, erro->esp_tls_last_esp_err, erro->esp_tls_stack_err,
-                erro->esp_tls_cert_verify_flags, erro->esp_transport_sock_errno);
+bool enfileirarQuadro(int tamanho) {
+  if (tamanho <= 0 || static_cast<size_t>(tamanho) >= sizeof(saidaSerial)) return false;
+  tamanhoSaida = tamanho;
+  return true;
 }
 
-void eventoMqtt(void*, esp_event_base_t, int32_t tipo, void* dados) {
-  auto evento = static_cast<esp_mqtt_event_handle_t>(dados);
-  switch (tipo) {
-    case MQTT_EVENT_CONNECTED:
-      Serial.println("[MQTT] Broker aceitou a conexao. Solicitando assinaturas.");
-      desconectado = false;
-      confirmadas = 0;
-      assinaturas[0] = esp_mqtt_client_subscribe(mqtt, topicoOrdem, 1);
-      assinaturas[1] = esp_mqtt_client_subscribe(mqtt, topicoDecisao, 1);
-      assinaturas[2] = esp_mqtt_client_subscribe(mqtt, topicoQr, 1);
-      if (assinaturas[0] < 0 || assinaturas[1] < 0 || assinaturas[2] < 0) {
-        Serial.println("[MQTT] Falha ao enviar solicitacao de assinatura.");
-        registrarDesconexao();
+bool inteiroJson(const cJSON* json, const char* campo, double minimo, double maximo,
+                  int64_t& resultado) {
+  const cJSON* item = cJSON_GetObjectItemCaseSensitive(json, campo);
+  if (!cJSON_IsNumber(item) || !(item->valuedouble >= minimo && item->valuedouble <= maximo)) return false;
+  resultado = static_cast<int64_t>(item->valuedouble);
+  return item->valuedouble == resultado;
+}
+
+void responderEntrega(uint32_t id, const char* motivo) {
+  enfileirarQuadro(snprintf(saidaSerial, sizeof(saidaSerial),
+    "\n@AC {\"v\":1,\"type\":\"ack\",\"sessionId\":\"%s\",\"id\":%lu,"
+    "\"forType\":\"deliver\",\"result\":\"%s\"%s%s%s}\n",
+    sessionId, static_cast<unsigned long>(id), motivo ? "rejected" : "accepted",
+    motivo ? ",\"reason\":\"" : "", motivo ? motivo : "", motivo ? "\"" : ""));
+}
+
+const char* enfileirarEntrega(const cJSON* quadro) {
+  if (!conectado) return "unavailable";
+  const char* rota = textoJson(quadro, "route");
+  const cJSON* payload = cJSON_GetObjectItemCaseSensitive(quadro, "payload");
+  if (!rota || !cJSON_IsObject(payload)) return "invalid";
+
+  char* compacto = cJSON_PrintUnformatted(payload);
+  const bool tamanhoValido = compacto && strlen(compacto) <= LIMITE_JSON;
+  cJSON_free(compacto);
+  if (!tamanhoValido) return "invalid";
+
+  if (strcmp(rota, "qr/display") == 0) {
+    RespostaQr resposta{};
+    if (!lerRespostaQr(payload, resposta)) return "invalid";
+    return xQueueSend(respostasQr, &resposta, 0) == pdTRUE ? nullptr : "queue_full";
+  }
+
+  MensagemOrdem mensagem{};
+  mensagem.nfc = strcmp(rota, "access/decision") == 0;
+  if ((!mensagem.nfc && strcmp(rota, "door/command") != 0) || !lerOrdem(payload, mensagem)) {
+    return "invalid";
+  }
+  return xQueueSend(ordens, &mensagem, 0) == pdTRUE ? nullptr : "queue_full";
+}
+
+void receberWelcome(const cJSON* quadro, const char* sessao, unsigned long agora) {
+  const char* terminal = textoJson(quadro, "terminalId");
+  const char* boot = textoJson(quadro, "bootId");
+  int64_t utcMs;
+  if (!terminal || strcmp(terminal, MQTT_TERMINAL_ID) != 0 ||
+      !boot || strcmp(boot, bootId) != 0 ||
+      !inteiroJson(quadro, "utcMs", 1577836800000.0, 4102444799999.0, utcMs)) return;
+
+  if (strcmp(sessao, sessionId) != 0) {
+    if (conectado) return;
+    const timeval hora{static_cast<time_t>(utcMs / 1000),
+                       static_cast<suseconds_t>(utcMs % 1000 * 1000)};
+    if (settimeofday(&hora, nullptr) != 0) return;
+    limparSessaoMqtt();
+    strcpy(sessionId, sessao);
+    sessaoMqttEncerrada = false;
+    ultimoIdRecebido = 0;
+    ultimoIdEnviado = 0;
+    ultimoLink = agora;
+    ultimoControle = agora;
+  }
+  enfileirarQuadro(snprintf(saidaSerial, sizeof(saidaSerial),
+    "\n@AC {\"v\":1,\"type\":\"ready\",\"sessionId\":\"%s\"}\n", sessionId));
+}
+
+void processarQuadro(const cJSON* quadro, unsigned long agora) {
+  int64_t versao;
+  const char* tipo = textoJson(quadro, "type");
+  const char* sessao = textoJson(quadro, "sessionId");
+  if (!tipo || !uuidValido(sessao) || !inteiroJson(quadro, "v", 1, 1, versao)) return;
+  if (strcmp(tipo, "welcome") == 0) {
+    receberWelcome(quadro, sessao, agora);
+    return;
+  }
+  if (strcmp(sessao, sessionId) != 0) return;
+  if (strcmp(tipo, "link") == 0) {
+    const cJSON* pronto = cJSON_GetObjectItemCaseSensitive(quadro, "mqttReady");
+    if (!cJSON_IsBool(pronto)) return;
+    ultimoLink = agora;
+    if (cJSON_IsTrue(pronto) && !conectado && !sessaoMqttEncerrada) {
+      ++sessoes;
+      conectado = true;
+      Serial.println("[USB] Ponte MQTT pronta.");
+    } else if (cJSON_IsFalse(pronto) && conectado) {
+      limparSessaoMqtt();
+      sessaoMqttEncerrada = true;
+      Serial.println("[USB] Ponte MQTT indisponivel.");
+    }
+    return;
+  }
+
+  int64_t id;
+  if (!inteiroJson(quadro, "id", 1, UINT32_MAX, id)) return;
+  if (strcmp(tipo, "deliver") == 0 && id > ultimoIdRecebido) {
+    ultimoIdRecebido = id;
+    responderEntrega(id, enfileirarEntrega(quadro));
+  } else if (strcmp(tipo, "ack") == 0) {
+    const char* origem = textoJson(quadro, "forType");
+    const char* resultado = textoJson(quadro, "result");
+    if (!origem || strcmp(origem, "publish") != 0 || !resultado ||
+        (strcmp(resultado, "published") != 0 && strcmp(resultado, "rejected") != 0)) return;
+    for (ConfirmacaoPublicacao& item : confirmacoes) {
+      if (item.id == id) {
+        item = {};
+        break;
       }
-      break;
-    case MQTT_EVENT_SUBSCRIBED:
-      for (unsigned i = 0; i < 3; ++i) {
-        if (evento->msg_id != assinaturas[i]) continue;
-        if (!evento->data || evento->data_len < 1 || evento->data[0] != 1) {
-          const int qos = evento->data && evento->data_len > 0
-            ? static_cast<uint8_t>(evento->data[0]) : -1;
-          Serial.printf("[MQTT] SUBACK sem QoS 1 (pacote=%d, retorno=%d).\n", evento->msg_id, qos);
-          registrarDesconexao();
-          return;
-        }
-        confirmadas |= 1u << i;
+    }
+  }
+}
+
+bool profundidadeValida(const char* json) {
+  int nivel = 0;
+  bool emTexto = false;
+  for (const char* p = json; *p; ++p) {
+    if (emTexto && *p == '\\' && p[1]) {
+      ++p;
+    } else if (*p == '"') {
+      emTexto = !emTexto;
+    } else if (!emTexto && (*p == '{' || *p == '[')) {
+      if (++nivel > 16) return false;
+    } else if (!emTexto && (*p == '}' || *p == ']')) {
+      --nivel;
+    }
+  }
+  return true;
+}
+
+void receberSerial(unsigned long agora) {
+  // Limita o trabalho por chamada para dar tempo ao loop do motor.
+  for (unsigned restantes = 512; restantes && Serial.available() && !tamanhoSaida; --restantes) {
+    const int byteLido = Serial.read();
+    if (byteLido < 0) break;
+    if (byteLido == '\n') {
+      if (tamanhoEntrada && entradaSerial[tamanhoEntrada - 1] == '\r') --tamanhoEntrada;
+      entradaSerial[tamanhoEntrada] = '\0';
+      constexpr size_t inicioJson = sizeof(PREFIXO_SERIAL) - 1;
+      if (!descartarLinha && tamanhoEntrada > inicioJson && tamanhoEntrada <= LIMITE_QUADRO &&
+          memcmp(entradaSerial, PREFIXO_SERIAL, inicioJson) == 0 &&
+          profundidadeValida(entradaSerial + inicioJson)) {
+        cJSON* quadro = cJSON_ParseWithLengthOpts(
+          entradaSerial + inicioJson, tamanhoEntrada - inicioJson + 1, nullptr, true);
+        if (cJSON_IsObject(quadro)) processarQuadro(quadro, agora);
+        cJSON_Delete(quadro);
       }
-      if (confirmadas == 7 && !desconectado) {
-        ++sessoes;
-        conectado = true;
-        Serial.println("[MQTT] Conectado, assinaturas QoS 1 confirmadas.");
-      }
-      break;
-    case MQTT_EVENT_DISCONNECTED:
-      Serial.println("[MQTT] Sessao desconectada.");
-      registrarDesconexao();
-      break;
-    case MQTT_EVENT_ERROR:
-      registrarErroMqtt(evento->error_handle);
-      break;
-    case MQTT_EVENT_DATA: {
-      if (!conectado || evento->retain || evento->qos != 1 ||
-          evento->current_data_offset != 0 || evento->data_len != evento->total_data_len ||
-          evento->data_len <= 0 || evento->data_len > LIMITE_JSON) return;
-      const bool nfc = topicoIgual(evento, topicoDecisao);
-      const bool qr = topicoIgual(evento, topicoQr);
-      if (!nfc && !qr && !topicoIgual(evento, topicoOrdem)) return;
-      char texto[LIMITE_JSON + 1];
-      memcpy(texto, evento->data, evento->data_len);
-      texto[evento->data_len] = '\0';
-      if (strlen(texto) != evento->data_len) return;
-      cJSON* json = cJSON_ParseWithLengthOpts(texto, evento->data_len + 1, nullptr, true);
-      if (qr) {
-        RespostaQr resposta{};
-        if (lerRespostaQr(json, resposta)) xQueueSend(respostasQr, &resposta, 0);
+      tamanhoEntrada = 0;
+      descartarLinha = false;
+    } else if (!descartarLinha) {
+      if (byteLido == '\0' || tamanhoEntrada == sizeof(entradaSerial) - 1) {
+        descartarLinha = true;
       } else {
-        MensagemOrdem mensagem{};
-        mensagem.nfc = nfc;
-        if (lerOrdem(json, mensagem)) xQueueSend(ordens, &mensagem, 0);
+        entradaSerial[tamanhoEntrada++] = static_cast<char>(byteLido);
       }
-      cJSON_Delete(json);
-      break;
     }
   }
 }
 
-bool iniciarClienteMqtt() {
-  Serial.printf("[MQTT] Conectando a %s:%d via TLS.\n", MQTT_HOST, MQTT_PORTA);
-  const esp_err_t resultado = esp_mqtt_client_start(mqtt);
-  if (resultado == ESP_OK) return true;
-  Serial.printf("[MQTT] Falha ao iniciar cliente: %s.\n", esp_err_to_name(resultado));
-  return false;
-}
-
-void tarefaRede(void*) {
-  bool wifiConectado = false;
-  bool iniciouSntp = false;
-  bool informouHora = false;
-  bool iniciouMqtt = false;
-  unsigned intervalo = 1000;
-  unsigned long ultimaTentativa = 0;
-  unsigned long ultimoDiagnostico = millis();
-  for (;;) {
-    const unsigned long agora = millis();
-    const wl_status_t statusWifi = WiFi.status();
-    if (statusWifi == WL_CONNECTED) {
-      if (!wifiConectado) {
-        const IPAddress ip = WiFi.localIP();
-        Serial.printf("[WiFi] Conectado. IP=%s.\n", ip.toString().c_str());
-        wifiConectado = true;
-        ultimoDiagnostico = agora;
-      }
-      if (!iniciouSntp) {
-        Serial.println("[NTP] Sincronizando relogio para validar TLS.");
-        esp_sntp_set_time_sync_notification_cb([](timeval*) { relogioSincronizado = true; });
-        configTime(0, 0, "pool.ntp.org", "time.google.com");
-        iniciouSntp = true;
-      }
-      if (!informouHora && relogioSincronizado) {
-        char utc[25];
-        formatarUtc(agoraUtc(), utc);
-        Serial.printf("[NTP] Hora sincronizada: %s.\n", utc);
-        informouHora = true;
-      }
-      if (!informouHora && agora - ultimoDiagnostico >= INTERVALO_DIAGNOSTICO_MS) {
-        Serial.println("[NTP] Ainda aguardando resposta dos servidores de horario.");
-        ultimoDiagnostico = agora;
-      }
-      if (!iniciouMqtt && informouHora && agora - ultimaTentativa >= intervalo) {
-        ultimaTentativa = agora;
-        iniciouMqtt = iniciarClienteMqtt();
-        if (!iniciouMqtt) intervalo = min(30000u, intervalo * 2);
-      }
-      if (conectado) intervalo = 1000;
-      if (iniciouMqtt && desconectado && millis() - falhaEm >= intervalo) {
-        const esp_err_t resultado = esp_mqtt_client_stop(mqtt);
-        if (resultado == ESP_OK) {
-          desconectado = false;
-          ultimaTentativa = millis();
-          iniciouMqtt = iniciarClienteMqtt();
-        } else {
-          Serial.printf("[MQTT] Falha ao parar cliente: %s.\n", esp_err_to_name(resultado));
-          falhaEm = millis();
-        }
-        intervalo = min(30000u, intervalo * 2);
-      }
-    } else if (wifiConectado || agora - ultimoDiagnostico >= INTERVALO_DIAGNOSTICO_MS) {
-      wifiConectado = false;
-      ultimoDiagnostico = agora;
-      Serial.printf("[WiFi] Aguardando conexao (status=%d).\n", statusWifi);
-    }
-    Publicacao mensagem;
-    if (xQueueReceive(publicacoes, &mensagem, pdMS_TO_TICKS(50)) == pdTRUE && conectado) {
-      esp_mqtt_client_enqueue(mqtt, mensagem.topico, mensagem.corpo,
-                              0, 1, 0, true);
-    }
+void prepararPublicacao(unsigned long agora) {
+  ConfirmacaoPublicacao* livre = nullptr;
+  for (ConfirmacaoPublicacao& item : confirmacoes) {
+    if (item.id && agora - item.enviadaEm >= TIMEOUT_SERIAL_MS) item = {};
+    if (!item.id && !livre) livre = &item;
+  }
+  if (!livre) return;
+  Publicacao mensagem{};
+  if (xQueueReceive(publicacoes, &mensagem, 0) != pdTRUE) return;
+  const uint32_t id = ++ultimoIdEnviado;
+  if (enfileirarQuadro(snprintf(saidaSerial, sizeof(saidaSerial),
+      "\n@AC {\"v\":1,\"type\":\"publish\",\"sessionId\":\"%s\",\"id\":%lu,"
+      "\"route\":\"%s\",\"payload\":%s}\n",
+      sessionId, static_cast<unsigned long>(id), mensagem.rota, mensagem.corpo))) {
+    *livre = {id, agora};
   }
 }
 
-void liberarRecursosMqtt() {
-  if (mqtt) esp_mqtt_client_destroy(mqtt);
-  if (ordens) vQueueDelete(ordens);
-  if (respostasQr) vQueueDelete(respostasQr);
-  if (publicacoes) vQueueDelete(publicacoes);
-  mqtt = nullptr;
-  ordens = nullptr;
-  respostasQr = nullptr;
-  publicacoes = nullptr;
-  memoria.end();
+void atualizarSerial() {
+  if (!serialIniciada) return;
+  const unsigned long agora = millis();
+  if (sessionId[0] && agora - ultimoLink >= TIMEOUT_SERIAL_MS) {
+    limparSessaoMqtt();
+    sessionId[0] = '\0';
+    ultimoControle = agora - INTERVALO_SERIAL_MS;
+    Serial.println("[USB] Sessao da ponte expirou.");
+  }
+  if (!tamanhoSaida) receberSerial(agora);
+  if (!tamanhoSaida && agora - ultimoControle >= INTERVALO_SERIAL_MS) {
+    if (sessionId[0]) {
+      enfileirarQuadro(snprintf(saidaSerial, sizeof(saidaSerial),
+        "\n@AC {\"v\":1,\"type\":\"heartbeat\",\"sessionId\":\"%s\"}\n", sessionId));
+    } else {
+      enfileirarQuadro(snprintf(saidaSerial, sizeof(saidaSerial),
+        "\n@AC {\"v\":1,\"type\":\"hello\",\"terminalId\":\"%s\",\"bootId\":\"%s\"}\n",
+        MQTT_TERMINAL_ID, bootId));
+    }
+    ultimoControle = agora;
+  }
+  if (!tamanhoSaida && conectado) prepararPublicacao(agora);
+  if (tamanhoSaida && Serial.availableForWrite() >= static_cast<int>(tamanhoSaida)) {
+    Serial.write(reinterpret_cast<const uint8_t*>(saidaSerial), tamanhoSaida);
+    tamanhoSaida = 0;
+  }
 }
 
 bool publicar(const char* sufixo, const char* evento, int64_t horario, const char* campos) {
@@ -406,7 +453,7 @@ bool publicar(const char* sufixo, const char* evento, int64_t horario, const cha
   Publicacao mensagem{};
   char utc[25];
   formatarUtc(horario, utc);
-  snprintf(mensagem.topico, sizeof(mensagem.topico), "access/v1/terminals/%s/%s", MQTT_TERMINAL_ID, sufixo);
+  mensagem.rota = sufixo;
   const int tamanho = snprintf(mensagem.corpo, sizeof(mensagem.corpo),
     "{\"schemaVersion\":1,\"terminalId\":\"%s\",\"eventId\":\"%s\",\"occurredAt\":\"%s\"%s}",
     MQTT_TERMINAL_ID, evento, utc, campos);
@@ -492,17 +539,16 @@ bool processarOrdem(const Ordem& ordem, int64_t agora) {
 }
 
 void iniciarMqttPorta() {
-  if (!WIFI_SSID[0] || !MQTT_HOST[0] || strlen(MQTT_SENHA) < 16 ||
-      !uuidValido(MQTT_TERMINAL_ID) || !MQTT_CA[0]) {
-    Serial.println("[MQTT] Preencha mqtt_config.h. Acionamento desabilitado.");
+  if (!uuidValido(MQTT_TERMINAL_ID)) {
+    Serial.println("[USB] Configure MQTT_TERMINAL_ID. Acionamento desabilitado.");
     return;
   }
   if (!memoria.begin("mqtt-porta", false)) {
-    Serial.println("[MQTT] NVS indisponivel. Acionamento desabilitado.");
+    Serial.println("[USB] NVS indisponivel. Acionamento desabilitado.");
     return;
   }
   recuperacao = memoria.getBool(CHAVE_CICLO, false);
-  if (recuperacao) Serial.println("[MQTT] Ciclo interrompido. Verifique a posicao da porta em bancada.");
+  if (recuperacao) Serial.println("[USB] Ciclo interrompido. Verifique a posicao da porta em bancada.");
   for (int i = 0; i < TOTAL_REGISTROS; ++i) {
     char chave[8];
     chaveRegistro(i, chave);
@@ -512,51 +558,23 @@ void iniciarMqttPorta() {
   respostasQr = xQueueCreate(4, sizeof(RespostaQr));
   publicacoes = xQueueCreate(TOTAL_REGISTROS + 8, sizeof(Publicacao));
   if (!ordens || !respostasQr || !publicacoes) {
-    Serial.println("[MQTT] Memoria insuficiente para criar filas.");
-    liberarRecursosMqtt();
+    Serial.println("[USB] Memoria insuficiente para criar filas.");
+    if (ordens) vQueueDelete(ordens);
+    if (respostasQr) vQueueDelete(respostasQr);
+    if (publicacoes) vQueueDelete(publicacoes);
+    memoria.end();
     return;
   }
-  snprintf(topicoOrdem, sizeof(topicoOrdem), "access/v1/terminals/%s/door/command", MQTT_TERMINAL_ID);
-  snprintf(topicoDecisao, sizeof(topicoDecisao), "access/v1/terminals/%s/access/decision", MQTT_TERMINAL_ID);
-  snprintf(topicoQr, sizeof(topicoQr), "access/v1/terminals/%s/qr/display", MQTT_TERMINAL_ID);
-  snprintf(clientId, sizeof(clientId), "esp32-%s", MQTT_TERMINAL_ID);
-
-  esp_mqtt_client_config_t config{};
-  config.broker.address.hostname = MQTT_HOST;
-  config.broker.address.port = MQTT_PORTA;
-  config.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
-  config.broker.verification.certificate = MQTT_CA;
-  config.credentials.username = "esp32";
-  config.credentials.authentication.password = MQTT_SENHA;
-  config.credentials.client_id = clientId;
-  config.session.protocol_ver = MQTT_PROTOCOL_V_3_1_1;
-  config.network.disable_auto_reconnect = true;
-  config.buffer.size = LIMITE_JSON + 128;
-  mqtt = esp_mqtt_client_init(&config);
-  if (!mqtt) {
-    Serial.println("[MQTT] Falha ao criar cliente.");
-    liberarRecursosMqtt();
-    return;
-  }
-  const esp_err_t resultado = esp_mqtt_client_register_event(mqtt, MQTT_EVENT_ANY, eventoMqtt, nullptr);
-  if (resultado != ESP_OK) {
-    Serial.printf("[MQTT] Falha ao registrar eventos: %s.\n", esp_err_to_name(resultado));
-    liberarRecursosMqtt();
-    return;
-  }
-
-  WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
-  Serial.println("[WiFi] Iniciando conexao.");
-  WiFi.begin(WIFI_SSID, WIFI_SENHA);
-  if (xTaskCreate(tarefaRede, "mqtt-porta", 4096, nullptr, 1, nullptr) != pdPASS) {
-    Serial.println("[MQTT] Falha ao criar tarefa de rede.");
-    liberarRecursosMqtt();
-  }
+  setenv("TZ", "UTC0", 1);
+  tzset();
+  gerarUuid(bootId);
+  ultimoControle = millis() - INTERVALO_SERIAL_MS;
+  serialIniciada = true;
+  Serial.println("[USB] Aguardando ponte serial.");
 }
 
 bool solicitarAcessoNfc(const unsigned char* uid, unsigned int tamanho) {
-  if (!conectado || !relogioSincronizado || ciclo != -1 || recuperacao ||
+  if (!conectado || ciclo != -1 || recuperacao ||
       pedidoNfc.id[0] || (tamanho != 4 && tamanho != 7 && tamanho != 10)) return false;
   constexpr char hex[] = "0123456789ABCDEF";
   char tag[21]{};
@@ -580,8 +598,9 @@ bool solicitarAcessoNfc(const unsigned char* uid, unsigned int tamanho) {
 }
 
 unsigned long atualizarMqttPorta(bool presente, bool& nfcNegado) {
+  atualizarSerial();
   nfcNegado = false;
-  if (!conectado || !relogioSincronizado) {
+  if (!conectado) {
     nfcNegado = pedidoNfc.id[0] && ciclo == -1;
     pedidoNfc = {};
     return 0;
@@ -641,14 +660,14 @@ AtualizacaoQr atualizarQrMqtt(bool habilitado, uint8_t (&bitmap)[QR_BYTES]) {
   static unsigned sessaoAnterior = 0;
   const unsigned sessao = sessoes;
   AtualizacaoQr atualizacao = AtualizacaoQr::Nenhuma;
-  if (!habilitado || !conectado || !relogioSincronizado || sessao != sessaoAnterior) {
+  if (!habilitado || !conectado || sessao != sessaoAnterior) {
     if (habilitado && validade) atualizacao = AtualizacaoQr::Limpar;
     validade = 0;
     renovar = 0;
     pedido = {};
     sessaoAnterior = sessao;
   }
-  if (!habilitado || !conectado || !relogioSincronizado) return atualizacao;
+  if (!habilitado || !conectado) return atualizacao;
 
   const int64_t utc = agoraUtc();
   const unsigned long agora = millis();
