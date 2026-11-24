@@ -80,7 +80,20 @@ describe("Comando de abertura por MQTT", () => {
     await expect(recordDoorCommandAck({ ...ack, requestId: target })).resolves.toBe(false);
     db.mqttDoorCommand.updateMany.mockResolvedValue({ count: 0 });
     await expect(recordDoorCommandAck(ack)).resolves.toBe(false);
-    expect(db.mqttDoorCommand.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.mqttDoorCommand.updateMany).toHaveBeenCalledTimes(2);
+    expect(db.accesslog.update).not.toHaveBeenCalled();
+  });
+
+  it("confirma o comando de checkout sem alterar registros de entrada", async () => {
+    db.mqttDoorCommand.updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 });
+    await expect(recordDoorCommandAck(ack)).resolves.toBe(true);
+    expect(db.mqttDoorCommand.updateMany).toHaveBeenLastCalledWith({
+      where: {
+        checkoutVisitId: logId, terminalId: target, ackResult: null,
+        issuedAt: { lte: new Date(ack.acceptedAt) }, expiresAt: { gt: new Date(ack.acceptedAt) },
+      },
+      data: { ackResult: "UNLOCKED", ackAt: new Date(ack.occurredAt) },
+    });
     expect(db.accesslog.update).not.toHaveBeenCalled();
   });
 });

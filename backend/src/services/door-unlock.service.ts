@@ -10,10 +10,15 @@ export interface DoorUnlockRequest {
   method: AccessMethod;
 }
 
+export function configuredDoorTerminalId(): string | null {
+  if (!env.MQTT_URL) return null;
+  return env.ESP32_TERMINAL_ID ?? env.MQTT_SIMULATOR_TERMINAL_ID ?? null;
+}
+
 /** Agenda uma abertura somente para uma concessão persistida no mesmo local. */
 export async function requestDoorUnlock(request: DoorUnlockRequest): Promise<void> {
-  const targetId = env.ESP32_TERMINAL_ID ?? env.MQTT_SIMULATOR_TERMINAL_ID;
-  if (!env.MQTT_URL || !targetId || (request.method !== "QR" && request.method !== "FACE")) return;
+  const targetId = configuredDoorTerminalId();
+  if (!targetId || (request.method !== "QR" && request.method !== "FACE")) return;
   try {
     const grant = await prisma.accesslog.findFirst({
       where: {
@@ -46,15 +51,23 @@ export async function recordDoorCommandAck(ack: DoorAck) {
   const timing = doorAckTiming(ack);
   if (!timing) return false;
   return prisma.$transaction(async (tx) => {
+    const where = {
+      terminalId: ack.terminalId, ackResult: null,
+      issuedAt: { lte: timing.acceptedAt ?? timing.occurredAt },
+      expiresAt: timing.expiration,
+    };
+    const data = { ackResult: ack.result, ackAt: timing.occurredAt };
     const { count } = await tx.mqttDoorCommand.updateMany({
-      where: {
-        accessLogId: ack.accessLogId, terminalId: ack.terminalId, ackResult: null,
-        issuedAt: { lte: timing.acceptedAt ?? timing.occurredAt },
-        expiresAt: timing.expiration,
-      },
-      data: { ackResult: ack.result, ackAt: timing.occurredAt },
+      where: { ...where, accessLogId: ack.accessLogId },
+      data,
     });
-    if (count === 0) return false;
+    if (count === 0) {
+      const checkoutAck = await tx.mqttDoorCommand.updateMany({
+        where: { ...where, checkoutVisitId: ack.accessLogId },
+        data,
+      });
+      return checkoutAck.count > 0;
+    }
     await tx.accesslog.update({
       where: { id: ack.accessLogId },
       data: { commandAcked: ack.result === "UNLOCKED" },

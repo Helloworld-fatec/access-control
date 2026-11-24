@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_logo.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../auth/presentation/logout_action.dart';
 import '../../terminals/data/terminals_repository.dart';
@@ -44,8 +45,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _openForm([String? id]) {
-    Navigator.of(context).push<void>(
+  Future<void> _openForm([String? id]) async {
+    final message = await Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (_) => UserFormScreen(
           userId: id,
@@ -55,13 +56,18 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+    if (!mounted || message == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+    await _controller.refresh();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Usuários'),
+        title: const BrandedTitle('Usuários'),
         actions: [
           IconButton(
             tooltip: 'Terminais',

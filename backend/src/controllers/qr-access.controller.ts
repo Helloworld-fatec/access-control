@@ -4,9 +4,25 @@ import { AppError } from "../middlewares/error.middleware.js";
 import { consumeQrSchema } from "../models/dtos/qr-access.dto.js";
 import { ACCESS_METHODS, ACCESS_RESULTS, DENY_REASONS } from "../types/index.js";
 import { requestDoorUnlock } from "../services/door-unlock.service.js";
+import { registerEntryVisit } from "../services/visits.service.js";
 import { hashQrToken, issueQrToken, qrRefreshSeconds } from "../services/qr-token.service.js";
 
 const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
+const terminalRadiusMeters = 50;
+const earthRadiusMeters = 6_371_000;
+const radians = (degrees: number) => degrees * (Math.PI / 180);
+
+function distanceMeters(
+  from: { latitude: number; longitude: number },
+  to: { latitude: number; longitude: number },
+) {
+  const latitude = radians(to.latitude - from.latitude);
+  const longitude = radians(to.longitude - from.longitude);
+  const haversine = Math.sin(latitude / 2) ** 2 +
+    Math.cos(radians(from.latitude)) * Math.cos(radians(to.latitude)) *
+    Math.sin(longitude / 2) ** 2;
+  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(Math.min(1, haversine)));
+}
 
 function saoPauloNow(now: Date) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -44,7 +60,7 @@ export async function issueQr(req: Request, res: Response) {
 export async function consumeQr(req: Request, res: Response) {
   if (!req.auth) throw new AppError(401, "Usuário não autenticado", "UNAUTHORIZED");
   const userId = req.auth.userId;
-  const { token } = consumeQrSchema.parse(req.body);
+  const { token, latitude, longitude } = consumeQrSchema.parse(req.body);
   const tokenHash = hashQrToken(token);
   const now = new Date();
   const { today, time } = saoPauloNow(now);
@@ -53,7 +69,7 @@ export async function consumeQr(req: Request, res: Response) {
   const outcome = await prisma.$transaction(async (tx) => {
     const qr = await tx.qrnonce.findUnique({
       where: { nonce: tokenHash },
-      include: { terminal: { select: { id: true, locationId: true } } },
+      include: { terminal: { select: { id: true, locationId: true, latitude: true, longitude: true } } },
     });
     if (!qr) return { kind: "UNKNOWN" as const };
 
@@ -81,6 +97,10 @@ export async function consumeQr(req: Request, res: Response) {
 
     if (!reason && (!user || !user.active)) {
       reason = DENY_REASONS.USER_INACTIVE;
+    }
+
+    if (!reason && !(distanceMeters({ latitude, longitude }, qr.terminal) <= terminalRadiusMeters)) {
+      reason = DENY_REASONS.TOO_FAR;
     }
 
     let grantedAuthorizationId: string | null = null;
@@ -164,6 +184,11 @@ export async function consumeQr(req: Request, res: Response) {
         reason: granted ? null : reason ?? DENY_REASONS.NO_AUTHORIZATION,
       },
     });
+    if (granted) {
+      await registerEntryVisit(tx, {
+        userId, locationId: qr.terminal.locationId, terminalId: qr.terminalId, log: accessLog,
+      });
+    }
 
     return {
       kind: granted ? ("GRANTED" as const) : ("DENIED" as const),

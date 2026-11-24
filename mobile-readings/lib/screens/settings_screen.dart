@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../config/terminal_config.dart';
 import '../services/api_client.dart';
 import '../state/terminal_controller.dart';
+import '../widgets/app_logo.dart';
 
 class SettingsScreen extends StatefulWidget {
   final TerminalController controller;
@@ -19,7 +20,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _key;
   bool _obscureKey = true;
   bool _saving = false;
+  bool _checking = false;
   String? _error;
+  ({String message, bool failed})? _connectionStatus;
+  bool get _busy => _saving || _checking;
 
   @override
   void initState() {
@@ -36,13 +40,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
+  Future<void> _checkConnection() async {
+    if (_busy) return;
+    setState(() {
+      _checking = true;
+      _error = null;
+      _connectionStatus = null;
+    });
+    String? failure;
+    try {
+      await widget.controller.checkConnection(_address.text);
+    } on TerminalApiException catch (error) {
+      failure = error.message;
+    }
+    if (!mounted) return;
+    setState(() {
+      _checking = false;
+      _connectionStatus = (
+        message: failure ?? 'Conexão com o servidor OK.',
+        failed: failure != null,
+      );
+    });
+  }
+
   Future<void> _save() async {
-    if (_saving || !(_formKey.currentState?.validate() ?? false)) return;
+    if (_busy || !(_formKey.currentState?.validate() ?? false)) return;
     final address = _address.text;
     final key = _key.text;
     setState(() {
       _saving = true;
       _error = null;
+      _connectionStatus = null;
     });
 
     try {
@@ -84,12 +112,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              const Center(child: AppLogo()),
+              const SizedBox(height: 24),
               TextFormField(
                 key: const Key('field_server_address'),
                 controller: _address,
-                enabled: !_saving,
+                enabled: !_busy,
                 keyboardType: TextInputType.url,
                 autocorrect: false,
+                onChanged: (_) => setState(() {
+                  _error = null;
+                  _connectionStatus = null;
+                }),
                 decoration: const InputDecoration(
                   labelText: 'Endereço do servidor',
                   hintText: 'https://servidor.exemplo ou 192.168.1.100:3000',
@@ -100,6 +134,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ? 'Informe uma URL HTTP/HTTPS ou IP:porta válido.'
                         : null,
               ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: _busy ? null : _checkConnection,
+                child: Text(_checking ? 'Testando...' : 'Testar conexão'),
+              ),
+              if (_connectionStatus case final status?)
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    status.message,
+                    textAlign: TextAlign.center,
+                    style: status.failed
+                        ? TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          )
+                        : null,
+                  ),
+                ),
               const SizedBox(height: 16),
               TextFormField(
                 key: const Key('field_terminal_key'),
@@ -136,7 +188,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 24),
               FilledButton(
                 key: const Key('btn_save_settings'),
-                onPressed: _saving ? null : _save,
+                onPressed: _busy ? null : _save,
                 child: Text(_saving ? 'Verificando...' : 'Validar e salvar'),
               ),
             ],

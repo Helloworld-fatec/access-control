@@ -67,6 +67,44 @@ export interface TerminalCreated extends Terminal {
   apiKey: string;
 }
 
+export interface Pokemon {
+  id: string;
+  numero: number;
+  nome: string;
+  altura_m: number;
+  peso_kg: number;
+  stats: Record<"hp" | "attack" | "defense" | "special-attack" | "special-defense" | "speed", number>;
+  imagem_url: string;
+}
+
+export interface PokemonClaim {
+  visitId: string;
+  claimedAt: string;
+  pokemon: Pokemon;
+}
+
+export interface PokemonDraw {
+  visitId: string;
+  drawnAt: string;
+  pokemon: Pokemon;
+}
+
+export type VisitStatus = "INSIDE" | "EXITED";
+export interface Visit {
+  id: string;
+  status: VisitStatus;
+  user: { id: string; name: string } | null;
+  location: Omit<Location, "description">;
+  entryTerminal: { id: string; name: string };
+  entryLog: { id: string; method: Method; commandAcked: boolean | null };
+  enteredAt: string;
+  exitedAt: string | null;
+  checkoutType: "SIMPLE" | "POKEMON" | null;
+  checkedOutBy: { id: string; name: string } | null;
+  pokemon: { pokemonId: string; claimedAt: string } | null;
+  doorCommand: { id: string; status: "PENDING" | "CONFIRMED" | "FAILED" | "EXPIRED" } | null;
+}
+
 export interface Authorization {
   id: string;
   userId: string;

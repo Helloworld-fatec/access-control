@@ -9,6 +9,7 @@ const { terminalId, db } = vi.hoisted(() => ({
     user: { findUnique: vi.fn() },
     authorization: { findMany: vi.fn(), updateMany: vi.fn() },
     accesslog: { create: vi.fn(), updateMany: vi.fn() },
+    visit: { createMany: vi.fn() },
     mqttNfcRequest: { createMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -24,6 +25,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-11-21T15:00:00Z"));
   db.$transaction.mockImplementation((work) => work(db));
   db.terminal.findUnique.mockResolvedValue({ id: terminalId, locationId: "porta" });
+  db.accesslog.create.mockImplementation(async ({ data }) => ({ ...data, createdAt: new Date() }));
 });
 
 afterEach(() => vi.useRealTimers());
@@ -64,6 +66,11 @@ describe("NFC do ESP32", () => {
       ...payload, uid: "00000000",
     }, request)).resolves.toBeNull();
     expect(db.accesslog.create).toHaveBeenCalledTimes(1);
+    expect(db.visit.createMany).toHaveBeenCalledExactlyOnceWith({
+      data: { userId: "morador", locationId: "porta", entryTerminalId: terminalId,
+        entryLogId: outcome?.accessLogId, enteredAt: new Date() },
+      skipDuplicates: true,
+    });
     expect(db.authorization.updateMany).toHaveBeenCalledTimes(1);
   });
 

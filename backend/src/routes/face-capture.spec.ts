@@ -32,6 +32,7 @@ const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   authorization: { findMany: vi.fn(), updateMany: vi.fn() },
   accesslog: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+  visit: { createMany: vi.fn() },
   mqttDoorCommand: { createMany: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
   $transaction: vi.fn(),
 }));
@@ -78,6 +79,7 @@ beforeEach(() => {
   }]);
   db.authorization.updateMany.mockResolvedValue({ count: 1 });
   db.$transaction.mockImplementation((run) => run(db));
+  db.accesslog.create.mockImplementation(async ({ data }) => ({ ...data, createdAt: new Date() }));
   python.mockResolvedValue(Response.json(match));
 });
 
@@ -123,6 +125,11 @@ describe("captura facial do terminal", () => {
       }),
     });
     const [logged] = db.accesslog.create.mock.calls[0]!;
+    expect(db.visit.createMany).toHaveBeenCalledExactlyOnceWith({
+      data: { userId, locationId, entryTerminalId: terminalId,
+        entryLogId: logged.data.id, enteredAt: new Date() },
+      skipDuplicates: true,
+    });
     expect(requestDoorUnlock).toHaveBeenCalledExactlyOnceWith({
       accessLogId: logged.data.id, terminalId, userId, method: "FACE",
     });
@@ -135,6 +142,7 @@ describe("captura facial do terminal", () => {
     expect(response.status).toBe(403);
     expect(response.body).toMatchObject({ allowed: false, reason: "NO_AUTHORIZATION" });
     expect(db.authorization.updateMany).not.toHaveBeenCalled();
+    expect(db.visit.createMany).not.toHaveBeenCalled();
     expect(requestDoorUnlock).not.toHaveBeenCalled();
     expect(db.accesslog.create).toHaveBeenCalledExactlyOnceWith({
       data: expect.objectContaining({ userId, terminalId, result: "DENIED" }),

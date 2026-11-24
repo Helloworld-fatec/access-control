@@ -5,6 +5,7 @@ let base = (import.meta.env.VITE_API_URL as string | undefined) || "/api";
 export const setApiBase = (b: string) => {
   base = b.replace(/\/+$/, "");
 };
+export const apiUrl = (path: string) => `${base}${path}`;
 export async function loadRuntimeConfig(): Promise<void> {
   try {
     const r = await fetch("/config.json", { cache: "no-store" });
@@ -81,7 +82,7 @@ async function raw(path: string, opts: Options): Promise<Response> {
 
   let res: Response;
   try {
-    res = await fetch(`${base}${path}${toQuery(opts.query)}`, {
+    res = await fetch(`${apiUrl(path)}${toQuery(opts.query)}`, {
       method: opts.method ?? "GET",
       headers,
       body,

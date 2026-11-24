@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/widgets/app_logo.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/confirm_dialog.dart';
@@ -149,7 +150,7 @@ class _TerminalsScreenState extends State<TerminalsScreen> {
     return PopScope(
       canPop: !_busy,
       child: Scaffold(
-        appBar: AppBar(title: const Text('Terminais')),
+        appBar: AppBar(title: const BrandedTitle('Terminais')),
         body: SafeArea(
           child: Column(
             children: [

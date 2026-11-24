@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/network/api_exception.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_logo.dart';
 import '../../../core/widgets/app_buttons.dart';
 import '../../../core/widgets/status_message.dart';
 import '../application/session_controller.dart';
@@ -85,13 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const ExcludeSemantics(
-                    child: Icon(
-                      Icons.lock_outline,
-                      size: 64,
-                      color: AppColors.primary,
-                    ),
-                  ),
+                  const Center(child: AppLogo()),
                   const SizedBox(height: 12),
                   Semantics(
                     header: true,

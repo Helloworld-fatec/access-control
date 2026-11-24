@@ -173,6 +173,26 @@ tbody tr:hover .btn:not(.btn-primary), tbody tr:focus-within .btn:not(.btn-prima
 .facts dt { color: var(--muted); font-size: .85rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .facts dd { margin: 0; overflow-wrap: anywhere; font-weight: 700; }
 .keybox { background: var(--canvas); border-radius: var(--radius); padding: .8rem 1rem; overflow-wrap: anywhere; }
+.visit-switch { margin-bottom: 1rem; }
+.profile.pokemon-profile { grid-template-columns: minmax(140px, 220px) 1fr; align-items: center; }
+.pokemon-image { display: block; width: min(100%, 220px); height: auto; aspect-ratio: 1; object-fit: contain; background: var(--canvas); border-radius: var(--radius); }
+.pokemon-image-placeholder { display: grid; place-items: center; color: var(--muted); font-weight: 800; }
+.pokemon-reveal { display: grid; justify-items: center; gap: .5rem; text-align: center; }
+.pokemon-countdown {
+  display: grid; place-content: center; justify-items: center; gap: .6rem; min-height: 230px;
+  text-align: center; background: var(--canvas); border-radius: var(--radius); margin-block: 1rem;
+}
+.pokemon-countdown p { color: var(--muted); font-weight: 800; }
+.pokemon-countdown strong { font-size: clamp(5rem, 17vw, 9rem); font-weight: 900; line-height: 1; }
+.pokemon-clip:not([hidden]) { display: block; width: 100%; aspect-ratio: 7 / 4; object-fit: contain; border-radius: var(--radius); margin-block: 1rem; }
+.pokemon-light {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none; background: #fff;
+  animation: pokemon-light-fill 650ms ease-out both;
+}
+@keyframes pokemon-light-fill {
+  from { clip-path: circle(0 at 50% 50%); }
+  75%, to { clip-path: circle(150vmax at 50% 50%); }
+}
 
 /* ---------- painel ---------- */
 .block { margin-bottom: 2rem; }
@@ -219,7 +239,7 @@ tbody tr:hover .btn:not(.btn-primary), tbody tr:focus-within .btn:not(.btn-prima
   .sidebar nav { flex-direction: row; flex-wrap: wrap; }
   .nav-link.active::before { display: none; }
   .sidebar-foot { margin-top: 0; display: flex; align-items: center; justify-content: space-between; }
-  .grid-2, .profile { grid-template-columns: 1fr; }
+  .grid-2, .profile, .profile.pokemon-profile { grid-template-columns: 1fr; }
   .hints { justify-content: center; gap: 1rem; font-size: .85rem; }
   .login { background: linear-gradient(180deg, var(--red) 0 38%, transparent 38%), var(--canvas); }
 }

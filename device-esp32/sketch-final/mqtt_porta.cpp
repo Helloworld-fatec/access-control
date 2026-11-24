@@ -188,7 +188,8 @@ bool lerOrdem(const cJSON* json, MensagemOrdem& mensagem) {
       return false;
     }
   } else if (strcmp(pedido, acesso) != 0 || prazo != PRAZO_ACEITE_MS || duracao->valueint == 0 ||
-             !metodo || (strcmp(metodo, "QR") != 0 && strcmp(metodo, "FACE") != 0)) {
+             !metodo || (strcmp(metodo, "QR") != 0 && strcmp(metodo, "FACE") != 0 &&
+                         strcmp(metodo, "CHECKOUT_POKEMON") != 0)) {
     return false;
   }
   strcpy(ordem.pedido, pedido);

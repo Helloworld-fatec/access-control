@@ -123,6 +123,21 @@ describe("Ponte MQTT de abertura", () => {
     expect(client.publishAsync).not.toHaveBeenCalled();
   });
 
+  it("publica checkout com o UUID da visita como identificador de correlação", async () => {
+    db.mqttDoorCommand.findMany.mockResolvedValue([{
+      ...command, accessLogId: null, accessLog: null, checkoutVisitId: logId,
+    }]);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(client.publishAsync).toHaveBeenCalledTimes(1);
+    const [topic, payload, options] = client.publishAsync.mock.calls[0]!;
+    expect(topic).toBe(`access/v1/terminals/${terminalId}/door/command`);
+    expect(JSON.parse(payload)).toMatchObject({
+      terminalId, eventId: commandId, requestId: logId, accessLogId: logId,
+      method: "CHECKOUT_POKEMON", unlockDurationMs: 3000,
+    });
+    expect(options).toMatchObject({ qos: 1, retain: false });
+  });
+
   it("aceita o ACK NFC após o prazo da solicitação somente se a ordem foi aceita a tempo", async () => {
     vi.setSystemTime(new Date("2026-11-23T12:01:09.120Z"));
     db.mqttNfcRequest.findUnique.mockResolvedValue({

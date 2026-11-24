@@ -10,7 +10,7 @@ export const formatDateTime = (iso: string | null) =>
 /** "2026-10-17" -> "17/10/2026" sem passar por Date (evita deslocar o dia pelo fuso). */
 export const formatDateOnly = (d: string) => d.split("-").reverse().join("/");
 
-export const locationLabel = (l?: Location | null) =>
+export const locationLabel = (l?: Omit<Location, "description"> & Partial<Pick<Location, "description">> | null) =>
   l ? [l.building, l.entrance, l.door, l.turnstile].filter(Boolean).join(" / ") : "—";
 
 export const ROLE_LABEL: Record<Role, string> = { ADMIN: "Administrador", RESIDENT: "Condômino", VISITOR: "Visitante" };

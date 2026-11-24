@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/widgets/app_logo.dart';
 import '../../core/api/api_client.dart';
 import '../../core/session/session_scope.dart';
 import '../../data/authorization.dart';
@@ -68,7 +69,7 @@ class _AuthorizationsPageState extends State<AuthorizationsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Minhas autorizacoes')),
+    appBar: AppBar(title: const BrandedTitle('Minhas autorizacoes')),
     body: RefreshIndicator(
       onRefresh: load,
       child: loading && items.isEmpty

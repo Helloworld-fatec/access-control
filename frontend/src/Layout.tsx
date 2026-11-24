@@ -4,6 +4,7 @@ import Logo from "./shared/Logo";
 
 const NAV = [
   { to: "/painel", label: "Painel" },
+  { to: "/visitas", label: "Dentro e saídas" },
   { to: "/usuarios", label: "Usuários" },
   { to: "/locais", label: "Locais" },
   { to: "/terminais", label: "Terminais" },

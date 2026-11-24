@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_logo.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/widgets/status_message.dart';
 import '../data/terminals_repository.dart';
@@ -94,7 +95,7 @@ class _TerminalFormScreenState extends State<TerminalFormScreen> {
       canPop: !_saving,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(
+          title: BrandedTitle(
             widget.terminalId == null ? 'Novo terminal' : 'Editar terminal',
           ),
         ),

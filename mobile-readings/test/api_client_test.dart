@@ -33,6 +33,58 @@ void main() {
     apiKey: 'ab12ef',
   );
 
+  test('testa o endereço candidato sem usar a chave ou alterar a configuração', () async {
+    final fake = _FakeHttpClient((request, attempt) async {
+      expect(request.method, 'GET');
+      expect(request.url.toString(), 'http://192.168.0.2:3333/api/health');
+      expect(request.headers['x-terminal-key'], isNull);
+      expect(request.followRedirects, isFalse);
+      return attempt == 1
+          ? http.Response('{"status":"ok"}', 200)
+          : http.Response('<html>OK</html>', 200);
+    });
+    final client = TerminalApiClient(config: testConfig, httpClient: fake);
+    await expectLater(
+      client.checkConnection('endereço inválido'),
+      throwsA(isA<TerminalApiException>()),
+    );
+    expect(fake.callCount, 0);
+    await client.checkConnection('192.168.0.2:3333');
+    await expectLater(
+      client.checkConnection('http://192.168.0.2:3333/api/'),
+      throwsA(isA<TerminalApiException>()),
+    );
+    expect(client.config, same(testConfig));
+  });
+
+  test('diferencia timeout de servidor inacessível', () async {
+    final fake = _FakeHttpClient((request, attempt) {
+      if (attempt == 1) throw http.ClientException('Offline');
+      return Completer<http.Response>().future;
+    });
+    final client = TerminalApiClient(
+      config: testConfig,
+      httpClient: fake,
+      requestTimeout: const Duration(milliseconds: 10),
+    );
+    await expectLater(
+      client.checkConnection('http://host.example'),
+      throwsA(isA<TerminalApiException>().having(
+        (error) => error.message,
+        'mensagem',
+        contains('alcançar'),
+      )),
+    );
+    await expectLater(
+      client.checkConnection('http://host.example'),
+      throwsA(isA<TerminalApiException>().having(
+        (error) => error.message,
+        'mensagem',
+        contains('demorou'),
+      )),
+    );
+  });
+
   test('identifies the terminal with the candidate configuration', () async {
     const id = '14825695-6cdb-4e40-a33e-94045475eabb';
     final candidate = testConfig.copyWith(

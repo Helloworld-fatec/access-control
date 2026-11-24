@@ -13,6 +13,7 @@ export const mqttRequest = mqttEvent.extend({ requestId: z.uuid() });
 export const accessWindowMs = 5_000;
 export const heartbeatWindowMs = 30_000;
 export const unlockDurationMs = 3_000;
+export const checkoutPokemonMethod = "CHECKOUT_POKEMON";
 export const doorOpeningMs = 5_120;
 export const doorAckWindowMs = 10_000;
 

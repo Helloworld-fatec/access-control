@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../core/widgets/app_logo.dart';
 import '../../app/routes.dart';
 import '../../core/session/session_scope.dart';
 import '../../core/theme/app_colors.dart';
@@ -38,7 +39,7 @@ class _HomePageState extends State<HomePage> {
     final name = session.user?['name'] as String?;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Início'),
+        title: const BrandedTitle('Início'),
         actions: [
           IconButton(
             tooltip: 'Sair',

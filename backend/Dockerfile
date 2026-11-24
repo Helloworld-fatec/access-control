@@ -13,6 +13,7 @@ RUN npm ci --include=dev
 COPY prisma ./prisma
 COPY prisma7.config.ts tsconfig.json ./
 COPY src ./src
+COPY pokemon-data ./pokemon-data
 
 RUN npm run db:generate \
     && mkdir -p /app/uploads \

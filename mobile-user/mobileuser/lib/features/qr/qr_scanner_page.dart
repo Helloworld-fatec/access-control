@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../core/widgets/app_logo.dart';
 import '../../core/api/api_client.dart';
 import '../../core/session/session_scope.dart';
 import '../../core/theme/app_colors.dart';
+import 'access_location.dart';
 import 'access_qr.dart';
 
 class QrScannerPage extends StatefulWidget {
@@ -22,6 +24,7 @@ class _QrScannerPageState extends State<QrScannerPage>
     formats: const [BarcodeFormat.qrCode],
   );
   bool _processing = false, _cameraGranted = false, _openingSettings = false;
+  bool _locating = false;
   String? _cameraError, _resultTitle, _resultMessage;
   bool? _granted;
 
@@ -55,7 +58,7 @@ class _QrScannerPageState extends State<QrScannerPage>
   }
 
   Future<void> _startScanner() async {
-    if (!_cameraGranted || _processing || !mounted) return;
+    if (!_cameraGranted || _processing || !mounted || _resultTitle != null) return;
     try {
       await _controller.start();
       if (mounted) setState(() => _cameraError = null);
@@ -71,7 +74,7 @@ class _QrScannerPageState extends State<QrScannerPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _prepareCamera();
+      if (!_processing && _resultTitle == null) _prepareCamera();
     } else {
       unawaited(_controller.stop());
     }
@@ -105,11 +108,19 @@ class _QrScannerPageState extends State<QrScannerPage>
     if (_processing) return;
     setState(() {
       _processing = true;
+      _locating = true;
     });
     final session = SessionScope.of(context);
-    await _controller.stop();
     try {
-      final response = await session.consumeQr(value);
+      await _controller.stop();
+      final position = await locateForQrAccess();
+      if (!mounted) return;
+      setState(() => _locating = false);
+      final response = await session.consumeQr(
+        value,
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
       final granted = response['result'] == 'GRANTED';
       if (!granted && response['result'] != 'DENIED') {
         throw const QrConsumeException(
@@ -123,6 +134,13 @@ class _QrScannerPageState extends State<QrScannerPage>
         _resultMessage = granted
             ? 'A autorização foi confirmada.'
             : _reason(response['reason'] as String?);
+      });
+    } on AccessLocationException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _resultTitle = 'Localização indisponível';
+        _resultMessage = e.message;
+        _granted = false;
       });
     } on QrConsumeException catch (e) {
       if (!mounted) return;
@@ -147,7 +165,12 @@ class _QrScannerPageState extends State<QrScannerPage>
     } finally {
       // O token não é guardado em estado, storage, logs ou no resultado da tela.
       value = '';
-      if (mounted) setState(() => _processing = false);
+      if (mounted) {
+        setState(() {
+          _processing = false;
+          _locating = false;
+        });
+      }
     }
   }
 
@@ -156,6 +179,8 @@ class _QrScannerPageState extends State<QrScannerPage>
     'AUTHORIZATION_CANCELED' => 'A autorização foi cancelada.',
     'OUTSIDE_PERIOD' => 'A autorização não está válida nesta data.',
     'OUTSIDE_SCHEDULE' => 'A autorização não está válida neste horário.',
+    'TOO_FAR' =>
+      'Aproxime-se do terminal. O acesso por QR exige estar a até 50 metros.',
     'USES_EXHAUSTED' => 'A autorização já usou todas as entradas disponíveis.',
     'EXPIRED_CREDENTIAL' =>
       'Este QR expirou. Leia o QR atualizado no terminal.',
@@ -198,7 +223,7 @@ class _QrScannerPageState extends State<QrScannerPage>
     final result = _resultTitle != null;
     return Scaffold(
       appBar: AppBar(
-        title: Text(result ? _resultTitle! : 'Ler QR Code'),
+        title: BrandedTitle(result ? _resultTitle! : 'Ler QR Code'),
         leading: IconButton(
           icon: const Icon(Icons.close),
           tooltip: 'Cancelar',
@@ -284,7 +309,9 @@ class _QrScannerPageState extends State<QrScannerPage>
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              _processing
+              _locating
+                  ? 'Obtendo localização…'
+                  : _processing
                   ? 'Validando acesso…'
                   : 'Aponte a câmera para o QR Code exibido no terminal.',
               style: const TextStyle(color: Colors.white),

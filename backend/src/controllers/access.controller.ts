@@ -15,6 +15,7 @@ import {
   matchFace,
 } from "../services/face-recognition.service.js";
 import { requestDoorUnlock } from "../services/door-unlock.service.js";
+import { registerEntryVisit } from "../services/visits.service.js";
 import {
   ACCESS_METHODS,
   ACCESS_RESULTS,
@@ -67,9 +68,11 @@ interface EvaluateAccessParams {
  * Valida usuário ativo, autorização para o local, janela de datas, janela de horários
  * e usos restantes (com incremento atômico), registrando sempre o evento em AccessLog.
  */
+type EntryAccessDb = Pick<Prisma.TransactionClient, "user" | "authorization" | "accesslog" | "visit">;
+
 async function evaluateUserAccess(
   params: EvaluateAccessParams,
-  db: Pick<Prisma.TransactionClient, "user" | "authorization" | "accesslog"> = prisma,
+  db: EntryAccessDb,
 ) {
   const { userId, terminalId, locationId, method, nfcUid, confidence, faceAttemptId, accessLogId } = params;
   const log = {
@@ -190,7 +193,7 @@ async function evaluateUserAccess(
       continue;
     }
 
-    await db.accesslog.create({
+    const accessLog = await db.accesslog.create({
       data: {
         userId: user.id,
         ...log,
@@ -199,6 +202,7 @@ async function evaluateUserAccess(
         reason: null,
       },
     });
+    await registerEntryVisit(db, { userId: user.id, locationId, terminalId, log: accessLog });
 
     return {
       granted: true,
@@ -235,7 +239,7 @@ export async function validateNfcAccess(req: Request, res: Response) {
     throw new AppError(404, "Terminal não encontrado", "TERMINAL_NOT_FOUND");
   }
 
-  const outcome = await evaluateNfcAccess(terminal, dto.uid, prisma);
+  const outcome = await prisma.$transaction((tx) => evaluateNfcAccess(terminal, dto.uid, tx));
 
   if (outcome.granted) {
     res.status(200).json({
@@ -258,7 +262,7 @@ export async function validateNfcAccess(req: Request, res: Response) {
 async function evaluateNfcAccess(
   terminal: { id: string; locationId: string },
   uid: string,
-  db: Pick<Prisma.TransactionClient, "nfctag" | "user" | "authorization" | "accesslog">,
+  db: EntryAccessDb & Pick<Prisma.TransactionClient, "nfctag">,
   accessLogId?: string,
 ) {
   const tag = await db.nfctag.findUnique({ where: { uid } });
@@ -379,13 +383,16 @@ export async function validateFaceAccess(req: Request, res: Response) {
     throw new AppError(404, "Terminal não encontrado", "TERMINAL_NOT_FOUND");
   }
 
-  const outcome = await evaluateUserAccess({
-    userId: (dto.userId === "demo-face-user" || dto.userId === "simulated-user") ? ((await prisma.authorization.findFirst({ where: { locationId: terminal.locationId, status: "ACTIVE" }, select: { userId: true } }))?.userId ?? dto.userId) : dto.userId,
+  const userId = (dto.userId === "demo-face-user" || dto.userId === "simulated-user")
+    ? ((await prisma.authorization.findFirst({ where: { locationId: terminal.locationId, status: "ACTIVE" }, select: { userId: true } }))?.userId ?? dto.userId)
+    : dto.userId;
+  const outcome = await prisma.$transaction((tx) => evaluateUserAccess({
+    userId,
     terminalId: terminal.id,
     locationId: terminal.locationId,
     method: ACCESS_METHODS.FACE,
     confidence: dto.confidence,
-  });
+  }, tx));
 
   sendFaceOutcome(res, outcome);
 }

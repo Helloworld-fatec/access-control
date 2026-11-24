@@ -14,13 +14,14 @@ const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   authorization: { findMany: vi.fn(), updateMany: vi.fn() },
   accesslog: { create: vi.fn() },
+  visit: { createMany: vi.fn() },
   $transaction: vi.fn(),
 }));
 vi.mock("../config/prisma.js", () => ({ prisma: db }));
 vi.mock("../services/door-unlock.service.js", () => ({ requestDoorUnlock: vi.fn() }));
 
 const api = request(app);
-const terminal = { id: "qr-terminal", locationId: "qr-location" };
+const terminal = { id: "qr-terminal", locationId: "qr-location", latitude: 0, longitude: 0 };
 const userId = "qr-user";
 const key = "ab12ef";
 const start = new Date("2026-11-21T15:00:00Z");
@@ -47,9 +48,10 @@ const nonces = new Map<string, Nonce>();
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 const issue = (credential = key) =>
   api.post("/api/terminals/me/qr").set("x-terminal-key", credential);
-const consume = (token: string) => api.post("/api/access/qr/consume")
+const consume = (token: string, position: object = { latitude: 0, longitude: 0 }) =>
+  api.post("/api/access/qr/consume")
   .set("Authorization", `Bearer ${jwt.sign({ role: "USER" }, env.JWT_SECRET, { subject: userId })}`)
-  .send({ token });
+  .send({ token, ...position });
 const advance = (seconds: number) => vi.setSystemTime(start.getTime() + seconds * 1000);
 
 beforeEach(() => {
@@ -75,7 +77,7 @@ beforeEach(() => {
   db.user.findUnique.mockResolvedValue({ id: userId, active: true });
   db.authorization.findMany.mockResolvedValue([authorization]);
   db.authorization.updateMany.mockResolvedValue({ count: 1 });
-  db.accesslog.create.mockResolvedValue({ id: "qr-log" });
+  db.accesslog.create.mockImplementation(async () => ({ id: "qr-log", createdAt: new Date() }));
 });
 
 afterEach(() => vi.useRealTimers());
@@ -124,6 +126,13 @@ describe("emissao e consumo oficial de QR", () => {
     expect(replay.body.reason).toBe("REPLAYED_CREDENTIAL");
     expect(db.authorization.updateMany).toHaveBeenCalledTimes(1);
     expect(db.accesslog.create).toHaveBeenCalledTimes(2);
+    expect(db.visit.createMany).toHaveBeenCalledExactlyOnceWith({
+      data: {
+        userId, locationId: terminal.locationId, entryTerminalId: terminal.id,
+        entryLogId: "qr-log", enteredAt: new Date(),
+      },
+      skipDuplicates: true,
+    });
     expect(requestDoorUnlock).toHaveBeenCalledExactlyOnceWith({
       terminalId: terminal.id, accessLogId: "qr-log", userId, method: "QR",
     });
@@ -140,6 +149,45 @@ describe("emissao e consumo oficial de QR", () => {
       data: expect.objectContaining({ terminalId: terminal.id, userId, result: "DENIED" }),
     });
     expect(db.authorization.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { distance: 49, status: 200, result: "GRANTED" },
+    { distance: 50, status: 200, result: "GRANTED" },
+    { distance: 51, status: 403, result: "DENIED" },
+  ])("aplica o limite de distância para $distance m", async ({ distance, status, result }) => {
+    const { token } = await issueQrToken(terminal.id);
+    const longitude = distance / 6_371_000 * 180 / Math.PI;
+    const response = await consume(token, { latitude: 0, longitude });
+    expect(response.status).toBe(status);
+    expect(response.body.result).toBe(result);
+    if (result === "DENIED") {
+      expect(response.body.reason).toBe("TOO_FAR");
+      expect(db.accesslog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ terminalId: terminal.id, userId, result, reason: "TOO_FAR" }),
+      });
+      expect(db.authorization.updateMany).not.toHaveBeenCalled();
+      expect(db.visit.createMany).not.toHaveBeenCalled();
+      expect(requestDoorUnlock).not.toHaveBeenCalled();
+    } else {
+      expect(db.authorization.updateMany).toHaveBeenCalledTimes(1);
+      expect(requestDoorUnlock).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it.each([
+    {},
+    { latitude: 0 },
+    { latitude: 91, longitude: 0 },
+    { latitude: 0, longitude: -181 },
+    { latitude: "0", longitude: 0 },
+  ])("rejeita coordenadas ausentes ou inválidas (%j)", async (position) => {
+    const { token } = await issueQrToken(terminal.id);
+    const response = await consume(token, position);
+    expect(response.status).toBe(400);
+    expect(db.qrnonce.updateMany).not.toHaveBeenCalled();
+    expect(db.authorization.updateMany).not.toHaveBeenCalled();
+    expect(requestDoorUnlock).not.toHaveBeenCalled();
   });
 
   it("recusa um token ao atingir vinte segundos de idade", async () => {

@@ -11,6 +11,8 @@ const db = vi.hoisted(() => ({
     findUnique: vi.fn(), update: vi.fn(), delete: vi.fn(),
   },
   accesslog: { findMany: vi.fn(), count: vi.fn() },
+  visit: { findMany: vi.fn(), count: vi.fn() },
+  userPokemon: { findMany: vi.fn(), count: vi.fn() },
   terminal: { count: vi.fn() },
   authorization: { count: vi.fn(), findMany: vi.fn() },
   $transaction: vi.fn(),
@@ -32,6 +34,8 @@ const endpoints = [
   ["PUT /locations/:id", () => api.put(`${path}/${id}`).send(data), 200],
   ["DELETE /locations/:id", () => api.delete(`${path}/${id}`), 204],
   ["GET /access-logs", () => api.get("/api/access-logs"), 200],
+  ["GET /visits", () => api.get("/api/visits"), 200],
+  ["GET /users/:id/pokemon", () => api.get(`/api/users/${id}/pokemon`), 200],
 ] as const;
 
 function bearer(role = "ADMIN", expiresIn = 60) {
@@ -39,7 +43,7 @@ function bearer(role = "ADMIN", expiresIn = 60) {
 }
 
 function expectNoBusinessOperations() {
-  for (const model of [db.location, db.accesslog, db.terminal, db.authorization]) {
+  for (const model of [db.location, db.accesslog, db.visit, db.userPokemon, db.terminal, db.authorization]) {
     for (const operation of Object.values(model)) expect(operation).not.toHaveBeenCalled();
   }
   expect(db.$transaction).not.toHaveBeenCalled();
@@ -59,6 +63,51 @@ beforeEach(() => {
   db.authorization.findMany.mockResolvedValue([]);
   db.accesslog.findMany.mockResolvedValue([]);
   db.accesslog.count.mockResolvedValue(0);
+  db.visit.findMany.mockResolvedValue([]);
+  db.visit.count.mockResolvedValue(0);
+  db.userPokemon.findMany.mockResolvedValue([]);
+  db.userPokemon.count.mockResolvedValue(0);
+});
+
+it("consulta por padrão visitas abertas com usuário cadastrado", async () => {
+  const response = await api.get("/api/visits").set("Authorization", bearer());
+  expect(response.status).toBe(200);
+  expect(db.visit.findMany).toHaveBeenCalledWith(expect.objectContaining({
+    where: { exitedAt: null, userId: { not: null } },
+    orderBy: [{ enteredAt: "desc" }, { id: "desc" }],
+  }));
+});
+
+it("lista o Pokémon persistido do usuário com os dados do catálogo", async () => {
+  db.userPokemon.findMany.mockResolvedValue([{ visitId: id, pokemonId: "001", claimedAt: new Date() }]);
+  db.userPokemon.count.mockResolvedValue(1);
+  const response = await api.get(`/api/users/${id}/pokemon`).set("Authorization", bearer());
+  expect(response.status).toBe(200);
+  expect(db.userPokemon.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: id } }));
+  expect(response.body).toMatchObject({ total: 1, data: [{ visitId: id, pokemon: { id: "001", nome: "Bulbasaur" } }] });
+});
+
+it("filtra visitas encerradas, aplica paginação e expõe o estado da entrada", async () => {
+  const visit = {
+    id, user: { id, name: "Maria" }, checkoutType: "SIMPLE",
+    entryLog: { id, method: "NFC", commandAcked: null },
+  };
+  db.visit.findMany.mockResolvedValue([visit]);
+  db.visit.count.mockResolvedValue(6);
+  const response = await api.get("/api/visits")
+    .query({ status: "EXITED", locationId: id, search: " Maria ", page: 2, pageSize: 5 })
+    .set("Authorization", bearer());
+  expect(response.status).toBe(200);
+  const where = {
+    exitedAt: { not: null },
+    locationId: id,
+    user: { name: { contains: "Maria", mode: "insensitive" } },
+  };
+  expect(db.visit.findMany).toHaveBeenCalledWith(expect.objectContaining({
+    where, skip: 5, take: 5, orderBy: [{ exitedAt: "desc" }, { id: "desc" }],
+  }));
+  expect(db.visit.count).toHaveBeenCalledWith({ where });
+  expect(response.body).toMatchObject({ data: [{ ...visit, status: "EXITED" }], total: 6 });
 });
 
 describe.each(endpoints)("%s exige administrador", (_label, send, successStatus) => {

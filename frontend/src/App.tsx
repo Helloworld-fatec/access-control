@@ -10,6 +10,8 @@ import TerminalsPage from "./features/locations/TerminalsPage";
 import AuthorizationsPage from "./features/authorizations/AuthorizationsPage";
 import AuthorizationDetailPage from "./features/authorizations/AuthorizationDetailPage";
 import AccessLogsPage from "./features/access-logs/AccessLogsPage";
+import VisitsPage from "./features/visits/VisitsPage";
+import PokemonDetailsPage from "./features/pokemon/PokemonDetailsPage";
 
 // O painel traz o Recharts (pesado): só é baixado quando a tela é aberta.
 const DashboardPage = lazy(() => import("./features/dashboard/DashboardPage"));
@@ -24,12 +26,14 @@ export default function App() {
           <Route path="/usuarios" element={<UsersPage />} />
           <Route path="/usuarios/novo" element={<UserFormPage />} />
           <Route path="/usuarios/:id" element={<UserDetailPage />} />
+          <Route path="/usuarios/:id/pokemon/:pokemonId" element={<PokemonDetailsPage />} />
           <Route path="/usuarios/:id/editar" element={<UserFormPage />} />
           <Route path="/locais" element={<LocationsPage />} />
           <Route path="/terminais" element={<TerminalsPage />} />
           <Route path="/autorizacoes" element={<AuthorizationsPage />} />
           <Route path="/autorizacoes/:id" element={<AuthorizationDetailPage />} />
           <Route path="/historico" element={<AccessLogsPage />} />
+          <Route path="/visitas" element={<VisitsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/painel" replace />} />
       </Routes>

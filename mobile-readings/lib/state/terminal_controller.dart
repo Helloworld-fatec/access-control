@@ -74,6 +74,9 @@ class TerminalController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> checkConnection(String address) =>
+      _apiClient.checkConnection(address);
+
   Future<void> configureTerminal(String address, String key) async {
     final normalized = TerminalConfig.normalizeServerAddress(address);
     if (normalized == null || TerminalConfig.validateTerminalKey(key) != null) {

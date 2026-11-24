@@ -53,6 +53,42 @@ class TerminalApiClient {
     return headers;
   }
 
+  Future<void> checkConnection(String address) async {
+    final baseUrl = TerminalConfig.normalizeServerAddress(address);
+    if (baseUrl == null) {
+      throw const TerminalApiException(
+        'Informe uma URL HTTP/HTTPS ou IP:porta válido.',
+      );
+    }
+    final request = http.Request('GET', Uri.parse('$baseUrl/health'))
+      ..followRedirects = false
+      ..headers['Accept'] = 'application/json';
+    final http.Response response;
+    try {
+      response = await _httpClient
+          .send(request)
+          .then(http.Response.fromStream)
+          .timeout(requestTimeout);
+    } on TimeoutException {
+      throw const TerminalApiException('O servidor demorou para responder.');
+    } on Exception {
+      throw const TerminalApiException(
+        'Não foi possível alcançar o servidor. Confira o endereço e a rede.',
+      );
+    }
+    if (response.statusCode == 200) {
+      try {
+        final body = jsonDecode(response.body);
+        if (body is Map && body['status'] == 'ok') return;
+      } on FormatException {
+        // Uma resposta incompatível não confirma a saúde da API.
+      }
+    }
+    throw const TerminalApiException(
+      'O endereço respondeu, mas o serviço de saúde da API não retornou OK.',
+    );
+  }
+
   Future<String> identifyTerminal(TerminalConfig candidate) async {
     final request = http.Request(
       'GET',

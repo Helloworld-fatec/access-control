@@ -1,7 +1,7 @@
 // Modo demonstração (npm run dev:mock): responde a /api/* com dados em memória,
 // sem backend. Só é carregado quando VITE_MOCK=true; não vai para a build normal.
 import { METHOD_LABEL, REASON_LABEL, todayInSaoPaulo } from "./format";
-import type { AccessLog, Location, NfcEnrollment, Role, User } from "./types";
+import type { AccessLog, Location, NfcEnrollment, Pokemon, Role, User, Visit } from "./types";
 
 interface MUser extends User {
   face: boolean;
@@ -45,6 +45,26 @@ const terminals: MTerminal[] = [
   { id: "tm1", name: "Portaria A", locationId: "l1", latitude: -23.5505, longitude: -46.6333, online: true, lastPresenceAt: iso(1), lastSeenAt: iso(1) },
   { id: "tm2", name: "Sala B", locationId: "l2", latitude: -23.5512, longitude: -46.6341, online: false, lastPresenceAt: iso(600), lastSeenAt: iso(600) },
 ];
+const demoPokemon: Pokemon = {
+  id: "001", numero: 1, nome: "Bulbasaur", altura_m: 0.7, peso_kg: 6.9,
+  stats: { hp: 45, attack: 49, defense: 49, "special-attack": 65, "special-defense": 65, speed: 45 },
+  imagem_url: "",
+};
+const visits: Visit[] = users.slice(1, 3).map((user, i) => ({
+  id: `visit-${i + 1}`,
+  status: "INSIDE",
+  user: { id: user.id, name: user.name },
+  location: locations[0]!,
+  entryTerminal: { id: terminals[0]!.id, name: terminals[0]!.name },
+  entryLog: { id: `demo-entry-${i + 1}`, method: "QR", commandAcked: true },
+  enteredAt: iso(10 + i),
+  exitedAt: null,
+  checkoutType: null,
+  checkedOutBy: null,
+  pokemon: null,
+  doorCommand: null,
+}));
+const visitDraws = new Map<string, string>();
 const auths: MAuth[] = [
   { id: "a1", userId: "u2", locationId: "l1", startDate: day(-30), endDate: day(60), startTime: "06:00", endTime: "23:00", maxUses: null, usedCount: 12, canceled: false },
   { id: "a2", userId: "u3", locationId: "l1", startDate: day(-5), endDate: day(10), startTime: "08:00", endTime: "18:00", maxUses: 20, usedCount: 7, canceled: false },
@@ -164,6 +184,43 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
     return ok({ accessToken: "mock-token", tokenType: "Bearer", expiresIn: "1h", user: publicUser(u) });
   }
 
+  if (res === "pokemon" && method === "GET" && rid === demoPokemon.id && !sub) return ok(demoPokemon);
+  if (res === "visits") {
+    if (method === "GET" && !rid) {
+      const search = (q.get("search") ?? "").trim().toLowerCase();
+      const status = q.get("status") ?? "INSIDE";
+      return ok(page(visits.filter((visit) =>
+        visit.status === status && (!q.get("locationId") || visit.location.id === q.get("locationId")) &&
+        (!search || visit.user?.name.toLowerCase().includes(search))), q));
+    }
+    const visit = find(visits, rid ?? "", "Visita");
+    if (method === "GET" && !sub) return ok(visit);
+    if (method === "POST" && sub === "pokemon" && sid === "draw") {
+      if (visit.exitedAt) throw new HttpErr(409, "VISIT_NOT_OPEN", "A visita não está aberta para sorteio.");
+      const drawnAt = visitDraws.get(visit.id) ?? new Date().toISOString();
+      visitDraws.set(visit.id, drawnAt);
+      return ok({ visitId: visit.id, drawnAt, pokemon: demoPokemon });
+    }
+    if (method === "POST" && (sub === "checkout" || (sub === "pokemon" && sid === "claim"))) {
+      const type = sub === "checkout" ? "SIMPLE" : "POKEMON";
+      if (visit.exitedAt) {
+        if (visit.checkoutType === type) return ok(visit);
+        throw new HttpErr(409, "VISIT_ALREADY_CLOSED", "A visita já foi encerrada.");
+      }
+      if (type === "POKEMON" && !visitDraws.has(visit.id)) {
+        throw new HttpErr(409, "POKEMON_DRAW_REQUIRED", "Inicie o sorteio antes de confirmar.");
+      }
+      visit.exitedAt = new Date().toISOString();
+      visit.checkoutType = type;
+      visit.status = "EXITED";
+      if (type === "POKEMON") {
+        visit.pokemon = { pokemonId: demoPokemon.id, claimedAt: visit.exitedAt };
+        visit.doorCommand = { id: id(), status: "CONFIRMED" };
+      }
+      return ok(visit);
+    }
+  }
+
   if (res === "users") {
     if (!rid) {
       if (method === "GET") {
@@ -181,6 +238,11 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
       return ok(publicUser(u), 201);
     }
     const u = find(users, rid, "Usuário");
+    if (sub === "pokemon" && method === "GET") {
+      return ok(page(visits.flatMap((visit) => visit.user?.id === u.id && visit.pokemon
+        ? [{ visitId: visit.id, claimedAt: visit.pokemon.claimedAt, pokemon: demoPokemon }]
+        : []), q));
+    }
     if (!sub) {
       if (method === "GET") return ok({ ...publicUser(u), hasFace: u.face, hasPhoto: false,
         nfcTags: u.tags.map((t) => ({ ...t, userId: u.id })),

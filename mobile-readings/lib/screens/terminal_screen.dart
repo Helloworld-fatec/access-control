@@ -5,6 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../widgets/app_logo.dart';
 import '../models/face_capture.dart';
 import '../services/face_capture_file_web.dart'
     if (dart.library.io) '../services/face_capture_file_io.dart';
@@ -82,7 +83,9 @@ class _TerminalScreenState extends State<TerminalScreen>
           },
           child: Scaffold(
             appBar: AppBar(
-              title: Text(title),
+              title: state == TerminalState.idle
+                  ? Text(title)
+                  : BrandedTitle(title),
               leading: back == null ? null : BackButton(onPressed: back),
               actions: [
                 if (state == TerminalState.idle && _controller.initialized)
@@ -120,11 +123,7 @@ class _TerminalScreenState extends State<TerminalScreen>
       case TerminalState.idle:
         final configured = _controller.config.isConfigured;
         return [
-          Icon(
-            Icons.badge_outlined,
-            size: 72,
-            color: Theme.of(context).colorScheme.primary,
-          ),
+          const Center(child: AppLogo()),
           const SizedBox(height: 24),
           FilledButton(
             key: const Key('btn_wake_terminal'),

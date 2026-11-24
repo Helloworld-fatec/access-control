@@ -37,6 +37,9 @@ model user {
   createdAuths   authorization[] @relation("authorization_created_by")
   canceledAuths  authorization[] @relation("authorization_canceled_by")
   accessLogs     accesslog[]
+  visits         visit[] @relation("visit_user")
+  closedVisits   visit[] @relation("visit_checkout_actor")
+  pokemonCollection userPokemon[]
 
   @@index([role, active])
   @@map("users")
@@ -125,6 +128,7 @@ model location {
 
   terminals      terminal[]
   authorizations authorization[]
+  visits         visit[]
 
   @@unique([building, entrance, door, turnstile], map: "locations_building_entrance_door_turnstile_key")
   @@map("locations")
@@ -151,6 +155,7 @@ model terminal {
   qrNonces   qrnonce[]
   nfcEnrollments nfcEnrollment[]
   mqttDoorCommands mqttDoorCommand[]
+  visits           visit[]
 
   @@index([locationId], map: "terminals_location_id_idx")
   @@map("terminals")
@@ -208,6 +213,7 @@ model accesslog {
   terminal      terminal       @relation(fields: [terminalId], references: [id], map: "access_logs_terminal_id_fkey")
   authorization authorization? @relation(fields: [authorizationId], references: [id], onDelete: SetNull, map: "access_logs_authorization_id_fkey")
   mqttDoorCommand mqttDoorCommand?
+  entryVisit      visit?
 
   @@index([createdAt], map: "access_logs_created_at_idx")
   @@index([userId, createdAt], map: "access_logs_user_created_at_idx")
@@ -216,16 +222,74 @@ model accesslog {
   @@map("access_logs")
 }
 
+enum VisitCheckoutType {
+  SIMPLE
+  POKEMON
+}
+
+model visit {
+  id              String             @id @default(uuid()) @db.Uuid
+  userId          String?
+  locationId      String
+  entryTerminalId String
+  entryLogId      String             @unique
+  enteredAt       DateTime
+  exitedAt        DateTime?
+  checkoutType    VisitCheckoutType?
+  checkedOutById  String?
+
+  user          user?     @relation("visit_user", fields: [userId], references: [id], onDelete: SetNull)
+  checkedOutBy  user?     @relation("visit_checkout_actor", fields: [checkedOutById], references: [id], onDelete: SetNull)
+  location      location  @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  entryTerminal terminal  @relation(fields: [entryTerminalId], references: [id], onDelete: Restrict)
+  entryLog      accesslog @relation(fields: [entryLogId], references: [id], onDelete: Restrict)
+  pokemonDraw   visitPokemonDraw?
+  checkoutDoorCommand mqttDoorCommand?
+
+  // A migration SQL garante uma única visita aberta por usuário e local.
+  @@index([exitedAt, enteredAt])
+  @@index([locationId, exitedAt, enteredAt])
+  @@map("visits")
+}
+
+model visitPokemonDraw {
+  visitId   String   @id @db.Uuid
+  pokemonId String   @db.VarChar(3)
+  drawnAt   DateTime @default(now())
+
+  visit      visit        @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  collection userPokemon?
+
+  @@unique([visitId, pokemonId])
+  @@map("visit_pokemon_draws")
+}
+
+model userPokemon {
+  visitId   String   @id @db.Uuid
+  userId    String
+  pokemonId String   @db.VarChar(3)
+  claimedAt DateTime @default(now())
+
+  draw visitPokemonDraw @relation(fields: [visitId, pokemonId], references: [visitId, pokemonId], onDelete: Cascade)
+  user user             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([visitId, pokemonId])
+  @@index([userId, claimedAt])
+  @@map("user_pokemon")
+}
+
 model mqttDoorCommand {
   id          String   @id @default(uuid()) @db.Uuid
-  accessLogId String   @unique
+  accessLogId String?  @unique
+  checkoutVisitId String? @unique @db.Uuid
   terminalId  String
   issuedAt    DateTime
   expiresAt   DateTime
   ackResult   String?
   ackAt       DateTime?
 
-  accessLog accesslog @relation(fields: [accessLogId], references: [id], onDelete: Cascade)
+  accessLog accesslog? @relation(fields: [accessLogId], references: [id], onDelete: Cascade)
+  checkoutVisit visit? @relation(fields: [checkoutVisitId], references: [id], onDelete: Cascade)
   terminal  terminal  @relation(fields: [terminalId], references: [id], onDelete: Restrict)
 
   @@index([ackResult, expiresAt])

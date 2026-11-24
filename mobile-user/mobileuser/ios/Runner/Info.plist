@@ -68,6 +68,8 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Camera access is needed to scan the terminal access QR code.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>A localização confirma que você está a até 50 metros do terminal ao ler um QR de acesso.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict><key>NSAllowsArbitraryLoads</key><true/><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict>

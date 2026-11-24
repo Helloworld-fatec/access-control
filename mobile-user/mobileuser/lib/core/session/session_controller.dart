@@ -41,6 +41,9 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> checkConnection(String url) =>
+      ApiClient(ApiClient.normalize(url), null, _http).checkConnection();
+
   Future<void> login(String url, String email, String password) async {
     final base = ApiClient.normalize(url);
     final r = await ApiClient(base, null, _http).login(email.trim(), password);
@@ -69,9 +72,13 @@ class SessionController extends ChangeNotifier {
 
   Future<Uint8List?> loadProfilePhoto() => _api.profilePhoto();
 
-  Future<Map<String, dynamic>> consumeQr(String value) async {
+  Future<Map<String, dynamic>> consumeQr(
+    String value, {
+    required double latitude,
+    required double longitude,
+  }) async {
     try {
-      return await _api.consumeQr(value);
+      return await _api.consumeQr(value, latitude: latitude, longitude: longitude);
     } on QrConsumeException catch (e) {
       if (e.statusCode == 401 && e.code != 'INVALID_CREDENTIAL') await logout();
       rethrow;

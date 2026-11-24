@@ -8,6 +8,8 @@ import { accessLogRoutes } from "./access-log.routes.js";
 import { authRoutes } from "./auth.routes.js";
 import { accessRoutes } from "./access.routes.js";
 import { dashboardRoutes } from "./dashboard.routes.js";
+import { visitRoutes } from "./visit.routes.js";
+import { pokemonRoutes } from "./pokemon.routes.js";
 import { mqttStatus } from "../services/mqtt.service.js";
 
 export const routes = Router();
@@ -17,7 +19,7 @@ const apiInfo = {
   status: "online",
   message: "API do Sistema Integrado de Controle de Acesso funcionando.",
   health: "api/health",
-  endpoints: ["api/login", "api/users", "api/locations", "api/terminals", "api/authorizations", "api/access-logs"],
+  endpoints: ["api/login", "api/users", "api/locations", "api/terminals", "api/authorizations", "api/access-logs", "api/visits"],
 };
 
 
@@ -312,5 +314,7 @@ routes.use("/locations", locationRoutes);
 routes.use("/terminals", terminalRoutes);
 routes.use("/authorizations", authorizationRoutes);
 routes.use("/access-logs", accessLogRoutes);
+routes.use("/visits", visitRoutes);
+routes.use("/pokemon", pokemonRoutes);
 routes.use("/dashboard", dashboardRoutes);
 routes.use("/access", accessRoutes);

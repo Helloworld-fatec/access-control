@@ -41,7 +41,7 @@ const decision = mqttEnvelope.extend({
   unlockDurationMs: z.number().int().min(0).max(unlockDurationMs),
 });
 const command = mqttRequest.extend({
-  accessLogId: z.uuid(), method: z.enum(["QR", "FACE"]), expiresAt: expiry,
+  accessLogId: z.uuid(), method: z.enum(["QR", "FACE", "CHECKOUT_POKEMON"]), expiresAt: expiry,
   unlockDurationMs: z.number().int().positive().max(unlockDurationMs),
 });
 const enrollment = mqttRequest.extend({ credentialHex: code, expectedUid: z.string().optional(), expiresAt: expiry });

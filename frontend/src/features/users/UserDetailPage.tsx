@@ -6,6 +6,7 @@ import type { Authorization, Paginated, UserDetail } from "../../shared/types";
 import { formatDateOnly, formatDateTime, locationLabel, maskDocument, normalizeUid, ROLE_LABEL, STATUS_LABEL } from "../../shared/format";
 import { useToast } from "../../shared/toast";
 import { Badge, ConfirmDialog, errorMessage, PageHeader, QueryState } from "../../shared/ui";
+import UserPokemonCollection from "../pokemon/UserPokemonCollection";
 
 type Confirm = { kind: "status" } | { kind: "tag"; tagId: string; uid: string } | { kind: "face" } | null;
 
@@ -103,6 +104,8 @@ export default function UserDetailPage() {
                 <div><dt>Cadastrado em</dt><dd>{formatDateTime(u.createdAt)}</dd></div>
               </dl>
             </section>
+
+            <UserPokemonCollection key={u.id} userId={u.id} />
 
             <section className="panel">
               <h2>Tags NFC</h2>

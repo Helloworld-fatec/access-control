@@ -10,6 +10,7 @@ import 'package:http/testing.dart';
 import 'package:mobileuser/app/app.dart';
 import 'package:mobileuser/core/session/session_controller.dart';
 import 'package:mobileuser/core/session/session_scope.dart';
+import 'package:mobileuser/features/auth/login_page.dart';
 import 'package:mobileuser/features/home/home_page.dart';
 
 void main() {
@@ -21,6 +22,49 @@ void main() {
 
     expect(find.text('Controle de Acesso'), findsOneWidget);
     expect(find.text('ENTRAR'), findsOneWidget);
+  });
+
+  testWidgets('testa o endereço digitado sem iniciar sessão', (tester) async {
+    final calls = <Uri>[];
+    final response = Completer<http.Response>();
+    final session = SessionController(
+      client: MockClient((request) {
+        expect(request.method, 'GET');
+        expect(request.headers['authorization'], isNull);
+        calls.add(request.url);
+        return response.future;
+      }),
+    );
+    addTearDown(session.dispose);
+    await tester.pumpWidget(
+      SessionScope(
+        session: session,
+        child: const MaterialApp(home: LoginPage()),
+      ),
+    );
+    final address = find.byType(TextField).first;
+    final check = find.text('Testar conexão');
+    await tester.tap(check);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Informe uma URL válida'), findsOneWidget);
+    expect(calls, isEmpty);
+
+    await tester.enterText(address, 'https://servidor.example/api/');
+    await tester.tap(check);
+    await tester.pump();
+    expect(find.text('Testando...'), findsOneWidget);
+    response.complete(http.Response('{"status":"ok"}', 200));
+    await tester.pumpAndSettle();
+
+    expect(calls.map((url) => url.toString()), [
+      'https://servidor.example/api/health',
+    ]);
+    expect(find.text('Conexão com o servidor OK.'), findsOneWidget);
+    expect(session.authenticated, isFalse);
+    expect(session.backendUrl, isNull);
+    await tester.enterText(address, 'https://outro.example');
+    await tester.pump();
+    expect(find.text('Conexão com o servidor OK.'), findsNothing);
   });
 
   testWidgets('carrega a própria foto e limpa a imagem ao trocar de sessão', (

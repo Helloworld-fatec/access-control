@@ -8,7 +8,7 @@ import { recordEnrollmentAck } from "./nfc-enrollment.service.js";
 import { recordDoorCommandAck } from "./door-unlock.service.js";
 import { issueOledQr } from "./oled-qr.service.js";
 import {
-  accessWindowMs, decodeMqttJson, doorAck, doorAckTiming, heartbeatWindowMs, mqttEvent, mqttPrefix, mqttRequest, unlockDurationMs,
+  accessWindowMs, checkoutPokemonMethod, decodeMqttJson, doorAck, doorAckTiming, heartbeatWindowMs, mqttEvent, mqttPrefix, mqttRequest, unlockDurationMs,
 } from "./mqtt-messages.js";
 
 let client: MqttClient | undefined;
@@ -113,13 +113,17 @@ async function sendPendingDoorCommands(connection: MqttClient, terminalIds: stri
   for (const command of pending) {
     const remainingMs = command.expiresAt.getTime() - Date.now();
     if (remainingMs <= 0 || !connection.connected) continue;
+    // Para checkout, os campos de correlação do protocolo transportam o UUID da visita.
+    const requestId = command.checkoutVisitId ?? command.accessLogId;
+    const method = command.checkoutVisitId ? checkoutPokemonMethod : command.accessLog?.method;
+    if (!requestId || !method) continue;
     await connection.publishAsync(`${mqttPrefix(command.terminalId)}/door/command`, JSON.stringify({
       schemaVersion: 1,
       terminalId: command.terminalId,
       eventId: command.id,
-      requestId: command.accessLogId,
-      accessLogId: command.accessLogId,
-      method: command.accessLog.method,
+      requestId,
+      accessLogId: requestId,
+      method,
       unlockDurationMs,
       occurredAt: command.issuedAt.toISOString(),
       expiresAt: command.expiresAt.toISOString(),
