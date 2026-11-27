@@ -15,6 +15,7 @@ class RetryInterceptor extends Interceptor {
   }) : delay = delay ?? defaultDelay;
 
   static const String retryingKey = 'isRetrying';
+  static const String skipRetryKey = 'skipRetry';
   static const Set<String> _idempotent = {
     'GET',
     'HEAD',
@@ -31,9 +32,14 @@ class RetryInterceptor extends Interceptor {
       Duration(milliseconds: 500 * (1 << (attempt - 1)));
 
   @override
-  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
     final options = err.requestOptions;
-    if (options.extra[retryingKey] == true || !_isRetryable(err)) {
+    if (options.extra[skipRetryKey] == true ||
+        options.extra[retryingKey] == true ||
+        !_isRetryable(err)) {
       handler.next(err);
       return;
     }
@@ -54,8 +60,9 @@ class RetryInterceptor extends Interceptor {
   }
 
   bool _isRetryable(DioException err) {
-    final idempotent =
-        _idempotent.contains(err.requestOptions.method.toUpperCase());
+    final idempotent = _idempotent.contains(
+      err.requestOptions.method.toUpperCase(),
+    );
     switch (err.type) {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.connectionError:

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, ApiError } from "../../shared/api";
+import { api } from "../../shared/api";
 import type { DashboardSummary, HourBucket, Method } from "../../shared/types";
 import { METHOD_LABEL, REASON_LABEL, todayInSaoPaulo } from "../../shared/format";
 import { PageHeader, QueryState } from "../../shared/ui";
@@ -10,14 +10,6 @@ import TerminalMonitor from "./TerminalMonitor";
 
 const POLL_MS = 5000;
 const pct = (n: number) => `${(n * 100).toFixed(1).replace(".", ",")}%`;
-
-/** Enquanto o backend não tem /dashboard/*, explica o que está faltando em vez de mostrar um erro genérico. */
-function dashboardError(e: unknown): unknown {
-  if (e instanceof ApiError && e.status === 404) {
-    return new Error("Este indicador ainda não existe no backend. Para ver dados de exemplo, rode o front com: npm run dev:mock");
-  }
-  return e;
-}
 
 function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
   return (
@@ -79,7 +71,7 @@ export default function DashboardPage() {
 
       <section aria-labelledby="h-resumo" className="block">
         <h2 id="h-resumo">Resumo do dia</h2>
-        <QueryState isLoading={summary.isLoading} error={dashboardError(summary.error)} empty={false} emptyText="" onRetry={() => summary.refetch()}>
+        <QueryState isLoading={summary.isLoading} error={summary.error} empty={false} emptyText="" onRetry={() => summary.refetch()}>
           {s && (
             <>
               <div className="stats">
@@ -114,7 +106,7 @@ export default function DashboardPage() {
       <section aria-labelledby="h-hora" className="block">
         <h2 id="h-hora">Acessos por hora</h2>
         <div className="panel">
-          <QueryState isLoading={hours.isLoading} error={dashboardError(hours.error)} empty={false} emptyText="" onRetry={() => hours.refetch()}>
+          <QueryState isLoading={hours.isLoading} error={hours.error} empty={false} emptyText="" onRetry={() => hours.refetch()}>
             {hours.data && <HoursChart data={hours.data} />}
           </QueryState>
         </div>

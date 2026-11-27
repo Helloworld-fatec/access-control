@@ -1,0 +1,32 @@
+{
+  "id": "150",
+  "numero": 150,
+  "nome": "Mewtwo",
+  "nome_en": "mewtwo",
+  "categoria": "Genetic Pokémon",
+  "descricao": "It was created by a scientist after years of horrific gene splicing and DNA engineering experiments.",
+  "tipos": [
+    "Psíquico"
+  ],
+  "altura_m": 2.0,
+  "peso_kg": 122.0,
+  "habilidades": [
+    {
+      "nome": "Pressure",
+      "oculta": false
+    },
+    {
+      "nome": "Unnerve",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 106,
+    "attack": 110,
+    "defense": 90,
+    "special-attack": 154,
+    "special-defense": 90,
+    "speed": 130
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/150.png"
+}

@@ -37,7 +37,7 @@ botão **Reativar**. O administrador não pode desativar a própria conta.
 | Assunto | O que foi feito | Por quê |
 |---|---|---|
 | E-mail é obrigatório | O formulário exige e-mail; telefone é opcional | O backend exige e-mail (`createUserSchema`) e ele é o "usuário" do login. O backlog dizia "e-mail ou telefone" |
-| "Usuário e senha" | O usuário de login é o próprio e-mail | `POST /auth/login` usa e-mail e senha |
+| "Usuário e senha" | O usuário de login é o próprio e-mail | `POST /login` usa e-mail e senha |
 | Tag/rosto na lista | App pronto; indicadores só aparecem se a API enviar | A listagem do backend não devolve esses dados (ver `docs/backend-lista-usuarios.md`) |
 | Apagar documento/telefone | O app avisa que não é possível | O backend ignora campo opcional em branco no `PUT` |
 | Erros por campo | Erros 400 aparecem sob o campo; somem ao editá-lo | `details: [{path, message}]` |

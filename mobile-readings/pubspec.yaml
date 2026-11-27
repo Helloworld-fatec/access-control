@@ -10,13 +10,12 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  http: ^1.2.2
+  http: ^1.6.0
   shared_preferences: ^2.3.2
   flutter_secure_storage: ^9.2.2
-  mqtt_client: ^10.5.1
-  nfc_manager: ^3.5.0
   qr_flutter: ^4.1.0
   wakelock_plus: ^1.2.8
+  camera: ^0.11.0+2
 
 dev_dependencies:
   flutter_test:
@@ -25,3 +24,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/branding/logo-ac.jpg

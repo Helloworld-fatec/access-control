@@ -1,0 +1,36 @@
+{
+  "id": "096",
+  "numero": 96,
+  "nome": "Drowzee",
+  "nome_en": "drowzee",
+  "categoria": "Hypnosis Pokémon",
+  "descricao": "Puts enemies to sleep then eats their dreams. Occasionally gets sick from eating bad dreams.",
+  "tipos": [
+    "Psíquico"
+  ],
+  "altura_m": 1.0,
+  "peso_kg": 32.4,
+  "habilidades": [
+    {
+      "nome": "Insomnia",
+      "oculta": false
+    },
+    {
+      "nome": "Forewarn",
+      "oculta": false
+    },
+    {
+      "nome": "Inner Focus",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 60,
+    "attack": 48,
+    "defense": 45,
+    "special-attack": 43,
+    "special-defense": 90,
+    "speed": 42
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/096.png"
+}

@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { api } from "../../shared/api";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { api, apiFile } from "../../shared/api";
+import { saveBlob } from "../../shared/download";
+import { useToast } from "../../shared/toast";
 import { useTerminalOptions, useUserOptions } from "../../shared/lookups";
 import type { AccessLog, AccessResult, Method, Paginated } from "../../shared/types";
 import { formatDateTime, METHOD_LABEL, REASON_LABEL } from "../../shared/format";
-import { Badge, PageHeader, Pagination, QueryState } from "../../shared/ui";
+import { Badge, ConfirmDialog, PageHeader, Pagination, QueryState } from "../../shared/ui";
 
 export default function AccessLogsPage() {
   const users = useUserOptions();
@@ -16,6 +18,18 @@ export default function AccessLogsPage() {
     setPage(1);
   };
   const invalidRange = Boolean(f.from && f.to && f.to < f.from);
+  const toast = useToast();
+  const [confirmExport, setConfirmExport] = useState(false);
+
+  // US-14: o arquivo é gerado pelo servidor com os mesmos filtros da tela (sem paginação).
+  const exportCsv = useMutation({
+    mutationFn: () => apiFile("/access-logs/export", { query: f }, "historico-acessos.csv"),
+    onSuccess: ({ blob, filename }) => {
+      saveBlob(blob, filename);
+      setConfirmExport(false);
+      toast(`Arquivo ${filename} baixado.`);
+    },
+  });
 
   // Filtros e paginação são feitos no servidor (US-13).
   const q = useQuery({
@@ -27,7 +41,11 @@ export default function AccessLogsPage() {
 
   return (
     <>
-      <PageHeader title="Histórico de acessos" />
+      <PageHeader title="Histórico de acessos">
+        <button className="btn btn-primary" onClick={() => { exportCsv.reset(); setConfirmExport(true); }} disabled={invalidRange}>
+          Exportar CSV
+        </button>
+      </PageHeader>
       <div className="filters">
         <label className="field"><span className="field-label">De</span><input type="date" value={f.from} onChange={(e) => set({ from: e.target.value })} /></label>
         <label className="field"><span className="field-label">Até</span><input type="date" value={f.to} onChange={(e) => set({ to: e.target.value })} /></label>
@@ -83,6 +101,17 @@ export default function AccessLogsPage() {
           </>
         )}
       </QueryState>
+      {confirmExport && (
+        <ConfirmDialog
+          title="Exportar histórico"
+          message="O arquivo contém dados pessoais (nomes e horários de acesso). Guarde-o em local seguro e use apenas para a finalidade da auditoria. Serão exportados todos os registros dos filtros atuais, não só a página exibida."
+          confirmLabel="Baixar CSV"
+          busy={exportCsv.isPending}
+          error={exportCsv.error}
+          onConfirm={() => exportCsv.mutate()}
+          onCancel={() => setConfirmExport(false)}
+        />
+      )}
     </>
   );
 }

@@ -1,0 +1,36 @@
+{
+  "id": "019",
+  "numero": 19,
+  "nome": "Rattata",
+  "nome_en": "rattata",
+  "categoria": "Mouse Pokémon",
+  "descricao": "Bites anything when it attacks. Small and very quick, it is a common sight in many places.",
+  "tipos": [
+    "Normal"
+  ],
+  "altura_m": 0.3,
+  "peso_kg": 3.5,
+  "habilidades": [
+    {
+      "nome": "Run Away",
+      "oculta": false
+    },
+    {
+      "nome": "Guts",
+      "oculta": false
+    },
+    {
+      "nome": "Hustle",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 30,
+    "attack": 56,
+    "defense": 35,
+    "special-attack": 25,
+    "special-defense": 35,
+    "speed": 72
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/019.png"
+}

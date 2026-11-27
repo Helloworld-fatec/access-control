@@ -228,9 +228,11 @@ Edite o `.env`:
 | `JWT_SECRET` | Sim | — | Segredo do login (JWT), com pelo menos 32 caracteres |
 | `JWT_EXPIRES_IN` | Não | `1h` | Validade do token de login |
 | `PORT` | Não | `3000` | Porta da API |
-| `PHOTOS_DIR` | Não | `photos` | Pasta onde as fotos reduzidas são gravadas (criada automaticamente) |
+| `PHOTOS_DIR` | Não | `uploads` | Pasta onde o backend grava os JPEGs recebidos (criada automaticamente) |
 | `MAX_PHOTO_BYTES` | Não | `102400` | Tamanho máximo da foto enviada, em bytes (100 KB) |
 | `BCRYPT_ROUNDS` | Não | `10` | Custo do hash de senha |
+
+O Compose monta o volume existente `access_control_photos` em `/app/uploads`. Para uma instalação local que já guarda fotos em `photos/`, pare o backend e mova o conteúdo para `uploads/` antes de reiniciar. O banco mantém os mesmos caminhos relativos.
 
 ```bash
 npm install
@@ -246,6 +248,21 @@ curl http://localhost:3000/api/health
 ```
 
 O `package.json` do backend ainda não tem os scripts `dev`, `build` e `start`, por isso o servidor sobe com `npx tsx`.
+
+### Stack Docker (frontend, backend e PostgreSQL)
+
+Na raiz do repositório, copie `.env.example` para `.env` e ajuste as credenciais locais. A chave JWT precisa ter pelo menos 32 caracteres.
+
+```bash
+docker compose up --build
+```
+
+- Painel web: `http://localhost:8888`
+- API via Nginx: `http://localhost:8888/api/health`
+- API direta: `http://localhost:3333/api/health`
+- PostgreSQL: `localhost:5432`
+
+O Compose aplica as migrações do Prisma antes de iniciar a API e mantém o banco e as fotos em volumes nomeados. Para parar os serviços sem apagar os dados, execute `docker compose down`. Para remover também os volumes persistentes, execute `docker compose down -v`.
 
 #### Endpoints disponíveis
 

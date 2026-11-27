@@ -22,6 +22,10 @@ export const createNfcTagSchema = z.object({
   uid: nfcUidSchema,
 });
 
+export const linkNfcCredentialSchema = z.strictObject({
+  codeHex: z.string().length(6).regex(/^[0-9A-F]{6}$/, "Use seis caracteres hexadecimais de 0 a 9 ou A a F"),
+});
+
 export const nfcTagParamsSchema = z.object({
   id: z.string().uuid("ID inválido"),
   tagId: z.string().uuid("ID da tag inválido"),

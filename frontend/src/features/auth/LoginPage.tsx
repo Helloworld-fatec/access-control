@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "./AuthContext";
 import { Field, errorMessage } from "../../shared/ui";
+import { ApiError } from "../../shared/api";
+import Logo from "../../shared/Logo";
 
 const schema = z.object({
   email: z.string().trim().min(1, "Informe o e-mail").email("E-mail inválido"),
@@ -14,7 +16,6 @@ type Values = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const { user, login, notice } = useAuth();
-  const nav = useNavigate();
   const from = (useLocation().state as { from?: string } | null)?.from ?? "/painel";
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,16 +27,17 @@ export default function LoginPage() {
     setError(null);
     try {
       await login(v.email, v.password);
-      nav(from, { replace: true });
     } catch (e) {
-      setError(errorMessage(e));
+      setError(e instanceof ApiError && (e.status === 404 || e.status >= 500)
+        ? "O login está indisponível. Tente novamente em instantes."
+        : errorMessage(e));
     }
   });
 
   return (
     <main className="login">
       <form className="login-card" onSubmit={onSubmit} noValidate>
-        <h1>Controle de acesso</h1>
+        <div className="brand"><Logo size={48} /><h1>Controle de acesso</h1></div>
         <p className="muted">Entre com sua conta de administrador.</p>
         {import.meta.env.VITE_MOCK === "true" && <p className="form-notice">Demonstração: entre com admin@teste.com e qualquer senha.</p>}
         {notice && <p className="form-notice" role="status">{notice}</p>}

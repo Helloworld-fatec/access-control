@@ -6,6 +6,8 @@ Documentação da arquitetura do Sistema Integrado de Controle de Acesso (ABP 20
 
 ## 1. Visão geral
 
+Para a integração do ESP32 na demonstração, siga o [contrato MQTT v1](./contrato.md) para tópicos, mensagens e responsabilidades dos clientes.
+
 O sistema libera uma catraca ou fechadura a partir de uma credencial lida por **QR Code** ou **tag NFC**, com validação centralizada em um backend e registro de toda tentativa de acesso. O **reconhecimento facial** é uma funcionalidade extra (seção 9).
 
 **Princípio central:** apps e dispositivo **nunca decidem o acesso**.
@@ -260,9 +262,12 @@ O esquema vigente é o do backend, em `backend/prisma/schema.prisma`; esta seç�
 
 O desafio não exige reconhecimento facial. Por decisão do grupo, ele é tratado como **extra**, implementado depois de QR Code e NFC. Esta decisão está na pauta do professor ([`scrum/PAUTA-PROFESSOR.md`](../scrum/PAUTA-PROFESSOR.md)).
 
-- **Cadastro (mobile-registry):** captura de quadros do rosto e envio ao backend, com o consentimento registrado.
-- **Reconhecimento:** o terminal captura a câmera frontal quando a presença é detectada. O reconhecimento usa um microsserviço em Python (OpenCV, com descritor HOG), com cliente no backend, e a rota `POST /access/face` registra o resultado.
-- **Limitações:** o descritor HOG é mais sensível a pose, iluminação e expressão do que redes neurais; não há detecção de vivacidade (liveness), e uma foto pode enganar o sistema. O backend confia no resultado informado pelo terminal, por isso o terminal precisa ser autenticado.
+- **Cadastro facial:** a rota administrativa `POST /api/users/:id/face` recebe um JPEG no campo multipart `photo` e `consent=true`. O Express envia a imagem em memória ao FastAPI interno, valida o descritor `hog-v1` de 1.764 valores e grava o vetor versionado com a data de consentimento no PostgreSQL. Novos cadastros gravam o descritor e as fotos antigas continuam disponíveis pela rota de consulta. A captura e o envio pelo Mobile Registry ficam para a etapa de integração do app.
+- **Cadastro de código NFC:** `PUT /api/users/:id/nfc-credential` recebe `{"codeHex":"04A3F9"}` e guarda o valor literal com estado `PENDING`. A resposta e o detalhe do usuário expõem o estado da credencial. Essa rota prepara a futura gravação do valor na memória da tag. Os fluxos que usam o UID físico continuam nas rotas de tags.
+- **Exclusão de usuário:** `DELETE /api/users/:id` exclui o cadastro e suas credenciais por cascata, preserva as linhas do histórico de acesso e remove o arquivo da foto legada após confirmar a exclusão. A autoria de autorizações ainda vinculadas impede a operação com HTTP 409.
+- **Reconhecimento (mobile-readings):** o app baixa os embeddings autorizados (`GET /terminals/{id}/faces`), compara localmente e envia ao backend apenas o resultado (`POST /access/face`). **Nenhuma imagem trafega durante o acesso.**
+- **Compatibilidade:** o terminal precisa usar o mesmo extrator e pré-processamento do cadastro para comparar vetores `hog-v1`. A integração do cadastro não altera a extração nem a comparação no terminal.
+- **Limitações:** sem detecção de vivacidade (liveness), podendo ser enganado por foto; sensível à iluminação; o backend confia no resultado da comparação feita pelo terminal, por isso o terminal precisa ser autenticado.
 
 ## 10. Decisões e limitações
 

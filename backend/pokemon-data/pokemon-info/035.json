@@ -1,0 +1,36 @@
+{
+  "id": "035",
+  "numero": 35,
+  "nome": "Clefairy",
+  "nome_en": "clefairy",
+  "categoria": "Fairy Pokémon",
+  "descricao": "Its magical and cute appeal has many admirers. It is rare and found only in certain areas.",
+  "tipos": [
+    "Fada"
+  ],
+  "altura_m": 0.6,
+  "peso_kg": 7.5,
+  "habilidades": [
+    {
+      "nome": "Cute Charm",
+      "oculta": false
+    },
+    {
+      "nome": "Magic Guard",
+      "oculta": false
+    },
+    {
+      "nome": "Friend Guard",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 70,
+    "attack": 45,
+    "defense": 48,
+    "special-attack": 60,
+    "special-defense": 65,
+    "speed": 35
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/035.png"
+}

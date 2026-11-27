@@ -1,18 +1,24 @@
 # frontend
 
 Interface web de administração do **access-control** (React, TypeScript e Vite).
-Cobre o Épico 6 do `scrum/BACKLOG.md`. Identidade visual nas cores da Fatec, a mesma paleta do mobile-user:
+Cobre o Épico 6 do `scrum/BACKLOG.md`. Identidade visual nas cores da Fatec:
 azul petróleo `#31566A`, vermelho `#B51F2E`, off-white `#F7F7F4` e cinza azulado `#E5EBEE`.
 
 ## Como rodar
 
+Use a versão de Node indicada em `.node-version`, também usada no CI.
+
 ```bash
 cp .env.example .env     # ajuste BACKEND_URL se o backend não estiver em localhost:3000
-npm install
+npm ci
 npm run dev              # http://localhost:5173
 ```
 
+Entre com um administrador. Para criar um, no `backend/`:
+`npm run admin:create -- email senha "Nome"`.
+
 O Vite encaminha `/api` para o backend, então o front usa caminho relativo e não depende de IP.
+Para subir Express, PostgreSQL e o serviço facial em ambiente de teste, siga a seção de execução do [roteiro local](../docs/demonstracao-mobile-readings.md).
 
 ### Sem backend (modo demonstração)
 
@@ -23,26 +29,47 @@ npm run dev:mock
 A API é simulada no navegador, com dados de exemplo. Entre com **admin@teste.com** e qualquer senha.
 Os dados voltam ao início ao recarregar a página. O código está em `src/shared/mock.ts` e não entra na build normal.
 
+O modo demonstração é ligado pelo arquivo `.env.mock` (conteúdo: `VITE_MOCK=true`). Se ele faltar, o
+`dev:mock` chama a API de verdade e o Vite devolve erro 500 por não achar o backend.
+
+### Com Docker
+
+O `docker-compose.yml`, na raiz do projeto, sobe banco, backend e front (Nginx). O front usa `frontend/Dockerfile` e
+`frontend/deploy/nginx.conf`. Os comandos estão em `docs/como-rodar.md`.
+
 ### Qualidade
 
 ```bash
 npm run typecheck   # tipos
 npm run lint        # ESLint (inclui a proibição de dangerouslySetInnerHTML)
-npm test            # Vitest + Testing Library + MSW
+npm test            # Vitest + Testing Library + MSW (58 testes)
 npm run check       # os três, em sequência
 ```
 
+## Integração com o backend real
+
+- Login administrativo em `POST /api/login`. Usuários, locais, autorizações, histórico e painel usam o JWT da sessão.
+- O monitor consulta `GET /api/terminals/status` com JWT de administrador ativo. O status individual do equipamento em `GET /api/terminals/:id/status` usa a chave do terminal.
+- Um `401` de autenticação encerra a sessão que originou a requisição. Um `403` informa falta de permissão e mantém a sessão.
+- O histórico em `GET /api/access-logs` lista registros QR, facial e NFC com filtros e paginação.
+- O backend devolve texto vazio em alguns campos opcionais (ex.: descrição do local); o front mostra "—".
+
+A build foi validada em Edge headless com Express, PostgreSQL descartável e o serviço facial local. O teste cobriu login, painel, locais, autorizações, criação de terminal e a exibição de registros QR e faciais. A rotação foi verificada pela API administrativa.
+
 ## Backend
 
-O front usa os endpoints do backend da branch `develop`:
+O front usa os endpoints do backend deste repositório.
 
 - **Login:** `POST /api/login` → `{ accessToken, tokenType, expiresIn, user }`. O token vai em `Authorization: Bearer`.
   Só administradores entram. O token dura `JWT_EXPIRES_IN` (padrão 1h) e **não há renovação** (`/auth/refresh` não existe):
-  ao expirar, o front volta ao login com a mensagem "Sua sessão expirou".
+  ao expirar, o front volta ao login com a mensagem "Sua sessão expirou. Entre novamente."
 - **Autorizações:** o administrador que cria ou cancela vem do token; o front não envia `createdById` nem `canceledById`.
-- Se o backend for antigo e responder 404 em `POST /login`, o front entra em *modo de desenvolvimento*:
-  acha o administrador pelo e-mail e **não confere a senha** (há um aviso na tela). Desligue com `VITE_DEV_AUTH=false`.
 - No `.env` do backend é preciso `JWT_SECRET` com **pelo menos 32 caracteres**.
+- **Rotas ainda sem JWT:** `users` (incluindo tags, rosto e foto), `locations` e a listagem do histórico (`GET /access-logs`)
+  continuam abertas, como combinado, para o JWT ser ligado depois. Já exigem token: `authorizations`, o CRUD de
+  `terminals`, o painel (`/dashboard/*`, `/terminals/status`) e a exportação (`/access-logs/export`). O front já envia o token
+  e trata o 401, então ligar o JWT nas rotas abertas não exige alteração aqui. Antes de ligar, confira se os aplicativos
+  mobile e o terminal usam alguma dessas rotas sem token, porque eles passariam a receber 401.
 
 ## Painel (dashboard)
 
@@ -50,17 +77,18 @@ Tela inicial após o login (`/painel`), com resumo do dia, gráfico de acessos p
 para leitores de tela), acessos por método, motivos de negação, autorizações, status dos terminais e últimos acessos.
 Os terminais e os últimos acessos atualizam sozinhos a cada 5 segundos, com opção de pausar.
 
-**Por enquanto o painel só mostra dados no modo demonstração (`npm run dev:mock`).** O backend não foi alterado e ainda
-não tem os endpoints abaixo; com o backend real, o painel mostra uma mensagem explicando o que falta e continua funcionando
-a lista de últimos acessos (`GET /access-logs`).
-
-Contrato que o front espera (proposta para quem fizer o backend):
+O painel usa endpoints reais do backend (todos exigem o token de administrador):
 
 | Endpoint | Resposta |
 | --- | --- |
 | `GET /dashboard/summary?date=AAAA-MM-DD` | `{ date, granted, denied, denialRate (0 a 1), byMethod: {QR, NFC, FACE}, authorizations: {active, expiringSoon, canceled}, topDenialReasons: [{reason, count}] }` |
 | `GET /dashboard/accesses-by-hour?date=AAAA-MM-DD` | `[{ hour (0 a 23), granted, denied }]`, 24 itens, hora em America/Sao_Paulo |
-| `GET /terminals/{id}/status` | o que já existe (`online`, `presenceActive`, `lastPresenceAt`, `lastSeenAt`), acrescido de `lock: "LOCKED" \| "UNLOCKED"`, e acessível ao administrador (hoje exige a chave do terminal) |
+| `GET /terminals/status` | `{ data: [{ id, name, online, presenceActive, lastPresenceAt, lastSeenAt }] }` |
+| `GET /access-logs?pageSize=10` | últimos acessos |
+
+Regras: o dia vai de 00:00 a 24:00 em São Paulo; "expirando" são as autorizações ativas que vencem em até 7 dias;
+um terminal conta como online no monitor quando registrou contato com a API nos últimos 2 minutos (`lastSeenAt`).
+O estado da trava não existe no backend: o cartão só o mostra no modo demonstração (`npm run dev:mock`).
 
 ## Configuração do endereço da API (sem rebuild)
 
@@ -84,6 +112,8 @@ não conseguem chamar uma API em HTTP (bloqueio de conteúdo misto).
 - **Dados pessoais exibidos:** nome, perfil, e-mail, telefone, foto e horários de entrada, **somente a administradores**,
   com a finalidade de gestão de acessos, segurança do local e auditoria (RF06, RF17).
   O documento aparece parcialmente oculto (só os 3 últimos caracteres). Embeddings faciais nunca são exibidos.
+- **Exportação:** o CSV leva nomes e horários para fora do sistema. Por isso exige administrador, mostra um aviso antes
+  de baixar e não inclui o documento nem o UID das tags.
 - **Foto:** buscada por requisição autenticada e exibida via `URL.createObjectURL` (a tag `<img>` não envia o token).
 - **HTTP na LAN de demonstração:** funciona, mas o tráfego não é cifrado (limitação aceita para a demonstração).
   Em HTTP fora de `localhost`, o navegador desativa o botão **Copiar chave** do terminal; a chave continua visível
@@ -91,15 +121,15 @@ não conseguem chamar uma API em HTTP (bloqueio de conteúdo misto).
 
 ## Tag NFC
 
-A tag é vinculada por UID digitado ou por leitor USB que emula teclado (o UID "cai" no campo de texto).
-A **Web NFC API não é usada**: ela só funciona no Chrome para Android e exige HTTPS.
+A tag é vinculada por UID digitado ou por leitor USB que emula teclado, que é o que o backend aceita hoje
+(`POST /users/{id}/tags` com o UID). A **Web NFC API não é usada**: ela só funciona no Chrome para Android e exige HTTPS.
 
-## Situação das user stories
+> O backlog da US-07 foi atualizado: agora pede "Gravar tag" pelo terminal, com a situação da tag
+> (pendente, ativa, falha, revogada) e sem leitor USB. Isso depende de endpoints que o backend ainda não tem
+> (`GET /users/{id}/tags` e a gravação pelo terminal). Ao implementá-los, trocar o formulário de UID por esse fluxo.
 
-Veja `criterios-de-aceite-frontend.md` (na raiz da entrega) para cada critério. Resumo do que ainda não existe:
+## Pendências
 
-- Painel (US-15, US-16): pronto no front, mas só com dados de demonstração até o backend ter os endpoints acima.
-- Exportação do histórico (US-14): falta endpoint no backend.
-- Foto por upload ou webcam (US-08).
-- Teste ponta a ponta com Playwright (US-20); os testes unitários e de componentes já existem.
-- Nginx e Dockerfile (épico de DevOps).
+- Exportação CSV no backend real, rotação de chave pela interface web, paginação dos seletores auxiliares e limpeza de campos opcionais na edição.
+- Cadastro facial pela web. O cadastro oficial é feito no Mobile Registry.
+- Validar o ambiente hospedado com a URL real de `/api`, o proxy ou `config.json`, o login administrativo e os registros do histórico.

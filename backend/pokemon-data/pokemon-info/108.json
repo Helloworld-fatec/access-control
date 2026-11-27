@@ -1,0 +1,36 @@
+{
+  "id": "108",
+  "numero": 108,
+  "nome": "Lickitung",
+  "nome_en": "lickitung",
+  "categoria": "Licking Pokémon",
+  "descricao": "Its tongue can be extended like a chameleon's. It leaves a tingling sensation when it licks enemies.",
+  "tipos": [
+    "Normal"
+  ],
+  "altura_m": 1.2,
+  "peso_kg": 65.5,
+  "habilidades": [
+    {
+      "nome": "Own Tempo",
+      "oculta": false
+    },
+    {
+      "nome": "Oblivious",
+      "oculta": false
+    },
+    {
+      "nome": "Cloud Nine",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 90,
+    "attack": 55,
+    "defense": 75,
+    "special-attack": 60,
+    "special-defense": 75,
+    "speed": 30
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/108.png"
+}

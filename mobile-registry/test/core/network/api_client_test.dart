@@ -166,7 +166,7 @@ void main() {
       final adapter = FakeAdapter([FakeAdapter.json(401, {'error': {'code': 'UNAUTHORIZED', 'message': 'x'}})]);
       await failureOf(
         client(adapter, onUnauthorized: (_) => calls++).post<dynamic>(
-          '/auth/login',
+          '/login',
           options: Options(extra: {ErrorInterceptor.skipSessionExpiredKey: true}),
         ),
       );
@@ -185,7 +185,7 @@ void main() {
       final adapter = FakeAdapter([FakeAdapter.json(200, {})]);
       await client(adapter).get<dynamic>('/health');
       await client(adapter, readToken: () async => 'abc123').get<dynamic>(
-        '/auth/login',
+        '/login',
         options: Options(extra: {AuthInterceptor.skipAuthKey: true}),
       );
       expect(adapter.requests[0].headers.containsKey('Authorization'), isFalse);

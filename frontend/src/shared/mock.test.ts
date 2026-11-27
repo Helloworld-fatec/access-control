@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { api, ApiError } from "./api";
+import { api, apiFile, ApiError } from "./api";
 import { installMock } from "./mock";
-import type { Authorization, DashboardSummary, HourBucket, Paginated, TerminalStatus, User } from "./types";
+import type { Authorization, DashboardSummary, HourBucket, NfcEnrollment, Paginated, TerminalStatus, User, UserDetail } from "./types";
 
 // O modo demonstração precisa seguir o contrato do backend real.
 describe("API simulada (modo demonstração)", () => {
@@ -34,6 +34,21 @@ describe("API simulada (modo demonstração)", () => {
     const again = (await api("/authorizations/a2/cancel", { method: "PATCH", body: {} }).catch((e) => e)) as ApiError;
     expect(again.status).toBe(409);
   });
+
+  it("vincula a tag somente após a confirmação da gravação simulada", async () => {
+    const user = await api<User>("/users", { method: "POST", body: {
+      name: "Cadastro NFC", email: "cadastro-nfc@teste.com", password: "123456", role: "RESIDENT",
+    } });
+    const path = `/users/${user.id}`;
+    const enrollment = await api<NfcEnrollment>(`${path}/nfc-enrollments`, { method: "POST", body: {} });
+    expect(enrollment.status).toBe("PENDING");
+    expect((await api<UserDetail>(path)).nfcTags).toHaveLength(0);
+    await expect.poll(async () => (await api<NfcEnrollment>(`${path}/nfc-enrollments/${enrollment.id}`)).status,
+      { timeout: 3_000 }).toBe("WRITTEN");
+    const detail = await api<UserDetail>(path);
+    expect(detail.nfcCredential?.status).toBe("ACTIVE");
+    expect(detail.nfcTags).toHaveLength(1);
+  });
 });
 
 describe("painel simulado", () => {
@@ -59,8 +74,21 @@ describe("painel simulado", () => {
   it("recusa data inválida e informa o status do terminal", async () => {
     const err = (await api("/dashboard/summary", { query: { date: "ontem" } }).catch((e) => e)) as ApiError;
     expect(err.status).toBe(400);
-    const st = await api<TerminalStatus>("/terminals/tm1/status");
-    expect(st).toMatchObject({ id: "tm1", online: true });
-    expect(["LOCKED", "UNLOCKED"]).toContain(st.lock);
+    const st = await api<{ data: TerminalStatus[] }>("/terminals/status");
+    expect(st.data.find((t) => t.id === "tm1")).toMatchObject({ online: true });
+  });
+
+  it("exporta o histórico em CSV com cabeçalho, BOM e respeitando os filtros", async () => {
+    const all = await apiFile("/access-logs/export");
+    const text = await all.blob.text();
+    expect(all.filename).toMatch(/\.csv$/);
+    expect(text.startsWith("Data e hora;Pessoa;Terminal;Método;Resultado;Motivo")).toBe(true);
+    // Blob.text() descarta o BOM ao decodificar; conferimos os bytes (EF BB BF = UTF-8 com BOM, que o Excel exige).
+    expect([...new Uint8Array(await all.blob.arrayBuffer()).slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    const denied = await (await apiFile("/access-logs/export", { query: { result: "DENIED" } })).blob.text();
+    const rows = denied.split("\r\n").slice(1).filter(Boolean);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => r.includes(";Negado;"))).toBe(true);
+    expect(rows.length).toBeLessThan(text.split("\r\n").length - 2);
   });
 });

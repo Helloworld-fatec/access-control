@@ -83,6 +83,7 @@ class UserSummary {
     this.document,
     this.phone,
     this.hasFace,
+    this.hasPhoto = false,
     this.nfcTagCount,
   });
 
@@ -96,6 +97,7 @@ class UserSummary {
 
   /// Há rosto cadastrado? `null` quando a API não informou.
   final bool? hasFace;
+  final bool hasPhoto;
 
   /// Quantas tags NFC estão vinculadas? `null` quando a API não informou.
   final int? nfcTagCount;
@@ -113,11 +115,12 @@ class UserSummary {
       document: _optionalString(json, 'document'),
       phone: _optionalString(json, 'phone'),
       hasFace: _optionalBool(json, 'hasFace'),
+      hasPhoto: _optionalBool(json, 'hasPhoto') ?? false,
       nfcTagCount: _optionalInt(json, 'nfcTagCount'),
     );
   }
 
-  UserSummary copyWith({bool? active, bool? hasFace, int? nfcTagCount}) {
+  UserSummary copyWith({bool? active, bool? hasFace, bool? hasPhoto, int? nfcTagCount}) {
     return UserSummary(
       id: id,
       name: name,
@@ -127,6 +130,7 @@ class UserSummary {
       document: document,
       phone: phone,
       hasFace: hasFace ?? this.hasFace,
+      hasPhoto: hasPhoto ?? this.hasPhoto,
       nfcTagCount: nfcTagCount ?? this.nfcTagCount,
     );
   }
@@ -142,11 +146,12 @@ class UserSummary {
       other.document == document &&
       other.phone == phone &&
       other.hasFace == hasFace &&
+      other.hasPhoto == hasPhoto &&
       other.nfcTagCount == nfcTagCount;
 
   @override
   int get hashCode => Object.hash(
-        id, name, email, role, active, document, phone, hasFace, nfcTagCount);
+      id, name, email, role, active, document, phone, hasFace, hasPhoto, nfcTagCount);
 }
 
 /// Tag NFC vinculada a um usuário.
@@ -167,6 +172,21 @@ class NfcTag {
   }
 }
 
+@immutable
+class NfcEnrollment {
+  const NfcEnrollment({required this.id, required this.status, this.reason});
+
+  final String id;
+  final String status;
+  final String? reason;
+
+  factory NfcEnrollment.fromJson(Map<String, dynamic> json) => NfcEnrollment(
+        id: _requiredString(json, 'id'),
+        status: _requiredString(json, 'status'),
+        reason: _optionalString(json, 'reason'),
+      );
+}
+
 /// Usuário completo (`GET /users/{id}`).
 @immutable
 class UserDetail {
@@ -175,12 +195,16 @@ class UserDetail {
     required this.hasFace,
     required this.hasPhoto,
     required this.nfcTags,
+    this.nfcCredentialStatus,
+    this.nfcEnrollment,
   });
 
   final UserSummary user;
   final bool hasFace;
   final bool hasPhoto;
   final List<NfcTag> nfcTags;
+  final String? nfcCredentialStatus;
+  final NfcEnrollment? nfcEnrollment;
 
   factory UserDetail.fromJson(Map<String, dynamic> json) {
     final rawTags = json['nfcTags'];
@@ -197,6 +221,13 @@ class UserDetail {
       hasFace: hasFace,
       hasPhoto: _requiredBool(json, 'hasPhoto'),
       nfcTags: tags,
+      nfcCredentialStatus: json['nfcCredential'] == null
+          ? null
+          : _requiredString(
+              _asMap(json['nfcCredential'], 'Credencial NFC'), 'status'),
+      nfcEnrollment: json['nfcEnrollment'] == null
+          ? null
+          : NfcEnrollment.fromJson(_asMap(json['nfcEnrollment'], 'Gravação NFC')),
     );
   }
 
@@ -206,13 +237,17 @@ class UserDetail {
         hasFace: hasFace,
         hasPhoto: hasPhoto,
         nfcTags: List.unmodifiable(tags),
+        nfcCredentialStatus: nfcCredentialStatus,
+        nfcEnrollment: nfcEnrollment,
       );
 
   UserDetail withUser(UserSummary updated) => UserDetail(
-        user: updated.copyWith(hasFace: hasFace, nfcTagCount: nfcTags.length),
+        user: updated.copyWith(hasFace: hasFace, hasPhoto: hasPhoto, nfcTagCount: nfcTags.length),
         hasFace: hasFace,
         hasPhoto: hasPhoto,
         nfcTags: nfcTags,
+        nfcCredentialStatus: nfcCredentialStatus,
+        nfcEnrollment: nfcEnrollment,
       );
 }
 

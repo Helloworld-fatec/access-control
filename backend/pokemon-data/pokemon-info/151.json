@@ -1,0 +1,28 @@
+{
+  "id": "151",
+  "numero": 151,
+  "nome": "Mew",
+  "nome_en": "mew",
+  "categoria": "New Species Pokémon",
+  "descricao": "So rare that it is still said to be a mirage by many experts. Only a few people have seen it worldwide.",
+  "tipos": [
+    "Psíquico"
+  ],
+  "altura_m": 0.4,
+  "peso_kg": 4.0,
+  "habilidades": [
+    {
+      "nome": "Synchronize",
+      "oculta": false
+    }
+  ],
+  "stats": {
+    "hp": 100,
+    "attack": 100,
+    "defense": 100,
+    "special-attack": 100,
+    "special-defense": 100,
+    "speed": 100
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/151.png"
+}

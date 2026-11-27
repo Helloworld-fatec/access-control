@@ -12,6 +12,7 @@ Map<String, Object?> userJson({
   String role = 'RESIDENT',
   bool active = true,
   bool? hasFace,
+  bool? hasPhoto,
   int? nfcTagCount,
 }) =>
     {
@@ -24,8 +25,9 @@ Map<String, Object?> userJson({
       'active': active,
       'createdAt': '2026-01-01T10:00:00.000Z',
       'updatedAt': '2026-01-01T10:00:00.000Z',
-      if (hasFace != null) 'hasFace': hasFace,
-      if (nfcTagCount != null) 'nfcTagCount': nfcTagCount,
+      'hasFace': ?hasFace,
+      'hasPhoto': ?hasPhoto,
+      'nfcTagCount': ?nfcTagCount,
     };
 
 /// JSON do detalhe (`GET /users/{id}`).
@@ -96,7 +98,7 @@ FakeHandler apiError(int status, String code, String message, [Object? details])
       'error': {
         'code': code,
         'message': message,
-        if (details != null) 'details': details,
+        'details': ?details,
       },
     });
 

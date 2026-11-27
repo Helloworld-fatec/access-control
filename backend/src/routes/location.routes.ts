@@ -1,10 +1,12 @@
 // backend/src/routes/location.routes.ts
 import { Router } from "express";
+import { authenticate, requireAdmin } from "../middlewares/auth.middleware.js";
 import { asyncHandler as h } from "../middlewares/error.middleware.js";
 import * as locations from "../controllers/locations.controller.js";
 
 export const locationRoutes = Router();
 
+locationRoutes.use(authenticate, requireAdmin);
 locationRoutes.get("/", h(locations.listLocations));
 locationRoutes.post("/", h(locations.createLocation));
 locationRoutes.get("/:id", h(locations.getLocation));

@@ -6,6 +6,7 @@ import type { Authorization, Paginated, UserDetail } from "../../shared/types";
 import { formatDateOnly, formatDateTime, locationLabel, maskDocument, normalizeUid, ROLE_LABEL, STATUS_LABEL } from "../../shared/format";
 import { useToast } from "../../shared/toast";
 import { Badge, ConfirmDialog, errorMessage, PageHeader, QueryState } from "../../shared/ui";
+import UserPokemonCollection from "../pokemon/UserPokemonCollection";
 
 type Confirm = { kind: "status" } | { kind: "tag"; tagId: string; uid: string } | { kind: "face" } | null;
 
@@ -65,11 +66,12 @@ export default function UserDetailPage() {
     onSuccess: refresh,
   });
   const addTag = useMutation({
-    mutationFn: (value: string) => api(`/users/${id}/tags`, { method: "POST", body: { uid: value } }),
+    mutationFn: (value: string) => api(`/users/${id}/tags`, {
+      method: "POST", body: { uid: value },
+    }),
     onSuccess: () => {
       setUid("");
       setTagError(null);
-      toast("Tag vinculada.");
       refresh();
     },
     onError: (e) => setTagError(errorMessage(e)),
@@ -98,10 +100,12 @@ export default function UserDetailPage() {
                 <div><dt>Situação</dt><dd><Badge tone={u.active ? "ok" : "muted"}>{u.active ? "Ativo" : "Inativo"}</Badge></dd></div>
                 <div><dt>E-mail</dt><dd>{u.email}</dd></div>
                 <div><dt>Documento</dt><dd title="Documento parcialmente oculto">{u.document ? maskDocument(u.document) : "—"}</dd></div>
-                <div><dt>Telefone</dt><dd>{u.phone ?? "—"}</dd></div>
+                <div><dt>Telefone</dt><dd>{u.phone || "—"}</dd></div>
                 <div><dt>Cadastrado em</dt><dd>{formatDateTime(u.createdAt)}</dd></div>
               </dl>
             </section>
+
+            <UserPokemonCollection key={u.id} userId={u.id} />
 
             <section className="panel">
               <h2>Tags NFC</h2>
@@ -120,16 +124,22 @@ export default function UserDetailPage() {
                 onSubmit={(e) => {
                   e.preventDefault();
                   const v = normalizeUid(uid);
-                  if (v) addTag.mutate(v);
+                  if (!/^(?:[0-9A-F]{8}|[0-9A-F]{14}|[0-9A-F]{20})$/.test(v)) {
+                    setTagError("Informe um UID hexadecimal de 4, 7 ou 10 bytes.");
+                    return;
+                  }
+                  setTagError(null);
+                  addTag.mutate(v);
                 }}
               >
                 <label className="field">
                   <span className="field-label">UID da tag</span>
-                  <input value={uid} onChange={(e) => setUid(e.target.value)} placeholder="04A32F1B" autoComplete="off" spellCheck={false} />
-                  <span className="field-hint">Use o leitor USB ou digite. Separadores e minúsculas são ajustados.</span>
+                  <input value={uid} onChange={(e) => setUid(e.target.value)} placeholder="04A32F1B" autoComplete="off" spellCheck={false} required />
                   {tagError && <span className="field-error" role="alert">{tagError}</span>}
                 </label>
-                <button className="btn btn-primary" disabled={addTag.isPending || !uid.trim()}>Vincular tag</button>
+                <button className="btn btn-primary" disabled={addTag.isPending}>
+                  Vincular tag
+                </button>
               </form>
             </section>
 

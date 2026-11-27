@@ -13,14 +13,14 @@ double contrast(Color a, Color b) {
 
 void main() {
   test('paleta obrigatória está aplicada', () {
-    expect(AppColors.primary, const Color(0xFF31566A));
-    expect(AppColors.accent, const Color(0xFFB51F2E));
-    expect(AppColors.background, const Color(0xFFF7F7F4));
-    expect(AppColors.support, const Color(0xFFE5EBEE));
+    expect(AppColors.primary, const Color(0xFFD81E3F));
+    expect(AppColors.accent, const Color(0xFFB21A34));
+    expect(AppColors.background, const Color(0xFFECF0F5));
+    expect(AppColors.support, const Color(0xFFE3E8EF));
 
     final theme = AppTheme.light();
     expect(theme.colorScheme.primary, AppColors.primary);
-    expect(theme.colorScheme.secondary, AppColors.accent);
+    expect(theme.colorScheme.secondary, const Color(0xFF14171D));
     expect(theme.scaffoldBackgroundColor, AppColors.background);
     expect(theme.cardTheme.color, AppColors.support);
   });
@@ -33,7 +33,10 @@ void main() {
       'texto principal sobre cards': [AppColors.textPrimary, AppColors.support],
       'texto secundário sobre fundo': [AppColors.textSecondary, AppColors.background],
       'texto secundário sobre cards': [AppColors.textSecondary, AppColors.support],
-      'cor principal sobre fundo (botão de contorno)': [AppColors.primary, AppColors.background],
+      'texto do botão de contorno sobre fundo': [
+        AppTheme.light().outlinedButtonTheme.style!.foregroundColor!.resolve({})!,
+        AppColors.background,
+      ],
       'destaque sobre fundo (erros)': [AppColors.accent, AppColors.background],
       'destaque sobre cards (erros)': [AppColors.accent, AppColors.support],
     };

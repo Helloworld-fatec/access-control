@@ -29,7 +29,16 @@ export interface NfcTag {
   active: boolean;
   createdAt: string;
 }
+export interface NfcEnrollment {
+  id: string;
+  status: "PENDING" | "WRITTEN" | "FAILED" | "EXPIRED";
+  reason: string | null;
+  expiresAt: string;
+}
+
 export interface UserDetail extends User {
+  nfcCredential?: { status: string } | null;
+  nfcEnrollment?: NfcEnrollment | null;
   hasFace: boolean;
   hasPhoto: boolean;
   nfcTags: NfcTag[];
@@ -56,6 +65,44 @@ export interface Terminal {
 }
 export interface TerminalCreated extends Terminal {
   apiKey: string;
+}
+
+export interface Pokemon {
+  id: string;
+  numero: number;
+  nome: string;
+  altura_m: number;
+  peso_kg: number;
+  stats: Record<"hp" | "attack" | "defense" | "special-attack" | "special-defense" | "speed", number>;
+  imagem_url: string;
+}
+
+export interface PokemonClaim {
+  visitId: string;
+  claimedAt: string;
+  pokemon: Pokemon;
+}
+
+export interface PokemonDraw {
+  visitId: string;
+  drawnAt: string;
+  pokemon: Pokemon;
+}
+
+export type VisitStatus = "INSIDE" | "EXITED";
+export interface Visit {
+  id: string;
+  status: VisitStatus;
+  user: { id: string; name: string } | null;
+  location: Omit<Location, "description">;
+  entryTerminal: { id: string; name: string };
+  entryLog: { id: string; method: Method; commandAcked: boolean | null };
+  enteredAt: string;
+  exitedAt: string | null;
+  checkoutType: "SIMPLE" | "POKEMON" | null;
+  checkedOutBy: { id: string; name: string } | null;
+  pokemon: { pokemonId: string; claimedAt: string } | null;
+  doorCommand: { id: string; status: "PENDING" | "CONFIRMED" | "FAILED" | "EXPIRED" } | null;
 }
 
 export interface Authorization {
@@ -91,7 +138,7 @@ export interface AccessLog {
   terminal?: { id: string; name: string };
 }
 
-// Painel (US-15, US-16). Os endpoints /dashboard/* ainda não existem no backend: por ora só o modo demonstração os simula.
+// Painel (US-15, US-16).
 export interface DashboardSummary {
   date: string;
   granted: number;
@@ -107,9 +154,10 @@ export interface HourBucket {
   granted: number;
   denied: number;
 }
-/** Resposta de GET /terminals/{id}/status. `lock` ainda não existe no backend. */
+/** Situação do terminal (GET /terminals/status). `lock` ainda não existe no backend; só a demonstração o simula. */
 export interface TerminalStatus {
   id: string;
+  name?: string;
   online: boolean;
   presenceActive: boolean;
   lastPresenceAt: string | null;

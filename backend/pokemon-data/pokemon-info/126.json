@@ -1,0 +1,32 @@
+{
+  "id": "126",
+  "numero": 126,
+  "nome": "Magmar",
+  "nome_en": "magmar",
+  "categoria": "Spitfire Pokémon",
+  "descricao": "Its body always burns with an orange glow that enables it to hide perfectly among flames.",
+  "tipos": [
+    "Fogo"
+  ],
+  "altura_m": 1.3,
+  "peso_kg": 44.5,
+  "habilidades": [
+    {
+      "nome": "Flame Body",
+      "oculta": false
+    },
+    {
+      "nome": "Vital Spirit",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 65,
+    "attack": 95,
+    "defense": 57,
+    "special-attack": 100,
+    "special-defense": 85,
+    "speed": 93
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/126.png"
+}

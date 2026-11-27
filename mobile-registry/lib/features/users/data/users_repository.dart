@@ -1,8 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exception.dart';
-import '../../../core/network/network_providers.dart';
 import 'user_models.dart';
 
 /// Resultado de substituir uma tag: a nova sempre foi vinculada; a remoção da
@@ -70,9 +70,59 @@ class UsersRepository {
         UserSummary.fromJson,
       );
 
+  Future<void> delete(String id) async {
+    await _dio.delete<dynamic>('/users/$id');
+  }
+
+  Future<Uint8List?> getPhoto(String id) async {
+    try {
+      final response = await _dio.get<Uint8List>(
+        '/users/$id/photo',
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Accept': 'image/jpeg'},
+        ),
+      );
+      return response.data;
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  Future<bool> saveFace(String id, Uint8List photo) async {
+    final response = await _dio.post<dynamic>(
+      '/users/$id/face',
+      data: FormData.fromMap({
+        'consent': 'true',
+        'photo': MultipartFile.fromBytes(
+          photo,
+          filename: 'photo.jpg',
+          contentType: DioMediaType('image', 'jpeg'),
+        ),
+      }),
+    );
+    final data = response.data;
+    return data is Map && data['hasPhoto'] == true;
+  }
+
+  Future<NfcEnrollment> startNfcEnrollment(String id) => _call(
+        () => _dio.post<dynamic>(
+          '/users/$id/nfc-enrollments',
+          data: <String, Object>{},
+        ),
+        NfcEnrollment.fromJson,
+      );
+
+  Future<NfcEnrollment> getNfcEnrollment(String id, String requestId) => _call(
+        () => _dio.get<dynamic>('/users/$id/nfc-enrollments/$requestId'),
+        NfcEnrollment.fromJson,
+      );
+
   /// `PATCH /users/{id}/status`: ativa ou desativa (o histórico é preservado).
   Future<UserSummary> setActive(String id, {required bool active}) => _call(
-        () => _dio.patch<dynamic>('/users/$id/status', data: {'active': active}),
+        () =>
+            _dio.patch<dynamic>('/users/$id/status', data: {'active': active}),
         UserSummary.fromJson,
       );
 
@@ -152,7 +202,3 @@ class UsersRepository {
     }
   }
 }
-
-final usersRepositoryProvider = Provider<UsersRepository>(
-  (ref) => UsersRepository(ref.watch(dioProvider)),
-);

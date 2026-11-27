@@ -1,0 +1,36 @@
+{
+  "id": "054",
+  "numero": 54,
+  "nome": "Psyduck",
+  "nome_en": "psyduck",
+  "categoria": "Duck Pokémon",
+  "descricao": "While lulling its enemies with its vacant look, this wily POKéMON will use psychokinetic powers.",
+  "tipos": [
+    "Água"
+  ],
+  "altura_m": 0.8,
+  "peso_kg": 19.6,
+  "habilidades": [
+    {
+      "nome": "Damp",
+      "oculta": false
+    },
+    {
+      "nome": "Cloud Nine",
+      "oculta": false
+    },
+    {
+      "nome": "Swift Swim",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 50,
+    "attack": 52,
+    "defense": 48,
+    "special-attack": 65,
+    "special-defense": 50,
+    "speed": 55
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/054.png"
+}

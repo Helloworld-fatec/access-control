@@ -1,0 +1,33 @@
+{
+  "id": "069",
+  "numero": 69,
+  "nome": "Bellsprout",
+  "nome_en": "bellsprout",
+  "categoria": "Flower Pokémon",
+  "descricao": "A carnivorous POKéMON that traps and eats bugs. It uses its root feet to soak up needed moisture.",
+  "tipos": [
+    "Planta",
+    "Venenoso"
+  ],
+  "altura_m": 0.7,
+  "peso_kg": 4.0,
+  "habilidades": [
+    {
+      "nome": "Chlorophyll",
+      "oculta": false
+    },
+    {
+      "nome": "Gluttony",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 50,
+    "attack": 75,
+    "defense": 35,
+    "special-attack": 70,
+    "special-defense": 30,
+    "speed": 40
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/069.png"
+}

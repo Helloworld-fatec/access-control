@@ -1,0 +1,92 @@
+name: backend e frontend (CI)
+
+# Roda os testes e a build a cada alteração em backend, frontend ou Docker.
+# O mesmo roteiro pode ser executado na máquina: veja docs/evidencias-build-testes.md.
+on:
+  push:
+    branches: [develop, main]
+    paths: ["backend/**", "frontend/**", "docker-compose.yml", ".github/workflows/ci.yml"]
+  pull_request:
+    paths: ["backend/**", "frontend/**", "docker-compose.yml", ".github/workflows/ci.yml"]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (tipos + testes)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate --config prisma7.config.ts
+      - run: npm run typecheck
+      # Os testes usam o Prisma simulado: não precisam de banco.
+      - run: npm test
+
+  frontend:
+    name: frontend (tipos + lint + testes + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+
+  docker:
+    name: docker compose (integração)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gera segredos descartáveis para este teste
+        run: |
+          POSTGRES_PASSWORD=$(openssl rand -hex 12)
+          JWT_SECRET=$(openssl rand -hex 32)
+          ADMIN_PASSWORD=$(openssl rand -hex 12)
+          echo "::add-mask::$POSTGRES_PASSWORD"
+          echo "::add-mask::$JWT_SECRET"
+          echo "::add-mask::$ADMIN_PASSWORD"
+          cp .env.docker.example .env
+          sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$POSTGRES_PASSWORD/; s/^JWT_SECRET=.*/JWT_SECRET=$JWT_SECRET/" .env
+          echo "ADMIN_PASSWORD=$ADMIN_PASSWORD" >> "$GITHUB_ENV"
+      - name: Sobe banco, backend e frontend e espera ficarem saudáveis
+        run: docker compose up --build -d --wait --wait-timeout 240
+      - name: Página e proxy da API respondem
+        run: |
+          curl -fsS http://localhost:8080/ -o /dev/null
+          curl -fsS http://localhost:8080/api/health
+      - name: Login e painel funcionam de ponta a ponta
+        run: |
+          docker compose exec -T backend npm run admin:create -- ci@teste.com "$ADMIN_PASSWORD" "CI"
+          TOKEN=$(curl -fsS -X POST http://localhost:8080/api/login -H 'Content-Type: application/json' \
+            -d "{\"email\":\"ci@teste.com\",\"password\":\"$ADMIN_PASSWORD\"}" | node -pe 'JSON.parse(require("fs").readFileSync(0)).accessToken')
+          test -n "$TOKEN"
+          curl -fsS "http://localhost:8080/api/dashboard/summary" -H "Authorization: Bearer $TOKEN"
+          # Sem token, o painel precisa recusar.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/dashboard/summary)" = "401"
+      - name: Diagnóstico (só se algo falhou)
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --tail=200
+      - name: Derruba tudo
+        if: always()
+        run: docker compose down -v

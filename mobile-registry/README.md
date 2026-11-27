@@ -1,90 +1,33 @@
-# mobile-registry
+# Mobile Registry
 
-App Flutter do administrador (cadastro de usuários, tags NFC e rosto) do
-**Sistema Integrado de Controle de Acesso**. O app só coleta e envia dados;
-o backend valida e decide (RP05).
+Aplicativo Android para administradores do Sistema Integrado de Controle de Acesso. O login abre a lista paginada. No formulário é possível criar, editar e excluir usuários, cadastrar uma foto com consentimento e vincular um código NFC gerado automaticamente.
 
-## Escopo desta etapa
+## Rodar com o backend
 
-| US | Entrega |
-|---|---|
-| US-01 | Estrutura em camadas (feature-first + `core`), Riverpod, tema, navegação (go_router) e tratamento global de erros |
-| US-02 | Tela de configuração (IP/porta, tamanho da foto, capturas do rosto), persistida e aplicada na hora; permissões Android |
-| US-03 | Cliente HTTP único (Dio) com interceptadores, retry, timeouts e erros padronizados |
-| US-21 | Design system acessível (paleta obrigatória, botões grandes, alto contraste, `Semantics`) |
-| US-22 | Testes unitários e de widget + workflow de CI |
+Requer Flutter 3.47 com Dart 3.13 ou superior na série 3.x e Android 7.0 (API 24) ou superior.
 
-Login (US-04) e expiração/logout (US-05) ficam para a próxima etapa. Já existem
-os ganchos: `TokenStore` (trocar por `flutter_secure_storage`) e `sessionExpiredProvider` (evento de 401).
+Na tela de login, preencha **Endereço do servidor** e toque em **Testar conexão**. Para o Compose local, use `192.168.1.25:3333`, substituindo o IP pelo da máquina. Para um backend no Render, use `https://meu-backend.onrender.com` ou o domínio sem o prefixo. O app acrescenta `/api` quando necessário. O endereço fica em memória enquanto o app estiver aberto. O emulador começa com `http://10.0.2.2:3333`.
 
-## Como criar o projeto Android
-
-Este pacote traz só o código-fonte. Gere a casca nativa e sobreponha os arquivos:
-
-```bash
-# na raiz do repositório access-control
+```sh
 cd mobile-registry
 flutter pub get
+flutter run
+```
+
+Entre com uma conta administrativa do Express. A sessão fica em memória e abrir o aplicativo após encerrar o processo exige novo login.
+
+No celular físico, abra `http://<IP-do-Windows>:3333/api/health` no navegador antes de entrar. Use o IPv4 indicado por `ipconfig` no adaptador conectado à mesma rede do celular. Se o Ubuntu no WSL2 estiver em modo NAT e a porta só responder dentro do Ubuntu, encaminhe a porta TCP no Windows para o IP interno do WSL e permita a entrada no firewall. O endereço inicial ainda pode ser definido no build com `--dart-define=API_BASE_URL=http://192.168.0.10:3333/api`. [Rede do WSL2](https://learn.microsoft.com/en-us/windows/wsl/networking)
+
+O app usa Dio para a API e `image_picker` para tirar fotos. A navegação, o estado da sessão e o estado da lista usam recursos do Flutter. A localização dos componentes Material em português é fornecida pelo SDK.
+
+Para validar manualmente, crie um usuário, capture um JPEG e confirme o consentimento. Verifique no formulário o estado do rosto e o NFC pendente de gravação. Em seguida, abra o usuário pela lista, edite um dado e teste a exclusão. Para reproduzir um cadastro parcial, envie uma foto sem rosto e refaça o envio pelo detalhe após a mensagem de erro.
+
+## Testes
+
+```sh
 flutter analyze
 flutter test
-flutter run            # aparelho Android real ou emulador
+flutter build apk --debug
 ```
 
-> `flutter create` gera um `test/widget_test.dart` de exemplo; o deste pacote o substitui.
-
-## Configurar o backend
-
-Na tela inicial, **Configurar servidor**: informe o IP do notebook que roda o
-backend (ex.: `192.168.0.10`) e a porta (`3000`). Celular e notebook precisam
-estar na mesma rede. No emulador Android use `10.0.2.2`.
-O botão **Salvar e testar conexão** chama `GET /api/health`.
-
-## Arquitetura
-
-```
-lib/
-  core/
-    config/    AppSettings, validações, repositório (shared_preferences), providers
-    network/   createApiClient (Dio), interceptadores, ApiException, TokenStore
-    theme/     AppColors, AppTheme (design system)
-    widgets/   AppPrimaryButton, AppSecondaryButton, StatusMessage, InfoCard
-    router/    rotas (go_router)
-    error/     tratamento global de erros
-  features/
-    home/      presentation
-    settings/  data · application · presentation
-```
-
-Regra de dependência: `presentation → application → data → core`.
-Cada nova feature (usuários, NFC, rosto) segue a mesma divisão.
-
-### Cliente HTTP (US-03)
-
-Ordem dos interceptadores: URL base (relida a cada chamada) → token → retry → erro.
-
-- Retry: até 3 novas tentativas, espera de 0,5 s / 1 s / 2 s.
-  `GET/PUT/DELETE` repetem em timeout, queda de conexão e 502/503/504.
-  `POST/PATCH` só repetem se a requisição nem chegou ao servidor, para nunca duplicar um cadastro.
-- Erros viram `ApiException` (`kind` + mensagem simples). O formato do backend
-  `{ error: { code, message, details } }` é interpretado; erros 500 nunca mostram texto técnico.
-- `ApiException.from(e)` nos repositórios; `userMessageFor(e)` nas telas.
-
-### Paleta
-
-| Uso | Cor |
-|---|---|
-| Principal | `#31566A` |
-| Destaques / erros | `#B51F2E` |
-| Fundo | `#F7F7F4` |
-| Apoio / cards | `#E5EBEE` |
-
-Os contrastes (mínimo 4,5:1, WCAG AA) são verificados em `test/core/theme/contrast_test.dart`.
-
-## Testes e CI
-
-```bash
-flutter analyze
-flutter test --coverage
-```
-
-O workflow `.github/workflows/mobile-registry-ci.yml` roda análise, testes e build do APK a cada push/PR (RNF08/RNF10).
+Os documentos em `docs/` registram etapas anteriores e podem descrever telas e ferramentas já removidas.

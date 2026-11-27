@@ -1,0 +1,32 @@
+{
+  "id": "010",
+  "numero": 10,
+  "nome": "Caterpie",
+  "nome_en": "caterpie",
+  "categoria": "Worm Pokémon",
+  "descricao": "Its short feet are tipped with suction pads that enable it to tirelessly climb slopes and walls.",
+  "tipos": [
+    "Inseto"
+  ],
+  "altura_m": 0.3,
+  "peso_kg": 2.9,
+  "habilidades": [
+    {
+      "nome": "Shield Dust",
+      "oculta": false
+    },
+    {
+      "nome": "Run Away",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 45,
+    "attack": 30,
+    "defense": 35,
+    "special-attack": 20,
+    "special-defense": 20,
+    "speed": 45
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/010.png"
+}

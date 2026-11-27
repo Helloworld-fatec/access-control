@@ -5,7 +5,7 @@
 - **Tela de login** (`features/auth/presentation/login_screen.dart`): e-mail, senha, opção
   "Mostrar senha", botão grande com indicador de carregamento, mensagens de erro em linguagem
   simples e acesso a "Configurar servidor" (sem servidor configurado não há como entrar).
-- **`POST /auth/login`** pelo cliente HTTP único. Corpo: `{ email, password }` (e-mail aparado e em
+- **`POST /login`** pelo cliente HTTP único. Corpo: `{ email, password }` (e-mail aparado e em
   minúsculas). Resposta esperada: `{ accessToken, user: { id, name, email, role } }`.
 - **Token no armazenamento seguro** (`flutter_secure_storage`, Keystore do Android). Nunca em
   `shared_preferences`. O perfil mínimo (id, nome, e-mail, perfil) é guardado junto.
@@ -40,7 +40,7 @@
 
 ## Como testar sem o backend real
 
-O backend enviado ainda **não tem** `POST /api/auth/login`. Para testar o app agora:
+Use `POST /api/login` no Express para validar a integração real. Para testar sem o backend, use o servidor opcional abaixo:
 
 ```bash
 cd mobile-registry

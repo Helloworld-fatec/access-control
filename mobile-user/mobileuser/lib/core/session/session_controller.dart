@@ -7,8 +7,10 @@ import 'package:http/http.dart' as http;
 import '../api/api_client.dart';
 
 class SessionController extends ChangeNotifier {
+  SessionController({http.Client? client}) : _http = client ?? http.Client();
+
   static const _store = FlutterSecureStorage();
-  final _http = http.Client();
+  final http.Client _http;
   String? backendUrl, token;
   Map<String, dynamic>? user;
   bool initializing = true;
@@ -39,13 +41,17 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> checkConnection(String url) =>
+      ApiClient(ApiClient.normalize(url), null, _http).checkConnection();
+
   Future<void> login(String url, String email, String password) async {
     final base = ApiClient.normalize(url);
     final r = await ApiClient(base, null, _http).login(email.trim(), password);
     final t = r['accessToken'];
     final u = r['user'];
-    if (t is! String || u is! Map<String, dynamic>)
+    if (t is! String || u is! Map<String, dynamic>) {
       throw const ApiException('Resposta de login incompleta.');
+    }
     await _store.write(key: 'access_token', value: t);
     await _store.write(key: 'backend_url', value: base);
     await _store.write(key: 'session_user', value: jsonEncode(u));
@@ -64,9 +70,15 @@ class SessionController extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> consumeQr(String value) async {
+  Future<Uint8List?> loadProfilePhoto() => _api.profilePhoto();
+
+  Future<Map<String, dynamic>> consumeQr(
+    String value, {
+    required double latitude,
+    required double longitude,
+  }) async {
     try {
-      return await _api.consumeQr(value);
+      return await _api.consumeQr(value, latitude: latitude, longitude: longitude);
     } on QrConsumeException catch (e) {
       if (e.statusCode == 401 && e.code != 'INVALID_CREDENTIAL') await logout();
       rethrow;

@@ -1,8 +1,11 @@
 // backend/src/controllers/terminals.controller.ts
-import { createHash, createHmac, randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import type { Request, Response } from "express";
 import type { Prisma } from "../generated/prisma/client.js";
+import { env } from "../config/env.js";
+import { heartbeatWindowMs } from "../services/mqtt-messages.js";
 import { prisma } from "../config/prisma.js";
+import { generateTerminalKey, hashTerminalKey } from "../config/terminal-key.js";
 import { AppError } from "../middlewares/error.middleware.js";
 import {
   createTerminalSchema,
@@ -21,12 +24,19 @@ const notFound = () =>
 const locationNotFound = () =>
   new AppError(404, "Local não encontrado", "LOCATION_NOT_FOUND");
 
-/**
- * A apiKey é aleatória e longa (192 bits), então SHA-256 basta para guardá-la
- * (bcrypt seria lento demais a cada requisição do terminal).
- */
-export const hashApiKey = (apiKey: string) =>
-  createHash("sha256").update(apiKey).digest("hex");
+async function issueTerminalKey<T>(save: (hash: string) => Promise<T | null>) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const apiKey = generateTerminalKey();
+    try {
+      const result = await save(hashTerminalKey(apiKey));
+      if (result !== null) return { result, apiKey };
+    } catch (error) {
+      if ((error as { code?: string })?.code !== "P2002") throw error;
+    }
+  }
+
+  throw new AppError(503, "Não foi possível gerar um código de terminal", "TERMINAL_KEY_UNAVAILABLE");
+}
 
 // GET /terminals
 export async function listTerminals(req: Request, res: Response) {
@@ -47,6 +57,30 @@ export async function listTerminals(req: Request, res: Response) {
   ]);
 
   res.json(paginate(rows.map(toTerminalResponse), total, q.page, q.pageSize));
+}
+
+function isRecent(value: Date | null, limit: number, now = Date.now()) {
+  if (!value) return false;
+  const age = now - value.getTime();
+  return age >= 0 && age <= limit;
+}
+
+// GET /terminals/status
+export async function listTerminalStatus(_req: Request, res: Response) {
+  const terminals = await prisma.terminal.findMany({
+    select: { id: true, name: true, lastSeenAt: true, lastPresenceAt: true },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+  });
+  const now = Date.now();
+  res.json({
+    data: terminals.map((terminal) => ({
+      ...terminal,
+      online: isRecent(terminal.lastSeenAt,
+        terminal.id === env.ESP32_TERMINAL_ID || terminal.id === env.MQTT_SIMULATOR_TERMINAL_ID
+          ? heartbeatWindowMs : 120_000, now),
+      presenceActive: isRecent(terminal.lastPresenceAt, 5_000, now),
+    })),
+  });
 }
 
 // GET /terminals/:id
@@ -77,10 +111,10 @@ export async function getTerminalQr(req: Request, res: Response) {
 
   // Limpa nonces já vencidos deste terminal e grava novos (anti-replay)
   await prisma.$transaction([
-    prisma.qrNonce.deleteMany({
+    prisma.qrnonce.deleteMany({
       where: { terminalId: id, expiresAt: { lt: new Date(now) } },
     }),
-    prisma.qrNonce.create({
+    prisma.qrnonce.create({
       data: { nonce, terminalId: id, expiresAt },
     }),
   ]);
@@ -114,17 +148,27 @@ export async function getTerminalStatus(req: Request, res: Response) {
   const terminal = await prisma.terminal.findUnique({ where: { id } });
   if (!terminal) throw notFound();
 
+  const physicalId = env.ESP32_TERMINAL_ID ?? env.MQTT_SIMULATOR_TERMINAL_ID;
+  const esp32 = physicalId && physicalId !== terminal.id
+    ? await prisma.terminal.findFirst({
+      where: { id: physicalId, locationId: terminal.locationId },
+    })
+    : null;
+  const presenceSource = esp32 ?? terminal;
+
   // Considera presença ativa se lastPresenceAt foi atualizado nos últimos 5 segundos
   const presenceActive =
-    terminal.lastPresenceAt != null &&
-    Date.now() - terminal.lastPresenceAt.getTime() <= 5_000;
+    presenceSource.lastPresenceAt != null &&
+    Date.now() - presenceSource.lastPresenceAt.getTime() <= 5_000;
 
   res.json({
     id: terminal.id,
-    online: terminal.online,
+    online: id === env.ESP32_TERMINAL_ID || id === env.MQTT_SIMULATOR_TERMINAL_ID
+      ? isRecent(terminal.lastSeenAt, heartbeatWindowMs)
+      : terminal.online,
     presence: presenceActive,
     presenceActive,
-    lastPresenceAt: terminal.lastPresenceAt,
+    lastPresenceAt: presenceSource.lastPresenceAt,
     lastSeenAt: terminal.lastSeenAt,
   });
 }
@@ -139,7 +183,7 @@ export async function getTerminalFaces(req: Request, res: Response) {
   });
   if (!terminal) throw notFound();
 
-  const templates = await prisma.faceTemplate.findMany({
+  const templates = await prisma.facetemplate.findMany({
     where: {
       user: {
         active: true,
@@ -171,15 +215,15 @@ export async function createTerminal(req: Request, res: Response) {
   });
   if (!location) throw locationNotFound();
 
-  const apiKey = randomBytes(24).toString("hex");
-  const terminal = await prisma.terminal.create({
+  const qrSecret = randomBytes(32).toString("hex");
+  const { result: terminal, apiKey } = await issueTerminalKey((apiKeyHash) => prisma.terminal.create({
     data: {
       ...dto,
-      qrSecret: randomBytes(32).toString("hex"),
-      apiKeyHash: hashApiKey(apiKey),
+      qrSecret,
+      apiKeyHash,
     },
     include: { location: true },
-  });
+  }));
 
   // A apiKey em texto puro só é devolvida agora; depois não há como recuperá-la.
   const body: TerminalCreatedResponse = {
@@ -187,6 +231,23 @@ export async function createTerminal(req: Request, res: Response) {
     apiKey,
   };
   res.status(201).json(body);
+}
+
+// POST /terminals/:id/rotate-key
+export async function rotateTerminalKey(req: Request, res: Response) {
+  const { id } = idParamSchema.parse(req.params);
+  const { apiKey } = await issueTerminalKey(async (apiKeyHash) => {
+    const { count } = await prisma.terminal.updateMany({
+      where: { id, apiKeyHash: { not: apiKeyHash } },
+      data: { apiKeyHash },
+    });
+    if (count > 0) return true;
+
+    const terminal = await prisma.terminal.findUnique({ where: { id }, select: { id: true } });
+    if (!terminal) throw notFound();
+    return null;
+  });
+  res.json({ apiKey });
 }
 
 // PUT /terminals/:id
@@ -215,7 +276,7 @@ export async function updateTerminal(req: Request, res: Response) {
 export async function deleteTerminal(req: Request, res: Response) {
   const { id } = idParamSchema.parse(req.params);
 
-  const logs = await prisma.accessLog.count({ where: { terminalId: id } });
+  const logs = await prisma.accesslog.count({ where: { terminalId: id } });
   if (logs > 0) {
     throw new AppError(
       409,

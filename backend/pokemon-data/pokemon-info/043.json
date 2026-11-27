@@ -1,0 +1,33 @@
+{
+  "id": "043",
+  "numero": 43,
+  "nome": "Oddish",
+  "nome_en": "oddish",
+  "categoria": "Weed Pokémon",
+  "descricao": "During the day, it keeps its face buried in the ground. At night, it wanders around sowing its seeds.",
+  "tipos": [
+    "Planta",
+    "Venenoso"
+  ],
+  "altura_m": 0.5,
+  "peso_kg": 5.4,
+  "habilidades": [
+    {
+      "nome": "Chlorophyll",
+      "oculta": false
+    },
+    {
+      "nome": "Run Away",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 45,
+    "attack": 50,
+    "defense": 55,
+    "special-attack": 75,
+    "special-defense": 65,
+    "speed": 30
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/043.png"
+}

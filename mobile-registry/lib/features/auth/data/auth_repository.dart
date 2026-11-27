@@ -4,43 +4,33 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/network/interceptors/error_interceptor.dart';
 import '../../../core/network/interceptors/request_interceptors.dart';
 import 'auth_user.dart';
-import 'session_storage.dart';
 
 /// Login do administrador. Fala com o backend só pelo cliente HTTP único.
 class AuthRepository {
-  AuthRepository({required Dio dio, required SessionStorage session})
-      : _dio = dio,
-        _session = session;
+  AuthRepository(this._dio);
 
   final Dio _dio;
-  final SessionStorage _session;
 
   static const String wrongCredentialsMessage = 'E-mail ou senha incorretos.';
   static const String accessDeniedMessage =
       'Acesso negado. Este aplicativo é exclusivo para administradores.';
   static const String loginNotFoundMessage =
       'Não encontramos o serviço de login neste servidor. '
-      'Confira o endereço e a porta em Configurações.';
+      'Confira o endereço informado no login.';
   static const String invalidDataMessage =
       'Confira o e-mail e a senha informados.';
   static const String unexpectedResponseMessage =
       'O servidor respondeu algo inesperado. Tente novamente.';
-  static const String storageFailureMessage =
-      'Não foi possível guardar o acesso com segurança neste aparelho.';
 
-  /// `POST /auth/login`. Em caso de sucesso, guarda token e perfil no
-  /// armazenamento seguro e devolve o usuário.
-  ///
-  /// Lança [ApiException] com mensagem pronta para a tela. Perfis que não
-  /// sejam administrador são recusados **antes** de qualquer gravação.
-  Future<AuthUser> login({
+  /// Valida o perfil retornado por `POST /login` antes de abrir a sessão.
+  Future<(AuthUser, String)> login({
     required String email,
     required String password,
   }) async {
     final Response<dynamic> response;
     try {
       response = await _dio.post<dynamic>(
-        '/auth/login',
+        '/login',
         data: {'email': email.trim().toLowerCase(), 'password': password},
         options: Options(
           extra: {
@@ -83,15 +73,7 @@ class AuthRepository {
       );
     }
 
-    try {
-      await _session.save(token: token, user: user);
-    } catch (_) {
-      throw const ApiException(
-        kind: ApiErrorKind.unknown,
-        message: storageFailureMessage,
-      );
-    }
-    return user;
+    return (user, token);
   }
 
   /// Troca as mensagens genéricas por frases que fazem sentido na tela de login.

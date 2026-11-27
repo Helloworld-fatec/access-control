@@ -1,0 +1,32 @@
+{
+  "id": "027",
+  "numero": 27,
+  "nome": "Sandshrew",
+  "nome_en": "sandshrew",
+  "categoria": "Mouse Pokémon",
+  "descricao": "Burrows deep underground in arid locations far from water. It only emerges to hunt for food.",
+  "tipos": [
+    "Terra"
+  ],
+  "altura_m": 0.6,
+  "peso_kg": 12.0,
+  "habilidades": [
+    {
+      "nome": "Sand Veil",
+      "oculta": false
+    },
+    {
+      "nome": "Sand Rush",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 50,
+    "attack": 75,
+    "defense": 85,
+    "special-attack": 20,
+    "special-defense": 30,
+    "speed": 40
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/027.png"
+}

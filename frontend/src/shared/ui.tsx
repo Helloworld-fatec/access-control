@@ -1,10 +1,14 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { ApiError } from "./api";
+import Logo from "./Logo";
 
 export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <header className="page-header">
-      <h1>{title}</h1>
+      <div className="page-title">
+        <Logo size={44} />
+        <h1>{title}</h1>
+      </div>
       <div className="row">{children}</div>
     </header>
   );
@@ -72,11 +76,13 @@ export function Modal({
   onClose,
   children,
   wide,
+  preventClose,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  preventClose?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -84,7 +90,8 @@ export function Modal({
     if (d && !d.open) d.showModal();
   }, []);
   return (
-    <dialog ref={ref} className={wide ? "modal modal-wide" : "modal"} onClose={onClose} aria-labelledby="modal-title">
+    <dialog ref={ref} className={wide ? "modal modal-wide" : "modal"} onClose={onClose}
+      onCancel={(event) => { if (preventClose) event.preventDefault(); }} aria-labelledby="modal-title">
       <h2 id="modal-title">{title}</h2>
       {children}
     </dialog>

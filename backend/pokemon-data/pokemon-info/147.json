@@ -1,0 +1,32 @@
+{
+  "id": "147",
+  "numero": 147,
+  "nome": "Dratini",
+  "nome_en": "dratini",
+  "categoria": "Dragon Pokémon",
+  "descricao": "Long considered a mythical POKéMON until recently when a small colony was found living underwater.",
+  "tipos": [
+    "Dragão"
+  ],
+  "altura_m": 1.8,
+  "peso_kg": 3.3,
+  "habilidades": [
+    {
+      "nome": "Shed Skin",
+      "oculta": false
+    },
+    {
+      "nome": "Marvel Scale",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 41,
+    "attack": 64,
+    "defense": 45,
+    "special-attack": 50,
+    "special-defense": 50,
+    "speed": 50
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/147.png"
+}

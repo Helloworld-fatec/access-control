@@ -1,0 +1,36 @@
+{
+  "id": "107",
+  "numero": 107,
+  "nome": "Hitmonchan",
+  "nome_en": "hitmonchan",
+  "categoria": "Punching Pokémon",
+  "descricao": "While apparently doing nothing, it fires punches in lightning fast volleys that are impossible to see.",
+  "tipos": [
+    "Lutador"
+  ],
+  "altura_m": 1.4,
+  "peso_kg": 50.2,
+  "habilidades": [
+    {
+      "nome": "Keen Eye",
+      "oculta": false
+    },
+    {
+      "nome": "Iron Fist",
+      "oculta": false
+    },
+    {
+      "nome": "Inner Focus",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 50,
+    "attack": 105,
+    "defense": 79,
+    "special-attack": 35,
+    "special-defense": 110,
+    "speed": 76
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/107.png"
+}

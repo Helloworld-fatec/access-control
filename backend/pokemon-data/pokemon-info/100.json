@@ -1,0 +1,36 @@
+{
+  "id": "100",
+  "numero": 100,
+  "nome": "Voltorb",
+  "nome_en": "voltorb",
+  "categoria": "Ball Pokémon",
+  "descricao": "Usually found in power plants. Easily mistaken for a POKé BALL, they have zapped many people.",
+  "tipos": [
+    "Elétrico"
+  ],
+  "altura_m": 0.5,
+  "peso_kg": 10.4,
+  "habilidades": [
+    {
+      "nome": "Soundproof",
+      "oculta": false
+    },
+    {
+      "nome": "Static",
+      "oculta": false
+    },
+    {
+      "nome": "Aftermath",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 40,
+    "attack": 30,
+    "defense": 50,
+    "special-attack": 55,
+    "special-defense": 55,
+    "speed": 100
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/100.png"
+}

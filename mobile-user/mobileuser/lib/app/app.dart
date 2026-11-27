@@ -53,10 +53,11 @@ class _MobileUserAppState extends State<MobileUserApp> {
       home: AnimatedBuilder(
         animation: session,
         builder: (context, _) {
-          if (session.initializing)
+          if (session.initializing) {
             return const Scaffold(
               body: Center(child: CircularProgressIndicator()),
             );
+          }
           return session.authenticated ? const HomePage() : const LoginPage();
         },
       ),

@@ -1,0 +1,33 @@
+{
+  "id": "021",
+  "numero": 21,
+  "nome": "Spearow",
+  "nome_en": "spearow",
+  "categoria": "Tiny Bird Pokémon",
+  "descricao": "Eats bugs in grassy areas. It has to flap its short wings at high speed to stay airborne.",
+  "tipos": [
+    "Normal",
+    "Voador"
+  ],
+  "altura_m": 0.3,
+  "peso_kg": 2.0,
+  "habilidades": [
+    {
+      "nome": "Keen Eye",
+      "oculta": false
+    },
+    {
+      "nome": "Sniper",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 40,
+    "attack": 60,
+    "defense": 30,
+    "special-attack": 31,
+    "special-defense": 31,
+    "speed": 70
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/021.png"
+}
