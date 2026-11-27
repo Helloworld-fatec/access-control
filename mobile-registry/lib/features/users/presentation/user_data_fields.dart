@@ -5,8 +5,8 @@ import 'role_selector.dart';
 import 'user_form_model.dart';
 import 'user_form_validators.dart';
 
-/// Campos de dados do usuário (US-08), usados no cadastro (etapa 1 do
-/// assistente) e na edição. Deve ficar dentro de um `Form` com a chave de
+/// Campos de dados usados no cadastro e na edição.
+/// Deve ficar dentro de um `Form` com a chave de
 /// [UserFormModel.formKey].
 class UserDataFields extends StatelessWidget {
   const UserDataFields({

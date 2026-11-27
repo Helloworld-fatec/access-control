@@ -1,0 +1,33 @@
+{
+  "id": "146",
+  "numero": 146,
+  "nome": "Moltres",
+  "nome_en": "moltres",
+  "categoria": "Flame Pokémon",
+  "descricao": "Known as the legendary bird of fire. Every flap of its wings creates a dazzling flash of flames.",
+  "tipos": [
+    "Fogo",
+    "Voador"
+  ],
+  "altura_m": 2.0,
+  "peso_kg": 60.0,
+  "habilidades": [
+    {
+      "nome": "Pressure",
+      "oculta": false
+    },
+    {
+      "nome": "Flame Body",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 90,
+    "attack": 100,
+    "defense": 90,
+    "special-attack": 125,
+    "special-defense": 85,
+    "speed": 90
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/146.png"
+}

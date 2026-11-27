@@ -1,0 +1,32 @@
+{
+  "id": "007",
+  "numero": 7,
+  "nome": "Squirtle",
+  "nome_en": "squirtle",
+  "categoria": "Tiny Turtle Pokémon",
+  "descricao": "After birth, its back swells and hardens into a shell. Powerfully sprays foam from its mouth.",
+  "tipos": [
+    "Água"
+  ],
+  "altura_m": 0.5,
+  "peso_kg": 9.0,
+  "habilidades": [
+    {
+      "nome": "Torrent",
+      "oculta": false
+    },
+    {
+      "nome": "Rain Dish",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 44,
+    "attack": 48,
+    "defense": 65,
+    "special-attack": 50,
+    "special-defense": 64,
+    "speed": 43
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/007.png"
+}

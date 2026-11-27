@@ -33,6 +33,7 @@ export interface UserDetailResponse extends UserResponse {
   hasFace: boolean;
   hasPhoto: boolean;
   nfcTags: NfcTagResponse[];
+  nfcCredential: { status: string } | null;
 }
 
 export interface NfcTagRow {
@@ -72,6 +73,7 @@ export function toNfcTagResponse(t: NfcTagRow): NfcTagResponse {
 export function toUserDetailResponse(
   u: UserRow & {
     nfcTags: NfcTagRow[];
+    nfcCredential: { status: string } | null;
     faceTemplate: unknown | null;
     photo: unknown | null;
   },
@@ -81,5 +83,6 @@ export function toUserDetailResponse(
     hasFace: u.faceTemplate != null, // nunca expõe o embedding
     hasPhoto: u.photo != null,
     nfcTags: u.nfcTags.map(toNfcTagResponse),
+    nfcCredential: u.nfcCredential ? { status: u.nfcCredential.status } : null,
   };
 }

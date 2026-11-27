@@ -1,0 +1,36 @@
+{
+  "id": "077",
+  "numero": 77,
+  "nome": "Ponyta",
+  "nome_en": "ponyta",
+  "categoria": "Fire Horse Pokémon",
+  "descricao": "Its hooves are 10 times harder than diamonds. It can trample anything completely flat in little time.",
+  "tipos": [
+    "Fogo"
+  ],
+  "altura_m": 1.0,
+  "peso_kg": 30.0,
+  "habilidades": [
+    {
+      "nome": "Run Away",
+      "oculta": false
+    },
+    {
+      "nome": "Flash Fire",
+      "oculta": false
+    },
+    {
+      "nome": "Flame Body",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 50,
+    "attack": 85,
+    "defense": 55,
+    "special-attack": 65,
+    "special-defense": 65,
+    "speed": 90
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/077.png"
+}

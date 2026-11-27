@@ -1,18 +1,16 @@
 # frontend
 
 Interface web de administração do **access-control** (React, TypeScript e Vite).
-Cobre o Épico 6 do `scrum/BACKLOG.md`. As especificações visuais (cores, fonte, layout, componentes, telas e
-acessibilidade) estão em [`docs/frontend.md`](../docs/frontend.md). O visual atual é inspirado em menus de jogo
-(faixa vermelha, itens em pílula, rodapé de atalhos de teclado). A primeira versão usava a paleta da Fatec;
-como voltar a ela está na seção 11 do documento.
+Cobre o Épico 6 do `scrum/BACKLOG.md`. Identidade visual nas cores da Fatec:
+azul petróleo `#31566A`, vermelho `#B51F2E`, off-white `#F7F7F4` e cinza azulado `#E5EBEE`.
 
 ## Como rodar
 
-Com o backend e o banco no ar (veja `docs/como-rodar.md` na raiz do projeto):
+Use a versão de Node indicada em `.node-version`, também usada no CI.
 
 ```bash
 cp .env.example .env     # ajuste BACKEND_URL se o backend não estiver em localhost:3000
-npm install
+npm ci
 npm run dev              # http://localhost:5173
 ```
 
@@ -20,6 +18,7 @@ Entre com um administrador. Para criar um, no `backend/`:
 `npm run admin:create -- email senha "Nome"`.
 
 O Vite encaminha `/api` para o backend, então o front usa caminho relativo e não depende de IP.
+Para subir Express, PostgreSQL e o serviço facial em ambiente de teste, siga a seção de execução do [roteiro local](../docs/demonstracao-mobile-readings.md).
 
 ### Sem backend (modo demonstração)
 
@@ -49,24 +48,22 @@ npm run check       # os três, em sequência
 
 ## Integração com o backend real
 
-Validado contra o backend e um PostgreSQL de verdade: login (`POST /api/login`), usuários, tags, locais,
-terminais, autorizações, histórico com filtros, exportação em CSV, painel e acessos gerados pelo terminal (`/access/nfc`).
-Veja `docs/como-rodar.md` (na raiz do projeto) para subir tudo.
-
-- Só os 401 com código `UNAUTHORIZED` ou `INVALID_TOKEN` encerram a sessão. O `401 TERMINAL_UNAUTHORIZED`
-  de `GET /terminals/{id}/status` (que exige a chave do terminal) só aparece no cartão do terminal.
+- Login administrativo em `POST /api/login`. Usuários, locais, autorizações, histórico e painel usam o JWT da sessão.
+- O monitor consulta `GET /api/terminals/status` com JWT de administrador ativo. O status individual do equipamento em `GET /api/terminals/:id/status` usa a chave do terminal.
+- Um `401` de autenticação encerra a sessão que originou a requisição. Um `403` informa falta de permissão e mantém a sessão.
+- O histórico em `GET /api/access-logs` lista registros QR, facial e NFC com filtros e paginação.
 - O backend devolve texto vazio em alguns campos opcionais (ex.: descrição do local); o front mostra "—".
+
+A build foi validada em Edge headless com Express, PostgreSQL descartável e o serviço facial local. O teste cobriu login, painel, locais, autorizações, criação de terminal e a exibição de registros QR e faciais. A rotação foi verificada pela API administrativa.
 
 ## Backend
 
-O front usa os endpoints do backend desta branch:
+O front usa os endpoints do backend deste repositório.
 
 - **Login:** `POST /api/login` → `{ accessToken, tokenType, expiresIn, user }`. O token vai em `Authorization: Bearer`.
   Só administradores entram. O token dura `JWT_EXPIRES_IN` (padrão 1h) e **não há renovação** (`/auth/refresh` não existe):
   ao expirar, o front volta ao login com a mensagem "Sua sessão expirou. Entre novamente."
 - **Autorizações:** o administrador que cria ou cancela vem do token; o front não envia `createdById` nem `canceledById`.
-- Se o backend for antigo e responder 404 em `POST /login`, o front entra em *modo de desenvolvimento*:
-  acha o administrador pelo e-mail e **não confere a senha** (há um aviso na tela). Desligue com `VITE_DEV_AUTH=false`.
 - No `.env` do backend é preciso `JWT_SECRET` com **pelo menos 32 caracteres**.
 - **Rotas ainda sem JWT:** `users` (incluindo tags, rosto e foto), `locations` e a listagem do histórico (`GET /access-logs`)
   continuam abertas, como combinado, para o JWT ser ligado depois. Já exigem token: `authorizations`, o CRUD de
@@ -90,27 +87,8 @@ O painel usa endpoints reais do backend (todos exigem o token de administrador):
 | `GET /access-logs?pageSize=10` | últimos acessos |
 
 Regras: o dia vai de 00:00 a 24:00 em São Paulo; "expirando" são as autorizações ativas que vencem em até 7 dias;
-um terminal conta como online se `online` é verdadeiro **ou** falou com a API nos últimos 2 minutos.
-"Autorizações ativas" conta só as que ainda não venceram: uma autorização com data de término no passado aparece como
-"Vencida" e não entra em nenhum dos três cartões.
+um terminal conta como online no monitor quando registrou contato com a API nos últimos 2 minutos (`lastSeenAt`).
 O estado da trava não existe no backend: o cartão só o mostra no modo demonstração (`npm run dev:mock`).
-
-## Exportação do histórico (CSV)
-
-Na tela **Histórico de acessos**, o botão **Exportar CSV** pede confirmação (o arquivo contém dados pessoais) e baixa o
-arquivo gerado pelo servidor, com os mesmos filtros da tela e **sem paginação**.
-
-| Endpoint | Resposta |
-| --- | --- |
-| `GET /access-logs/export` (mesmos filtros da listagem) | CSV, só para administrador |
-
-- **Formato:** separador `;`, quebra de linha CRLF e UTF-8 com BOM (o Excel em português abre direto). Colunas:
-  Data e hora (São Paulo), Pessoa, Terminal, Método, Resultado e Motivo. O UID da tag não vai no arquivo.
-- **Limite:** até 50.000 registros por arquivo. Acima disso o servidor responde `413 EXPORT_TOO_LARGE` e o aviso pede
-  para reduzir o período ou usar mais filtros.
-- **Segurança:** nomes que começam com `=`, `+`, `-` ou `@` recebem um apóstrofo na frente, para o Excel não executá-los
-  como fórmula. O servidor lê o histórico em lotes, então a memória não cresce com o tamanho do arquivo.
-- O modo demonstração também exporta (arquivo de exemplo).
 
 ## Configuração do endereço da API (sem rebuild)
 
@@ -150,21 +128,8 @@ A tag é vinculada por UID digitado ou por leitor USB que emula teclado, que é 
 > (pendente, ativa, falha, revogada) e sem leitor USB. Isso depende de endpoints que o backend ainda não tem
 > (`GET /users/{id}/tags` e a gravação pelo terminal). Ao implementá-los, trocar o formulário de UID por esse fluxo.
 
-## Situação das user stories
+## Pendências
 
-Veja `criterios-de-aceite-frontend.md` (na raiz da entrega) para cada critério.
-
-**Concluídas:** US-01 a US-06 e US-09 a US-19, incluindo o painel (US-15, US-16, integrado ao backend) e a
-exportação do histórico (US-14).
-
-**Ainda não existem:**
-
-- Gravação de tag pelo terminal (US-07), por depender de endpoints novos no backend (veja a seção Tag NFC).
-- Foto por upload ou webcam (US-08).
-- Teste ponta a ponta com Playwright e execução automática no CI (US-20); os testes unitários e de componentes já existem.
-- Estado da trava no painel, que o backend não tem.
-- JWT em `users`, `locations` e na listagem do histórico, que ainda estão abertas (decisão do grupo, veja a seção Backend).
-- Revisão de acessibilidade com leitor de tela (US-18): os itens foram conferidos pelo código e por testes automatizados.
-
-**Infraestrutura:** `docker-compose.yml`, `frontend/Dockerfile` e `frontend/deploy/nginx.conf` existem. A configuração do
-Nginx foi testada; a construção das imagens no Docker ainda não foi validada.
+- Exportação CSV no backend real, rotação de chave pela interface web, paginação dos seletores auxiliares e limpeza de campos opcionais na edição.
+- Cadastro facial pela web. O cadastro oficial é feito no Mobile Registry.
+- Validar o ambiente hospedado com a URL real de `/api`, o proxy ou `config.json`, o login administrativo e os registros do histórico.

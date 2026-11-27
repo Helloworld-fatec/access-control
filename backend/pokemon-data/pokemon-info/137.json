@@ -1,0 +1,36 @@
+{
+  "id": "137",
+  "numero": 137,
+  "nome": "Porygon",
+  "nome_en": "porygon",
+  "categoria": "Virtual Pokémon",
+  "descricao": "A POKéMON that consists entirely of programming code. Capable of moving freely in cyberspace.",
+  "tipos": [
+    "Normal"
+  ],
+  "altura_m": 0.8,
+  "peso_kg": 36.5,
+  "habilidades": [
+    {
+      "nome": "Trace",
+      "oculta": false
+    },
+    {
+      "nome": "Download",
+      "oculta": false
+    },
+    {
+      "nome": "Analytic",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 65,
+    "attack": 60,
+    "defense": 70,
+    "special-attack": 85,
+    "special-defense": 75,
+    "speed": 40
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/137.png"
+}

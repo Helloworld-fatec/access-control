@@ -1,4 +1,14 @@
-# Segredos e dependências
+# Variáveis locais e segredos
+local/
 .env
+
+# Dependências e saídas locais
 node_modules/
-.DS_Store
+dist/
+coverage/
+
+# Uploads e dados de desenvolvimento
+backend/photos/
+/backend/uploads/
+/uploads/
+.pgdata-test/

@@ -1,0 +1,36 @@
+{
+  "id": "088",
+  "numero": 88,
+  "nome": "Grimer",
+  "nome_en": "grimer",
+  "categoria": "Sludge Pokémon",
+  "descricao": "Appears in filthy areas. Thrives by sucking up polluted sludge that is pumped out of factories.",
+  "tipos": [
+    "Venenoso"
+  ],
+  "altura_m": 0.9,
+  "peso_kg": 30.0,
+  "habilidades": [
+    {
+      "nome": "Stench",
+      "oculta": false
+    },
+    {
+      "nome": "Sticky Hold",
+      "oculta": false
+    },
+    {
+      "nome": "Poison Touch",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 80,
+    "attack": 80,
+    "defense": 50,
+    "special-attack": 40,
+    "special-defense": 50,
+    "speed": 25
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/088.png"
+}

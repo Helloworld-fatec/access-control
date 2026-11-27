@@ -1,31 +1,50 @@
-// Cria (ou atualiza) um administrador direto no banco. Útil no primeiro acesso e
-// quando as rotas passarem a exigir JWT (aí não dá mais para criar o 1º admin pela API).
-//
-// Uso:  npm run admin:create -- admin@exemplo.com SenhaForte123 "Nome do Admin"
 import bcrypt from "bcrypt";
-import { env } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
+import { env } from "../config/env.js";
+import { createUserSchema } from "../models/dtos/user.dto.js";
 
-const [email, password, name = "Administrador"] = process.argv.slice(2);
+async function createAdmin() {
+  const account = createUserSchema.safeParse({
+    name: "Administrador",
+    email: process.env.ADMIN_EMAIL,
+    password: process.env.ADMIN_PASSWORD,
+    role: "ADMIN",
+  });
+  if (!account.success || Buffer.byteLength(account.data.password, "utf8") > 72) {
+    throw new Error("Informe ADMIN_EMAIL válido e ADMIN_PASSWORD de 6 a 72 bytes.");
+  }
 
-if (!email || !password) {
-  console.error('Uso: npm run admin:create -- <email> <senha> ["Nome"]');
-  process.exit(1);
+  const { email, name, password, role } = account.data;
+  const existing = await prisma.user.findUnique({
+    where: { email },
+    select: { role: true, active: true },
+  }).catch(() => {
+    throw new Error("Não foi possível consultar o administrador. Confira a conexão com o banco.");
+  });
+  if (existing) {
+    if (existing.role !== role || !existing.active) {
+      throw new Error("O e-mail já está vinculado a uma conta que não é uma administradora ativa.");
+    }
+    console.log("Administrador ativo já cadastrado. A senha existente foi preservada.");
+    return;
+  }
+
+  try {
+    await prisma.user.create({
+      data: { email, name, role, passwordHash: await bcrypt.hash(password, env.BCRYPT_ROUNDS) },
+      select: { id: true },
+    });
+  } catch {
+    throw new Error("Não foi possível criar o administrador. Confira o banco e se o e-mail já existe.");
+  }
+  console.log("Administrador criado.");
 }
-if (password.length < 6) {
-  console.error("A senha deve ter ao menos 6 caracteres.");
-  process.exit(1);
+
+try {
+  await createAdmin();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : "Falha ao criar administrador.");
+  process.exitCode = 1;
+} finally {
+  await prisma.$disconnect();
 }
-
-const passwordHash = await bcrypt.hash(password, env.BCRYPT_ROUNDS);
-const normalized = email.trim().toLowerCase();
-
-const user = await prisma.user.upsert({
-  where: { email: normalized },
-  create: { name, email: normalized, passwordHash, role: "ADMIN", active: true },
-  update: { passwordHash, role: "ADMIN", active: true },
-  select: { id: true, email: true, role: true },
-});
-
-console.log(`Administrador pronto: ${user.email} (id ${user.id})`);
-await prisma.$disconnect();

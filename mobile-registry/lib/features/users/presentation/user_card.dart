@@ -1,15 +1,26 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../data/user_models.dart';
+import 'user_photo.dart';
 
 /// Cartão de um usuário na lista: nome, perfil, situação e, quando a API
 /// informa, se há tag NFC e rosto vinculados.
 class UserCard extends StatelessWidget {
-  const UserCard({super.key, required this.user, required this.onTap});
+  const UserCard({
+    super.key,
+    required this.user,
+    required this.onTap,
+    this.loadPhoto,
+    this.photoRevision = 0,
+  });
 
   final UserSummary user;
   final VoidCallback onTap;
+  final Future<Uint8List?> Function()? loadPhoto;
+  final int photoRevision;
 
   /// Frase única lida por leitores de tela.
   String get semanticLabel {
@@ -31,6 +42,17 @@ class UserCard extends StatelessWidget {
       user.email,
       if (user.document != null) 'Doc. ${user.document}',
     ].join('  |  ');
+    final placeholder = CircleAvatar(
+      radius: 24,
+      backgroundColor:
+          user.active ? AppColors.primary : AppColors.textSecondary,
+      child: Text(
+        user.name.trim().isEmpty
+            ? '?'
+            : user.name.trim().substring(0, 1).toUpperCase(),
+        style: theme.titleMedium?.copyWith(color: AppColors.onDark),
+      ),
+    );
 
     return Semantics(
       button: true,
@@ -46,19 +68,19 @@ class UserCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor:
-                      user.active ? AppColors.primary : AppColors.textSecondary,
-                  child: Text(
-                    user.name.trim().isEmpty
-                        ? '?'
-                        : user.name.trim().substring(0, 1).toUpperCase(),
-                    style: theme.titleMedium?.copyWith(
-                      color: AppColors.onDark,
+                if (loadPhoto case final load?)
+                  ClipOval(
+                    child: UserPhoto(
+                      key: ValueKey((user.id, photoRevision)),
+                      load: load,
+                      placeholder: placeholder,
+                      height: 48,
+                      width: 48,
+                      fit: BoxFit.cover,
                     ),
-                  ),
-                ),
+                  )
+                else
+                  placeholder,
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(

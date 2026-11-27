@@ -3,17 +3,30 @@ import "dotenv/config";
 import path from "node:path";
 import { z } from "zod";
 
+const emptyAsUndefined = (value: unknown) => value === "" ? undefined : value;
+
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatória"),
   /** Pasta das fotos. Relativa ao diretório de execução (backend/). */
-  PHOTOS_DIR: z.string().min(1).default("photos"),
+  PHOTOS_DIR: z.string().min(1).default("uploads"),
   BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(10),
   JWT_SECRET: z.string().min(32, "JWT_SECRET deve ter ao menos 32 caracteres"),
   JWT_EXPIRES_IN: z.string().default("1h"),
   /** Limite do upload (100 KB: folga sobre os ~50 KB da foto reduzida). */
-  MAX_PHOTO_BYTES: z.coerce.number().int().positive().default(100 * 1024),
-});
+  MAX_PHOTO_BYTES: z.coerce.number().int().positive().max(102_400).default(102_400),
+  FACE_RECOGNITION_URL: z.url({ protocol: /^https?$/ }).default("http://127.0.0.1:8000"),
+  FACE_RECOGNITION_TIMEOUT_MS: z.coerce.number().int().positive().max(60_000).default(5_000),
+  ESP32_TERMINAL_ID: z.preprocess(emptyAsUndefined, z.uuid().optional()),
+  MQTT_SIMULATOR_TERMINAL_ID: z.preprocess(emptyAsUndefined, z.uuid().optional()),
+  MQTT_URL: z.preprocess(emptyAsUndefined, z.url({ protocol: /^mqtts$/ }).optional()),
+  MQTT_CA_FILE: z.preprocess(emptyAsUndefined, z.string().optional()),
+  MQTT_BACKEND_PASSWORD: z.preprocess(emptyAsUndefined, z.string().min(16).optional()),
+}).refine(
+  ({ MQTT_URL, MQTT_CA_FILE, MQTT_BACKEND_PASSWORD }) =>
+    !MQTT_URL || Boolean(MQTT_CA_FILE && MQTT_BACKEND_PASSWORD),
+  "MQTT_URL requer MQTT_CA_FILE e MQTT_BACKEND_PASSWORD",
+);
 
 const parsed = envSchema.safeParse(process.env);
 

@@ -1,35 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../core/theme/app_colors.dart';
-import '../application/auth_providers.dart';
 
 /// Pergunta se o usuário quer mesmo sair e, se confirmar, encerra a sessão.
 /// A confirmação evita saídas por toque acidental.
-Future<void> confirmAndSignOut(BuildContext context, WidgetRef ref) async {
+Future<void> confirmAndSignOut(
+    BuildContext context, VoidCallback onSignOut) async {
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => const _LogoutDialog(),
   );
-  if (confirmed != true) return;
-  await ref.read(authProvider.notifier).signOut();
+  if (confirmed == true && context.mounted) onSignOut();
 }
 
 /// Ícone "Sair" para a barra superior das telas logadas.
-class LogoutAppBarAction extends ConsumerWidget {
-  const LogoutAppBarAction({super.key});
+class LogoutAppBarAction extends StatelessWidget {
+  const LogoutAppBarAction({super.key, required this.onSignOut});
+
+  final VoidCallback onSignOut;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.logout),
       iconSize: 28,
       tooltip: 'Sair',
       style: IconButton.styleFrom(
-        foregroundColor: AppColors.onDark, // contraste sobre a barra azul
+        foregroundColor: AppColors.onDark,
         minimumSize: const Size(56, 56),
       ),
-      onPressed: () => confirmAndSignOut(context, ref),
+      onPressed: () => confirmAndSignOut(context, onSignOut),
     );
   }
 }

@@ -1,0 +1,36 @@
+{
+  "id": "029",
+  "numero": 29,
+  "nome": "Nidoran F",
+  "nome_en": "nidoran-f",
+  "categoria": "Poison Pin Pokémon",
+  "descricao": "Although small, its venomous barbs render this POKéMON dangerous. The female has smaller horns.",
+  "tipos": [
+    "Venenoso"
+  ],
+  "altura_m": 0.4,
+  "peso_kg": 7.0,
+  "habilidades": [
+    {
+      "nome": "Poison Point",
+      "oculta": false
+    },
+    {
+      "nome": "Rivalry",
+      "oculta": false
+    },
+    {
+      "nome": "Hustle",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 55,
+    "attack": 47,
+    "defense": 52,
+    "special-attack": 40,
+    "special-defense": 40,
+    "speed": 41
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/029.png"
+}

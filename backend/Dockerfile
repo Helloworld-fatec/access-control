@@ -1,20 +1,34 @@
-FROM node:22-slim
-
-# O Prisma precisa do OpenSSL para migrar e consultar o PostgreSQL.
-RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+FROM node:22-alpine
 
 WORKDIR /app
 
+# Prisma's PostgreSQL engine and bcrypt need the platform runtime libraries.
+RUN apk add --no-cache openssl \
+    && addgroup -S app \
+    && adduser -S -G app app
+
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
-COPY . .
+COPY prisma ./prisma
+COPY prisma7.config.ts tsconfig.json ./
+COPY src ./src
+COPY pokemon-data ./pokemon-data
 
-# Gera o cliente do Prisma (não precisa de banco nesta etapa).
-RUN npx prisma generate --config prisma7.config.ts
+RUN npm run db:generate \
+    && mkdir -p /app/uploads \
+    && chown -R app:app /app
 
-EXPOSE 3000
+ENV NODE_ENV=production \
+    PORT=3333 \
+    PHOTOS_DIR=/app/uploads
 
-# Aplica as migrações e sobe a API.
-CMD ["sh", "-c", "npx prisma migrate deploy --config prisma7.config.ts && npm start"]
+USER app
+
+EXPOSE 3333
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3333/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+# Apply versioned migrations before serving requests. exec forwards container signals.
+CMD ["sh", "-c", "npm run db:deploy && exec npm start"]

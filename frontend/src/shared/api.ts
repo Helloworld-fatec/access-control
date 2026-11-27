@@ -5,6 +5,7 @@ let base = (import.meta.env.VITE_API_URL as string | undefined) || "/api";
 export const setApiBase = (b: string) => {
   base = b.replace(/\/+$/, "");
 };
+export const apiUrl = (path: string) => `${base}${path}`;
 export async function loadRuntimeConfig(): Promise<void> {
   try {
     const r = await fetch("/config.json", { cache: "no-store" });
@@ -17,10 +18,12 @@ export async function loadRuntimeConfig(): Promise<void> {
 }
 
 let accessToken: string | null = null;
+let sessionVersion = 0;
 let unauthorizedHandler: (() => void) | null = null;
 
 export const setAccessToken = (t: string | null) => {
   accessToken = t;
+  sessionVersion += 1;
 };
 export const setUnauthorizedHandler = (fn: (() => void) | null) => {
   unauthorizedHandler = fn;
@@ -48,6 +51,7 @@ interface Options {
   query?: Record<string, unknown>;
   body?: unknown;
   form?: FormData;
+  authenticated?: boolean;
 }
 
 function toQuery(query?: Record<string, unknown>): string {
@@ -66,7 +70,9 @@ const SESSION_CODES = new Set(["UNAUTHORIZED", "INVALID_TOKEN", "ERROR"]);
 
 async function raw(path: string, opts: Options): Promise<Response> {
   const headers: Record<string, string> = {};
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  const token = opts.authenticated === false ? null : accessToken;
+  const requestSession = sessionVersion;
+  if (token) headers.Authorization = `Bearer ${token}`;
   let body: BodyInit | undefined;
   if (opts.form) body = opts.form;
   else if (opts.body !== undefined) {
@@ -76,7 +82,7 @@ async function raw(path: string, opts: Options): Promise<Response> {
 
   let res: Response;
   try {
-    res = await fetch(`${base}${path}${toQuery(opts.query)}`, {
+    res = await fetch(`${apiUrl(path)}${toQuery(opts.query)}`, {
       method: opts.method ?? "GET",
       headers,
       body,
@@ -93,7 +99,9 @@ async function raw(path: string, opts: Options): Promise<Response> {
       /* resposta sem corpo JSON */
     }
     const e = payload.error;
-    if (res.status === 401 && accessToken && SESSION_CODES.has(e?.code ?? "ERROR")) unauthorizedHandler?.();
+    if (res.status === 401 && token && requestSession === sessionVersion && SESSION_CODES.has(e?.code ?? "ERROR")) {
+      unauthorizedHandler?.();
+    }
     throw new ApiError(
       res.status,
       e?.code ?? "ERROR",

@@ -1,0 +1,36 @@
+{
+  "id": "115",
+  "numero": 115,
+  "nome": "Kangaskhan",
+  "nome_en": "kangaskhan",
+  "categoria": "Parent Pokémon",
+  "descricao": "The infant rarely ventures out of its mother's protective pouch until it is 3 years old.",
+  "tipos": [
+    "Normal"
+  ],
+  "altura_m": 2.2,
+  "peso_kg": 80.0,
+  "habilidades": [
+    {
+      "nome": "Early Bird",
+      "oculta": false
+    },
+    {
+      "nome": "Scrappy",
+      "oculta": false
+    },
+    {
+      "nome": "Inner Focus",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 105,
+    "attack": 95,
+    "defense": 80,
+    "special-attack": 40,
+    "special-defense": 80,
+    "speed": 90
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/115.png"
+}

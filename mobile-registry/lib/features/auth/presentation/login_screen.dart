@@ -1,52 +1,77 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../core/config/settings_providers.dart';
 import '../../../core/network/api_exception.dart';
-import '../../../core/router/app_router.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_logo.dart';
 import '../../../core/widgets/app_buttons.dart';
-import '../../../core/widgets/info_card.dart';
 import '../../../core/widgets/status_message.dart';
-import '../application/auth_providers.dart';
+import '../application/session_controller.dart';
 import 'login_validators.dart';
 
 /// Login do administrador (US-04).
-class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key, required this.session});
+
+  final SessionController session;
 
   @override
-  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _addressKey = GlobalKey<FormFieldState<String>>();
+  late final _address = TextEditingController(
+    text: widget.session.server.origin,
+  );
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _showPassword = false;
+  bool _checked = false;
+  String? _connectionError;
 
   @override
   void dispose() {
+    _address.dispose();
     _email.dispose();
     _password.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
+    if (widget.session.busy) return;
     if (!_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
-    await ref
-        .read(loginControllerProvider.notifier)
-        .submit(email: _email.text, password: _password.text);
+    await widget.session.submit(
+      email: _email.text,
+      password: _password.text,
+      server: _serverAddress(),
+    );
+  }
+
+  Uri _serverAddress() => LoginValidators.parseServerAddress(_address.text)!;
+
+  Future<void> _checkConnection() async {
+    if (widget.session.busy) return;
+    if (!_addressKey.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _checked = false);
+    final error = await widget.session.checkConnection(_serverAddress());
+    if (!mounted) return;
+    setState(() {
+      _checked = true;
+      _connectionError = error;
+    });
+  }
+
+  void _addressChanged(String _) {
+    if (_checked) setState(() => _checked = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context).textTheme;
-    final login = ref.watch(loginControllerProvider);
-    final settings = ref.watch(settingsProvider);
-    final endReason = ref.watch(authProvider.select((s) => s.endReason));
+    final login = widget.session;
+    final endReason = login.endReason;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Registro de Acesso')),
@@ -60,13 +85,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const ExcludeSemantics(
-                    child: Icon(
-                      Icons.lock_outline,
-                      size: 64,
-                      color: AppColors.primary,
-                    ),
-                  ),
+                  const Center(child: AppLogo()),
                   const SizedBox(height: 12),
                   Semantics(
                     header: true,
@@ -93,8 +112,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 20),
                   ],
                   TextFormField(
+                    key: _addressKey,
+                    controller: _address,
+                    readOnly: login.busy,
+                    decoration: const InputDecoration(
+                      labelText: 'Endereço do servidor',
+                      hintText: '192.168.1.25:3333 ou https://…',
+                    ),
+                    keyboardType: TextInputType.url,
+                    textInputAction: TextInputAction.next,
+                    validator: LoginValidators.serverAddress,
+                    onChanged: _addressChanged,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                  ),
+                  const SizedBox(height: 12),
+                  AppSecondaryButton(
+                    label: 'Testar conexão',
+                    onPressed: login.busy ? null : _checkConnection,
+                    isLoading: login.checking,
+                  ),
+                  if (_checked) ...[
+                    const SizedBox(height: 12),
+                    StatusMessage(
+                      kind: _connectionError == null
+                          ? StatusKind.success
+                          : StatusKind.error,
+                      message:
+                          _connectionError ??
+                          'Conexão com o servidor confirmada.',
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  TextFormField(
                     controller: _email,
-                    readOnly: login.loading,
+                    readOnly: login.busy,
                     decoration: const InputDecoration(labelText: 'E-mail'),
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
@@ -109,7 +161,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 20),
                   TextFormField(
                     controller: _password,
-                    readOnly: login.loading,
+                    readOnly: login.busy,
                     decoration: const InputDecoration(labelText: 'Senha'),
                     obscureText: !_showPassword,
                     keyboardType: TextInputType.visiblePassword,
@@ -140,20 +192,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     label: 'Entrar',
                     icon: Icons.login,
                     isLoading: login.loading,
-                    onPressed: _submit,
-                  ),
-                  const SizedBox(height: 32),
-                  InfoCard(
-                    title: 'Servidor configurado',
-                    value: settings.baseUrl,
-                  ),
-                  const SizedBox(height: 16),
-                  AppSecondaryButton(
-                    label: 'Configurar servidor',
-                    icon: Icons.settings,
-                    onPressed: login.loading
-                        ? null
-                        : () => context.push(AppRoutes.settings),
+                    onPressed: login.busy ? null : _submit,
                   ),
                 ],
               ),

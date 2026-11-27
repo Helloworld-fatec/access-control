@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "./AuthContext";
 import { Field, errorMessage } from "../../shared/ui";
+import { ApiError } from "../../shared/api";
 import Logo from "../../shared/Logo";
 
 const schema = z.object({
@@ -15,7 +16,6 @@ type Values = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const { user, login, notice } = useAuth();
-  const nav = useNavigate();
   const from = (useLocation().state as { from?: string } | null)?.from ?? "/painel";
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,9 +27,10 @@ export default function LoginPage() {
     setError(null);
     try {
       await login(v.email, v.password);
-      nav(from, { replace: true });
     } catch (e) {
-      setError(errorMessage(e));
+      setError(e instanceof ApiError && (e.status === 404 || e.status >= 500)
+        ? "O login está indisponível. Tente novamente em instantes."
+        : errorMessage(e));
     }
   });
 

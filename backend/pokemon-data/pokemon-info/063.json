@@ -1,0 +1,36 @@
+{
+  "id": "063",
+  "numero": 63,
+  "nome": "Abra",
+  "nome_en": "abra",
+  "categoria": "Psi Pokémon",
+  "descricao": "Using its ability to read minds, it will identify impending danger and TELEPORT to safety.",
+  "tipos": [
+    "Psíquico"
+  ],
+  "altura_m": 0.9,
+  "peso_kg": 19.5,
+  "habilidades": [
+    {
+      "nome": "Synchronize",
+      "oculta": false
+    },
+    {
+      "nome": "Inner Focus",
+      "oculta": false
+    },
+    {
+      "nome": "Magic Guard",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 25,
+    "attack": 20,
+    "defense": 15,
+    "special-attack": 105,
+    "special-defense": 55,
+    "speed": 90
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/063.png"
+}

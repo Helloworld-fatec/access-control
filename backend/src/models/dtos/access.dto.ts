@@ -7,6 +7,11 @@ export const nfcAccessSchema = z.object({
   uid: nfcUidSchema,
 });
 
+export const esp32NfcAccessSchema = z.object({
+  terminalId: z.uuid(),
+  uid: nfcUidSchema.refine((uid) => [8, 14, 20].includes(uid.length)),
+});
+
 export const faceAccessSchema = z.object({
   terminalId: z.string().uuid("terminalId inválido"),
   userId: z.string().uuid("userId inválido"),

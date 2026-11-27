@@ -27,10 +27,8 @@ class _MockFacesHttp extends http.BaseClient {
 void main() {
   group('FaceSyncService (US-15, US-17, US-19)', () {
     const config = TerminalConfig(
-      backendHost: 'localhost',
-      backendPort: 3000,
+      serverAddress: 'http://localhost:3000/api',
       terminalId: 'term-01',
-      faceSimilarityThreshold: 0.75,
     );
 
     test('calcula similaridade de cosseno com precisão matemática', () {
@@ -42,7 +40,8 @@ void main() {
       expect(FaceSyncService.cosineSimilarity(v1, v3), closeTo(0.0, 0.0001));
     });
 
-    test('sincroniza embeddings compatíveis e ignora versões incompatíveis (US-15)',
+    test(
+        'sincroniza embeddings compatíveis e ignora versões incompatíveis (US-15)',
         () async {
       final mockHttp = _MockFacesHttp(
         responseBody: {
@@ -96,8 +95,7 @@ void main() {
       expect(match.similarity, greaterThan(0.95));
 
       // Vetor que não atinge o limiar
-      final noMatch =
-          service.findBestMatch([0.5, 0.5, 0.7], threshold: 0.90);
+      final noMatch = service.findBestMatch([0.5, 0.5, 0.7], threshold: 0.90);
       expect(noMatch, isNull);
     });
 
@@ -121,7 +119,8 @@ void main() {
       expect(service.authorizedEmbeddings.isEmpty, isTrue);
     });
 
-    test('syncEmbeddings lanca excecao quando o servidor retorna erro HTTP (US-15)',
+    test(
+        'syncEmbeddings lanca excecao quando o servidor retorna erro HTTP (US-15)',
         () async {
       final mockHttp = _MockFacesHttp(
         statusCode: 500,

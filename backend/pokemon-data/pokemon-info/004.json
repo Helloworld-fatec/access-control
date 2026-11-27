@@ -1,0 +1,32 @@
+{
+  "id": "004",
+  "numero": 4,
+  "nome": "Charmander",
+  "nome_en": "charmander",
+  "categoria": "Lizard Pokémon",
+  "descricao": "Obviously prefers hot places. When it rains, steam is said to spout from the tip of its tail.",
+  "tipos": [
+    "Fogo"
+  ],
+  "altura_m": 0.6,
+  "peso_kg": 8.5,
+  "habilidades": [
+    {
+      "nome": "Blaze",
+      "oculta": false
+    },
+    {
+      "nome": "Solar Power",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 39,
+    "attack": 52,
+    "defense": 43,
+    "special-attack": 60,
+    "special-defense": 50,
+    "speed": 65
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/004.png"
+}

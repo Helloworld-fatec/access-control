@@ -1,0 +1,36 @@
+{
+  "id": "090",
+  "numero": 90,
+  "nome": "Shellder",
+  "nome_en": "shellder",
+  "categoria": "Bivalve Pokémon",
+  "descricao": "Its hard shell repels any kind of attack. It is vulnerable only when its shell is open.",
+  "tipos": [
+    "Água"
+  ],
+  "altura_m": 0.3,
+  "peso_kg": 4.0,
+  "habilidades": [
+    {
+      "nome": "Shell Armor",
+      "oculta": false
+    },
+    {
+      "nome": "Skill Link",
+      "oculta": false
+    },
+    {
+      "nome": "Overcoat",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 30,
+    "attack": 65,
+    "defense": 100,
+    "special-attack": 45,
+    "special-defense": 25,
+    "speed": 40
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/090.png"
+}

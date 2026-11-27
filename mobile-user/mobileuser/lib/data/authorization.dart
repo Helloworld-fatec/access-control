@@ -33,11 +33,9 @@ class Authorization {
     return Authorization(
       id: j['id'] as String? ?? '',
       place: d.isEmpty ? b : '$b - $d',
-      period: sd == ed ? sd : sd + ' a ' + ed,
+      period: sd == ed ? sd : '$sd a $ed',
       timeWindow:
-          (j['startTime'] as String? ?? '--:--') +
-          ' as ' +
-          (j['endTime'] as String? ?? '--:--'),
+          '${j['startTime'] as String? ?? '--:--'} as ${j['endTime'] as String? ?? '--:--'}',
       remainingUses: rem is int ? rem : null,
       status: st,
     );
@@ -45,6 +43,6 @@ class Authorization {
   static String _date(String? s) {
     if (s == null || s.length < 10) return '--/--/----';
     final p = s.substring(0, 10).split('-');
-    return p[2] + '/' + p[1] + '/' + p[0];
+    return '${p[2]}/${p[1]}/${p[0]}';
   }
 }

@@ -15,7 +15,7 @@ const summary: DashboardSummary = {
   topDenialReasons: [{ reason: "OUTSIDE_SCHEDULE", count: 18 }, { reason: "USES_EXHAUSTED", count: 12 }],
 };
 const hours: HourBucket[] = Array.from({ length: 24 }, (_, hour) => ({ hour, granted: hour === 8 ? 40 : 0, denied: hour === 8 ? 5 : 0 }));
-const status: TerminalStatus = { id: "t1", online: true, presenceActive: true, lastPresenceAt: new Date().toISOString(), lastSeenAt: new Date().toISOString(), lock: "UNLOCKED" };
+const status: TerminalStatus = { id: "t1", name: "Portaria A", online: true, presenceActive: true, lastPresenceAt: new Date().toISOString(), lastSeenAt: new Date().toISOString() };
 const log: AccessLog = {
   id: "g1", userId: "u2", terminalId: "t1", method: "FACE", result: "DENIED", reason: "FACE_LOW_CONFIDENCE", nfcUid: null,
   createdAt: "2026-11-09T15:00:00.000Z", user: { id: "u2", name: "Marina Duarte" }, terminal: { id: "t1", name: "Portaria A" },
@@ -61,13 +61,13 @@ describe("DashboardPage", () => {
     expect(row).toHaveTextContent("5");
   });
 
-  it("mostra o status de cada terminal, com presença e trava", async () => {
+  it("mostra o status real de cada terminal e omite a trava sem telemetria", async () => {
     useDashboard();
     renderApp(<DashboardPage />);
     const card = await screen.findByRole("article", { name: "Terminal Portaria A" });
     expect(await within(card).findByText("Online")).toBeInTheDocument();
     expect(within(card).getByText("Pessoa detectada")).toBeInTheDocument();
-    expect(within(card).getByText("Destrancada")).toBeInTheDocument();
+    expect(within(card).queryByText("Trava")).not.toBeInTheDocument();
     expect(within(card).getByText("Visto pela última vez")).toBeInTheDocument();
   });
 
@@ -80,7 +80,7 @@ describe("DashboardPage", () => {
     expect(within(recent).getByText("Rosto com baixa confiança")).toBeInTheDocument();
   });
 
-  it("explica que o backend ainda não tem os indicadores (404)", async () => {
+  it("mostra o erro da API quando os indicadores estão indisponíveis", async () => {
     server.use(
       http.get(`${API}/dashboard/summary`, () => HttpResponse.json({ error: { code: "NOT_FOUND", message: "Rota não encontrada" } }, { status: 404 })),
       http.get(`${API}/dashboard/accesses-by-hour`, () => HttpResponse.json({ error: { code: "NOT_FOUND", message: "Rota não encontrada" } }, { status: 404 })),
@@ -89,8 +89,23 @@ describe("DashboardPage", () => {
     );
     renderApp(<DashboardPage />);
     const alerts = await screen.findAllByRole("alert");
-    expect(alerts[0]).toHaveTextContent("ainda não existe no backend");
-    expect(alerts[0]).toHaveTextContent("npm run dev:mock");
+    expect(alerts[0]).toHaveTextContent("Rota não encontrada");
+  });
+
+  it("mostra um dia sem acessos como resultado válido", async () => {
+    useDashboard();
+    server.use(
+      http.get(`${API}/dashboard/summary`, () => HttpResponse.json({
+        ...summary, granted: 0, denied: 0, denialRate: 0,
+        byMethod: { QR: 0, NFC: 0, FACE: 0 }, topDenialReasons: [],
+      })),
+      http.get(`${API}/dashboard/accesses-by-hour`, () =>
+        HttpResponse.json(hours.map(({ hour }) => ({ hour, granted: 0, denied: 0 })))),
+    );
+    renderApp(<DashboardPage />);
+    expect(await screen.findByText("0 tentativas no dia")).toBeInTheDocument();
+    expect(screen.getByText("Nenhum acesso negado neste dia.")).toBeInTheDocument();
+    expect(await screen.findByText("Nenhum acesso registrado neste dia.")).toBeInTheDocument();
   });
 
   it("avisa no cartão quando o status dos terminais falha", async () => {

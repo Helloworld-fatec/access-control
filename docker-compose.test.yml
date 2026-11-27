@@ -4,11 +4,11 @@ services:
     container_name: access-control-pg-test
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      POSTGRES_DB: ${POSTGRES_DB:-access_control_test}
+      POSTGRES_USER: ${POSTGRES_TEST_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_TEST_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_TEST_DB:-access_control_test}
     ports:
-      - "${POSTGRES_PORT:-5433}:5432"
+      - "${POSTGRES_TEST_PORT:-5433}:5432"
     volumes:
       - access_control_pgdata_test:/var/lib/postgresql/data
 

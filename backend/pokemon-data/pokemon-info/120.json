@@ -1,0 +1,36 @@
+{
+  "id": "120",
+  "numero": 120,
+  "nome": "Staryu",
+  "nome_en": "staryu",
+  "categoria": "Star Shape Pokémon",
+  "descricao": "An enigmatic POKéMON that can effortlessly regenerate any appendage it loses in battle.",
+  "tipos": [
+    "Água"
+  ],
+  "altura_m": 0.8,
+  "peso_kg": 34.5,
+  "habilidades": [
+    {
+      "nome": "Illuminate",
+      "oculta": false
+    },
+    {
+      "nome": "Natural Cure",
+      "oculta": false
+    },
+    {
+      "nome": "Analytic",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 30,
+    "attack": 45,
+    "defense": 55,
+    "special-attack": 70,
+    "special-defense": 55,
+    "speed": 85
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/120.png"
+}

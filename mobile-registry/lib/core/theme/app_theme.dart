@@ -11,11 +11,11 @@ abstract final class AppTheme {
   static const double radius = 16;
 
   static ThemeData light() {
-    const scheme = ColorScheme(
-      brightness: Brightness.light,
+    final scheme = ColorScheme.fromSeed(
+      seedColor: AppColors.primary,
       primary: AppColors.primary,
       onPrimary: AppColors.onDark,
-      secondary: AppColors.accent,
+      secondary: AppColors.textPrimary,
       onSecondary: AppColors.onDark,
       error: AppColors.accent,
       onError: AppColors.onDark,
@@ -92,7 +92,7 @@ abstract final class AppTheme {
           minimumSize: buttonSize,
           shape: buttonShape,
           textStyle: textTheme.labelLarge,
-          foregroundColor: AppColors.primary,
+          foregroundColor: AppColors.accent,
           side: const BorderSide(color: AppColors.primary, width: 2),
         ),
       ),
@@ -101,7 +101,7 @@ abstract final class AppTheme {
           minimumSize: const Size(64, 56),
           shape: buttonShape,
           textStyle: textTheme.labelLarge,
-          foregroundColor: AppColors.primary,
+          foregroundColor: AppColors.accent,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

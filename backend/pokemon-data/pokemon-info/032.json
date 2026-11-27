@@ -1,0 +1,36 @@
+{
+  "id": "032",
+  "numero": 32,
+  "nome": "Nidoran M",
+  "nome_en": "nidoran-m",
+  "categoria": "Poison Pin Pokémon",
+  "descricao": "Stiffens its ears to sense danger. The larger its horns, the more powerful its secreted venom.",
+  "tipos": [
+    "Venenoso"
+  ],
+  "altura_m": 0.5,
+  "peso_kg": 9.0,
+  "habilidades": [
+    {
+      "nome": "Poison Point",
+      "oculta": false
+    },
+    {
+      "nome": "Rivalry",
+      "oculta": false
+    },
+    {
+      "nome": "Hustle",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 46,
+    "attack": 57,
+    "defense": 40,
+    "special-attack": 40,
+    "special-defense": 40,
+    "speed": 50
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/032.png"
+}

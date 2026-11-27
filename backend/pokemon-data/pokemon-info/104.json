@@ -1,0 +1,36 @@
+{
+  "id": "104",
+  "numero": 104,
+  "nome": "Cubone",
+  "nome_en": "cubone",
+  "categoria": "Lonely Pokémon",
+  "descricao": "Because it never removes its skull helmet, no one has ever seen this POKéMON's real face.",
+  "tipos": [
+    "Terra"
+  ],
+  "altura_m": 0.4,
+  "peso_kg": 6.5,
+  "habilidades": [
+    {
+      "nome": "Rock Head",
+      "oculta": false
+    },
+    {
+      "nome": "Lightning Rod",
+      "oculta": false
+    },
+    {
+      "nome": "Battle Armor",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 50,
+    "attack": 50,
+    "defense": 95,
+    "special-attack": 40,
+    "special-defense": 50,
+    "speed": 35
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/104.png"
+}

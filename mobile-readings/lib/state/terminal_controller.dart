@@ -5,381 +5,328 @@ import 'package:flutter/foundation.dart';
 import '../config/terminal_config.dart';
 import '../models/access_result.dart';
 import '../models/qr_token.dart';
+import '../services/accessibility_service.dart';
 import '../services/api_client.dart';
-import '../services/mqtt_presence_service.dart';
-import '../services/nfc_service.dart';
 
-/// Estados oficiais do Terminal de Acesso (US-04).
 enum TerminalState {
-  /// Repouso: tela econômica, câmera desligada e leitor NFC inativo (US-13).
   idle,
-
-  /// Escuta: QR Code rotativo visível e leitura NFC ativa.
-  listening,
-
-  /// Validando: credencial enviada ao backend, aguardando decisão.
-  validating,
-
-  /// Liberado: tela verde, ícone de confirmação e retorno a Repouso após poucos segundos.
-  granted,
-
-  /// Negado: tela vermelha, motivo genérico/indisponibilidade e retorno a Escuta após poucos segundos.
-  denied,
+  choosing,
+  qr,
+  facial,
+  validatingFacial,
+  facialResult
 }
 
-/// Controlador central da máquina de estados e orquestração de serviços do Terminal (US-04 a US-13).
 class TerminalController extends ChangeNotifier {
   final ConfigStorage _configStorage;
   final TerminalApiClient _apiClient;
-  final NfcReaderService _nfcService;
-  final PresenceMqttService _mqttService;
-  final NfcCooldownGuard _nfcCooldownGuard;
+  static const _qrFailureDelay = Duration(seconds: 10);
+  static const _presencePollDelay = Duration(seconds: 2);
 
-  final Duration qrRefreshInterval;
-  final Duration presencePollingInterval;
-  final Duration resultDisplayDuration;
-
-  TerminalConfig _config;
+  TerminalConfig _config = const TerminalConfig();
   TerminalState _state = TerminalState.idle;
   QrToken? _currentQrToken;
-  bool _qrUnavailable = false;
-  bool _mqttConnected = false;
-  NfcHardwareStatus _nfcHardwareStatus = NfcHardwareStatus.available;
-  AccessResult? _lastAccessResult;
-  String? _statusMessage;
+  AccessResult? _facialResult;
+  String? _qrError;
+  DateTime? _qrRetryAt;
+  bool _qrKeyRejected = false;
+  Future<void>? _qrRequest;
+  bool _qrLoading = false;
+  bool _capturing = false;
+  bool _initialized = false;
+  bool _disposed = false;
+  bool _presenceDetected = false;
+  int _operationGeneration = 0;
 
   Timer? _inactivityTimer;
   Timer? _qrRefreshTimer;
-  Timer? _qrExpiryGuardTimer;
-  Timer? _resultReturnTimer;
-  Timer? _presenceFallbackTimer;
-  bool _disposed = false;
+  Timer? _qrExpiryTimer;
+  Timer? _presenceTimer;
 
   TerminalController({
     required ConfigStorage configStorage,
     required TerminalApiClient apiClient,
-    required NfcReaderService nfcService,
-    required PresenceMqttService mqttService,
-    NfcCooldownGuard? nfcCooldownGuard,
-    TerminalConfig initialConfig = const TerminalConfig(),
-    this.qrRefreshInterval = const Duration(seconds: 10),
-    this.presencePollingInterval = const Duration(seconds: 2),
-    this.resultDisplayDuration = const Duration(seconds: 3),
   })  : _configStorage = configStorage,
-        _apiClient = apiClient,
-        _nfcService = nfcService,
-        _mqttService = mqttService,
-        _nfcCooldownGuard = nfcCooldownGuard ?? NfcCooldownGuard(),
-        _config = initialConfig;
-
-  // ───────────── Getters de Estado ─────────────
+        _apiClient = apiClient;
 
   TerminalConfig get config => _config;
   TerminalState get state => _state;
   QrToken? get currentQrToken => _currentQrToken;
-  bool get isQrUnavailable => _qrUnavailable || _currentQrToken == null;
-  bool get isMqttConnected => _mqttConnected;
-  bool get isFallbackPollingActive =>
-      _presenceFallbackTimer != null && _presenceFallbackTimer!.isActive;
-  NfcHardwareStatus get nfcHardwareStatus => _nfcHardwareStatus;
-  AccessResult? get lastAccessResult => _lastAccessResult;
-  String? get statusMessage => _statusMessage;
+  AccessResult? get facialResult => _facialResult;
+  String? get qrError => _qrError;
+  bool get canRetryQr =>
+      !_qrLoading && !_qrKeyRejected && _qrCooldown <= Duration.zero;
+  bool get isQrLoading => _qrLoading;
+  bool get isCapturing => _capturing;
+  bool get initialized => _initialized;
 
-  // ───────────── Inicialização e Configuração ─────────────
+  AccessibilityService get _accessibility => AccessibilityService(
+        enabled: _config.voiceAccessibilityEnabled,
+      );
 
   Future<void> initialize() async {
-    _config = await _configStorage.load();
-    _apiClient.updateConfig(_config);
-    _nfcHardwareStatus = await _nfcService.checkAvailability();
-    _notifySafely();
-    await _connectPresenceChannels();
+    final config = await _configStorage.load();
+    if (_disposed) return;
+    _config = config;
+    _apiClient.updateConfig(config);
+    _initialized = true;
+    _schedulePresencePoll();
+    notifyListeners();
   }
 
-  /// Atualiza e aplica imediatamente as configurações sem reiniciar o app (US-02).
-  Future<void> updateConfig(TerminalConfig newConfig) async {
-    _config = newConfig;
-    await _configStorage.save(newConfig);
-    _apiClient.updateConfig(newConfig);
+  Future<void> checkConnection(String address) =>
+      _apiClient.checkConnection(address);
 
-    if (_state == TerminalState.listening) {
-      _resetInactivityTimer();
-      await refreshQrCodeNow();
-    }
-
-    await _connectPresenceChannels();
-    _notifySafely();
-  }
-
-  Future<void> _connectPresenceChannels() async {
-    await _mqttService.connect(
-      config: _config,
-      onPresenceDetected: onPresenceDetected,
-      onConnectionChanged: _handleMqttConnectionChanged,
-    );
-  }
-
-  void _handleMqttConnectionChanged(bool connected) {
-    _mqttConnected = connected;
-    if (connected) {
-      // Quando o MQTT volta, o polling de fallback é interrompido (US-06)
-      _stopPresenceFallbackPolling();
-    } else {
-      // Se o MQTT cair, inicia polling em GET /terminals/{id}/status (US-06)
-      _startPresenceFallbackPolling();
-    }
-    _notifySafely();
-  }
-
-  void _startPresenceFallbackPolling() {
-    _presenceFallbackTimer?.cancel();
-    _presenceFallbackTimer = Timer.periodic(presencePollingInterval, (_) async {
-      if (_mqttConnected) {
-        _stopPresenceFallbackPolling();
-        return;
-      }
-      if (_state != TerminalState.idle) return;
-      try {
-        final status = await _apiClient.fetchTerminalStatus();
-        if (status.presenceActive) {
-          onPresenceDetected();
-        }
-      } catch (_) {
-        // Silencia erro de polling de presença em background
-      }
-    });
-  }
-
-  void _stopPresenceFallbackPolling() {
-    _presenceFallbackTimer?.cancel();
-    _presenceFallbackTimer = null;
-  }
-
-  // ───────────── Transições da Máquina de Estados (US-04) ─────────────
-
-  /// Evento de presença: leva de Repouso a Escuta ou renova o tempo de atividade em Escuta.
-  void onPresenceDetected() {
-    if (_state == TerminalState.idle) {
-      _enterListeningState();
-    } else if (_state == TerminalState.listening) {
-      _resetInactivityTimer();
-    }
-  }
-
-  /// Força retorno imediato ao estado de Repouso (US-13).
-  void returnToIdle() {
-    _enterIdleState();
-  }
-
-  void _enterIdleState() {
-    _cancelOperationalTimers();
-    _currentQrToken = null;
-    _qrUnavailable = false;
-    _lastAccessResult = null;
-    _statusMessage = null;
-    _state = TerminalState.idle;
-    unawaited(_nfcService.stopListening());
-    _notifySafely();
-  }
-
-  void _enterListeningState() {
-    _resultReturnTimer?.cancel();
-    _lastAccessResult = null;
-    _statusMessage = null;
-    _state = TerminalState.listening;
-    _resetInactivityTimer();
-    _startQrPolling();
-    unawaited(_startNfcInListening());
-    _notifySafely();
-  }
-
-  Future<void> _startNfcInListening() async {
-    _nfcHardwareStatus = await _nfcService.checkAvailability();
-    _notifySafely();
-    if (_nfcHardwareStatus == NfcHardwareStatus.available &&
-        _state == TerminalState.listening) {
-      await _nfcService.startListening(
-        onTagRead: onNfcTagRead,
-        onError: (msg) {
-          _statusMessage = msg;
-          _notifySafely();
-        },
+  Future<void> configureTerminal(String address, String key) async {
+    final normalized = TerminalConfig.normalizeServerAddress(address);
+    if (normalized == null || TerminalConfig.validateTerminalKey(key) != null) {
+      throw const TerminalApiException(
+        'Confira o endereço e a chave do terminal.',
       );
     }
+    final candidate = _config.copyWith(
+      serverAddress: normalized,
+      apiKey: key.trim().toLowerCase(),
+    );
+    final id = await _apiClient.identifyTerminal(candidate);
+    if (_disposed) return;
+    final verified = candidate.copyWith(terminalId: id);
+    await _configStorage.save(verified);
+    if (_disposed) return;
+
+    _qrKeyRejected = false;
+    _qrRetryAt = null;
+    _presenceDetected = false;
+    _config = verified;
+    _apiClient.updateConfig(verified);
+    returnToIdle();
+  }
+
+  void activate() {
+    if (_state != TerminalState.idle || !_config.isConfigured) {
+      return;
+    }
+    showChoices();
+    unawaited(_accessibility.notifyTerminalAwake());
+  }
+
+  void showChoices() => _enter(TerminalState.choosing);
+
+  void showQr() {
+    if (_state == TerminalState.qr) return;
+    _enter(TerminalState.qr);
+    unawaited(refreshQrCodeNow());
+  }
+
+  void showFacial() => _enter(TerminalState.facial);
+
+  void returnToIdle() => _enter(TerminalState.idle);
+
+  void _enter(TerminalState next) {
+    _operationGeneration++;
+    _cancelTimers();
+    _state = next;
+    _currentQrToken = null;
+    _facialResult = null;
+    _qrError = null;
+    _qrLoading = false;
+    _capturing = false;
+    if (next == TerminalState.choosing || next == TerminalState.facial) {
+      _resetInactivityTimer();
+    }
+    if (next == TerminalState.idle) _schedulePresencePoll();
+    notifyListeners();
+  }
+
+  void _schedulePresencePoll([Duration delay = _presencePollDelay]) {
+    if (!_config.isConfigured || _disposed || _state != TerminalState.idle) return;
+    _presenceTimer?.cancel();
+    final generation = _operationGeneration;
+    _presenceTimer = Timer(delay, () async {
+      var nextDelay = _presencePollDelay;
+      try {
+        final detected = await _apiClient.fetchPresence();
+        if (!_isCurrent(generation)) return;
+        final justDetected = detected && !_presenceDetected;
+        _presenceDetected = detected;
+        if (justDetected) activate();
+      } on Exception {
+        nextDelay = _qrFailureDelay;
+      }
+      if (_isCurrent(generation)) _schedulePresencePoll(nextDelay);
+    });
   }
 
   void _resetInactivityTimer() {
     _inactivityTimer?.cancel();
     _inactivityTimer = Timer(
       Duration(seconds: _config.inactivityTimeoutSeconds),
-      () {
-        if (_state == TerminalState.listening) {
-          _enterIdleState();
-        }
-      },
+      returnToIdle,
     );
   }
 
-  // ───────────── QR Code Rotativo (US-07, US-08) ─────────────
+  Duration get _qrCooldown =>
+      _qrRetryAt?.difference(DateTime.now()) ?? Duration.zero;
 
-  void _startQrPolling() {
+  void _scheduleQrRefresh(Duration delay) {
     _qrRefreshTimer?.cancel();
-    _qrExpiryGuardTimer?.cancel();
-    unawaited(refreshQrCodeNow());
-    _qrRefreshTimer = Timer.periodic(qrRefreshInterval, (_) {
-      if (_state == TerminalState.listening) {
-        unawaited(refreshQrCodeNow());
-      }
-    });
+    _qrRefreshTimer = Timer(delay, () => unawaited(refreshQrCodeNow()));
   }
 
-  /// Busca um novo token QR no backend; em falha, invalida imediatamente o QR atual (US-08).
   Future<void> refreshQrCodeNow() async {
-    if (_state != TerminalState.listening) return;
+    if (_state != TerminalState.qr || _qrLoading) return;
+    final generation = _operationGeneration;
+    _qrRefreshTimer?.cancel();
+
+    _qrLoading = true;
+    notifyListeners();
     try {
-      final token = await _apiClient.fetchQrToken();
-      if (_state != TerminalState.listening) return;
-      _currentQrToken = token;
-      _qrUnavailable = false;
-      _scheduleQrExpiryGuard(token);
-      _notifySafely();
-    } catch (_) {
-      if (_state != TerminalState.listening) return;
-      // Nunca mantém um token expirado/desatualizado na tela (US-08)
-      _currentQrToken = null;
-      _qrUnavailable = true;
-      _notifySafely();
+      // Uma troca de tela invalida o resultado da emissão anterior. Aguarde
+      // essa requisição terminar antes de emitir outro token.
+      final previous = _qrRequest;
+      if (previous != null) await previous;
+      if (!_isCurrent(generation)) return;
+
+      if (_qrKeyRejected) {
+        _qrError = 'Chave do terminal rejeitada. Confira a configuração.';
+        return;
+      }
+      final cooldown = _qrCooldown;
+      if (cooldown > Duration.zero) {
+        _qrError = 'Limite de emissão atingido. Aguarde para tentar novamente.';
+        _scheduleQrRefresh(cooldown);
+        return;
+      }
+
+      final config = _config;
+      final request = Completer<void>();
+      _qrRequest = request.future;
+      try {
+        final token = await _apiClient.fetchQrToken();
+        if (!_isCurrent(generation)) return;
+        _showQrToken(token);
+        _scheduleQrRefresh(Duration(seconds: token.refreshAfterSeconds));
+      } on Exception catch (error) {
+        if (!identical(config, _config)) return;
+        if (error is TerminalApiException) {
+          if (error.statusCode == 401 || error.statusCode == 403) {
+            _qrKeyRejected = true;
+          } else if (error.statusCode == 429) {
+            _qrRetryAt =
+                DateTime.now().add(error.retryAfter ?? _qrFailureDelay);
+          }
+        }
+        if (!_isCurrent(generation)) return;
+        if (_qrKeyRejected) {
+          _qrExpiryTimer?.cancel();
+          _currentQrToken = null;
+          _qrError = 'Chave do terminal rejeitada. Confira a configuração.';
+        } else if (_qrCooldown > Duration.zero) {
+          _qrError =
+              'Limite de emissão atingido. Aguarde para tentar novamente.';
+          _scheduleQrRefresh(_qrCooldown);
+        } else {
+          _qrError = 'Falha ao atualizar o QR Code. Confira a conexão.';
+          _scheduleQrRefresh(_qrFailureDelay);
+        }
+      } finally {
+        _qrRequest = null;
+        request.complete();
+      }
+    } finally {
+      if (_isCurrent(generation)) {
+        _qrLoading = false;
+        notifyListeners();
+      }
     }
   }
 
-  void _scheduleQrExpiryGuard(QrToken token) {
-    _qrExpiryGuardTimer?.cancel();
+  void _showQrToken(QrToken token) {
+    _qrExpiryTimer?.cancel();
     final remaining = token.expiresAt.difference(DateTime.now());
-    if (remaining.isNegative) {
+    if (remaining <= Duration.zero) {
       _currentQrToken = null;
-      _qrUnavailable = true;
+      _qrError = 'QR Code expirado. Tente novamente.';
       return;
     }
-    _qrExpiryGuardTimer = Timer(remaining, () {
-      if (_currentQrToken == token && token.isExpired()) {
-        _currentQrToken = null;
-        _qrUnavailable = true;
-        _notifySafely();
-      }
+
+    _currentQrToken = token;
+    _qrError = null;
+    _qrExpiryTimer = Timer(remaining, () {
+      _currentQrToken = null;
+      _qrError ??= 'QR Code expirado. Tente novamente.';
+      notifyListeners();
     });
   }
 
-  // ───────────── Leitura e Validação de Credenciais (US-09, US-10, US-11, US-12) ─────────────
-
-  /// Chamado quando uma tag NFC é aproximada do terminal em Escuta (US-09, US-10).
-  Future<void> onNfcTagRead(String rawUid) async {
-    if (_state != TerminalState.listening) return;
-
-    String normalizedUid;
-    try {
-      normalizedUid = NfcUidHelper.normalizeHexUid(rawUid);
-    } catch (_) {
-      _statusMessage = 'Formato de tag NFC inválido.';
-      _notifySafely();
-      return;
-    }
-
-    // Respeita o intervalo mínimo entre envios para evitar registros duplicados (US-10)
-    if (!_nfcCooldownGuard.shouldAccept(normalizedUid)) {
-      return;
-    }
-
-    await _processCredentialValidation(
-      () => _apiClient.validateNfcAccess(normalizedUid),
-    );
-  }
-
-  /// Chamado quando o módulo facial (US-18) identifica um usuário acima do limiar.
-  Future<void> onFaceIdentified({
-    required String userId,
-    required double confidence,
-  }) async {
-    if (_state != TerminalState.listening) return;
-    if (confidence < _config.faceSimilarityThreshold) return;
-
-    await _processCredentialValidation(
-      () => _apiClient.validateFaceAccess(
-        userId: userId,
-        confidence: confidence,
-      ),
-    );
-  }
-
-  /// Simula identificação facial autorizada para validação e demonstração (US-18).
-  Future<void> simulateFaceAccess() async {
-    if (_state != TerminalState.listening) return;
-    await _processCredentialValidation(
-      () => _apiClient.validateFaceAccess(
-        userId: 'demo-face-user',
-        confidence: 0.94,
-      ),
-    );
-  }
-
-  Future<void> _processCredentialValidation(
-    Future<AccessResult> Function() validationCall,
+  Future<void> startRecognition(
+    Future<List<List<int>>> Function() capture,
   ) async {
-    _cancelOperationalTimers();
-    await _nfcService.stopListening();
-
-    _state = TerminalState.validating;
-    _statusMessage = null;
-    _notifySafely();
-
-    final result = await validationCall();
-    if (_disposed) return;
-
-    _lastAccessResult = result;
-
-    if (result.isGranted) {
-      // Estado Liberado -> volta para Repouso após resultDisplayDuration (US-04, US-11)
-      _state = TerminalState.granted;
-      _notifySafely();
-      _resultReturnTimer = Timer(resultDisplayDuration, () {
-        if (_state == TerminalState.granted) {
-          _enterIdleState();
-        }
-      });
-    } else {
-      // Estado Negado (ou indisponível US-12) -> volta para Escuta após resultDisplayDuration (US-04, US-11)
-      _state = TerminalState.denied;
-      _notifySafely();
-      _resultReturnTimer = Timer(resultDisplayDuration, () {
-        if (_state == TerminalState.denied) {
-          _enterListeningState();
-        }
-      });
-    }
-  }
-
-  void _cancelOperationalTimers() {
+    if (_state != TerminalState.facial || _capturing) return;
+    final generation = _operationGeneration;
+    _capturing = true;
     _inactivityTimer?.cancel();
-    _inactivityTimer = null;
-    _qrRefreshTimer?.cancel();
-    _qrRefreshTimer = null;
-    _qrExpiryGuardTimer?.cancel();
-    _qrExpiryGuardTimer = null;
-    _resultReturnTimer?.cancel();
-    _resultReturnTimer = null;
+    notifyListeners();
+
+    late final List<List<int>> photos;
+    try {
+      photos = await capture().timeout(const Duration(seconds: 10));
+    } on Exception {
+      if (_isCurrent(generation)) cameraUnavailable();
+      return;
+    }
+
+    if (!_isCurrent(generation)) return;
+    if (photos.isEmpty) {
+      _showFacialResult(AccessResult.unavailable(
+        'A câmera precisa produzir imagens JPEG de até 100 KB.',
+      ));
+      return;
+    }
+
+    _capturing = false;
+    _state = TerminalState.validatingFacial;
+    notifyListeners();
+    final result = await _apiClient.recognizeFace(photos);
+    if (_isCurrent(generation)) _showFacialResult(result);
   }
 
-  void _notifySafely() {
-    if (!_disposed) {
-      notifyListeners();
+  void cameraUnavailable() {
+    if (_state != TerminalState.facial) return;
+    _showFacialResult(
+      AccessResult.unavailable(
+          'Câmera frontal indisponível. Confira a permissão da câmera.'),
+    );
+  }
+
+  void _showFacialResult(AccessResult result) {
+    _operationGeneration++;
+    _capturing = false;
+    _facialResult = result;
+    _state = TerminalState.facialResult;
+    _resetInactivityTimer();
+    notifyListeners();
+    if (result.isGranted) {
+      unawaited(_accessibility.notifyAccessGranted(result.userName));
+    } else {
+      unawaited(_accessibility.notifyAccessDenied(result.message));
     }
+  }
+
+  bool _isCurrent(int generation) =>
+      !_disposed && generation == _operationGeneration;
+
+  void _cancelTimers() {
+    _inactivityTimer?.cancel();
+    _qrRefreshTimer?.cancel();
+    _qrExpiryTimer?.cancel();
+    _presenceTimer?.cancel();
   }
 
   @override
   void dispose() {
     _disposed = true;
-    _cancelOperationalTimers();
-    _stopPresenceFallbackPolling();
-    unawaited(_nfcService.stopListening());
-    unawaited(_mqttService.disconnect());
+    _cancelTimers();
     super.dispose();
   }
 }

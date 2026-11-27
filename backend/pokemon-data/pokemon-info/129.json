@@ -1,0 +1,32 @@
+{
+  "id": "129",
+  "numero": 129,
+  "nome": "Magikarp",
+  "nome_en": "magikarp",
+  "categoria": "Fish Pokémon",
+  "descricao": "In the distant past, it was somewhat stronger than the horribly weak descendants that exist today.",
+  "tipos": [
+    "Água"
+  ],
+  "altura_m": 0.9,
+  "peso_kg": 10.0,
+  "habilidades": [
+    {
+      "nome": "Swift Swim",
+      "oculta": false
+    },
+    {
+      "nome": "Rattled",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 20,
+    "attack": 10,
+    "defense": 55,
+    "special-attack": 15,
+    "special-defense": 20,
+    "speed": 80
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/129.png"
+}

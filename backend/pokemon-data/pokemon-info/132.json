@@ -1,0 +1,32 @@
+{
+  "id": "132",
+  "numero": 132,
+  "nome": "Ditto",
+  "nome_en": "ditto",
+  "categoria": "Transform Pokémon",
+  "descricao": "Capable of copying an enemy's genetic code to instantly transform itself into a duplicate of the enemy.",
+  "tipos": [
+    "Normal"
+  ],
+  "altura_m": 0.3,
+  "peso_kg": 4.0,
+  "habilidades": [
+    {
+      "nome": "Limber",
+      "oculta": false
+    },
+    {
+      "nome": "Imposter",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 48,
+    "attack": 48,
+    "defense": 48,
+    "special-attack": 48,
+    "special-defense": 48,
+    "speed": 48
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/132.png"
+}

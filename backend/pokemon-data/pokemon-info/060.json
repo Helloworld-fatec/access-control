@@ -1,0 +1,36 @@
+{
+  "id": "060",
+  "numero": 60,
+  "nome": "Poliwag",
+  "nome_en": "poliwag",
+  "categoria": "Tadpole Pokémon",
+  "descricao": "Its newly grown legs prevent it from running. It appears to prefer swimming than trying to stand.",
+  "tipos": [
+    "Água"
+  ],
+  "altura_m": 0.6,
+  "peso_kg": 12.4,
+  "habilidades": [
+    {
+      "nome": "Water Absorb",
+      "oculta": false
+    },
+    {
+      "nome": "Damp",
+      "oculta": false
+    },
+    {
+      "nome": "Swift Swim",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 40,
+    "attack": 50,
+    "defense": 40,
+    "special-attack": 40,
+    "special-defense": 40,
+    "speed": 90
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/060.png"
+}

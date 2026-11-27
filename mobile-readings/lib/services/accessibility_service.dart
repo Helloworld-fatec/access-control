@@ -18,8 +18,9 @@ class AccessibilityService {
       await HapticFeedback.lightImpact();
     } catch (_) {}
 
-    final name = (userName != null && userName.isNotEmpty) ? userName : 'Usuário';
-    final msg = 'Acesso liberado para $name. Pode passar pela catraca.';
+    final name =
+        (userName != null && userName.isNotEmpty) ? userName : 'Usuário';
+    final msg = 'Acesso liberado para $name.';
     SemanticsService.announce(msg, TextDirection.ltr);
   }
 
@@ -46,39 +47,8 @@ class AccessibilityService {
       await HapticFeedback.selectionClick();
     } catch (_) {}
     SemanticsService.announce(
-      'Terminal ativado. Aponte para o QR Code ou olhe para a câmera frontal.',
+      'Terminal ativado. Escolha QR Code ou reconhecimento facial.',
       TextDirection.ltr,
     );
-  }
-
-  /// Alerta sobre iluminação insuficiente no leitor facial (US-19).
-  Future<void> notifyLowLightWarning() async {
-    if (!enabled) return;
-    try {
-      await HapticFeedback.selectionClick();
-    } catch (_) {}
-    SemanticsService.announce(
-      'Aviso: Iluminação insuficiente. Aproxime-se de uma fonte de luz.',
-      TextDirection.ltr,
-    );
-  }
-
-  /// Alerta sobre leitor ocupado gravando tag (US-10).
-  Future<void> notifyReaderBusy(bool isBusy) async {
-    if (!enabled) return;
-    try {
-      await HapticFeedback.selectionClick();
-    } catch (_) {}
-    if (isBusy) {
-      SemanticsService.announce(
-        'Leitor de cartão ocupado gravando tag remota. Aguarde um instante.',
-        TextDirection.ltr,
-      );
-    } else {
-      SemanticsService.announce(
-        'Leitor de cartão liberado para leitura.',
-        TextDirection.ltr,
-      );
-    }
   }
 }

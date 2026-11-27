@@ -4,7 +4,8 @@ import { authenticate } from "../middlewares/auth.middleware.js";
 import { rateLimit } from "../middlewares/rate-limit.middleware.js";
 import * as qrAccess from "../controllers/qr-access.controller.js";
 import * as access from "../controllers/access.controller.js";
-import { authenticateTerminal } from "../middlewares/terminal-auth.middleware.js";
+import { authenticateTerminal, limitTerminalAuth } from "../middlewares/terminal-auth.middleware.js";
+import { uploadFaceCapture } from "../middlewares/upload.middleware.js";
 
 export const accessRoutes = Router();
 
@@ -19,5 +20,13 @@ accessRoutes.post(
   h(qrAccess.consumeQr),
 );
 
-accessRoutes.post("/nfc", authenticateTerminal, h(access.validateNfcAccess));
-accessRoutes.post("/face", authenticateTerminal, h(access.validateFaceAccess));
+accessRoutes.post("/nfc", limitTerminalAuth, authenticateTerminal, h(access.validateNfcAccess));
+accessRoutes.post(
+  "/face/capture",
+  limitTerminalAuth,
+  authenticateTerminal,
+  rateLimit({ windowMs: 60_000, max: 20, key: (req) => `face:${req.terminal?.id ?? req.ip}` }),
+  uploadFaceCapture,
+  h(access.validateFaceCapture),
+);
+accessRoutes.post("/face", limitTerminalAuth, authenticateTerminal, h(access.validateFaceAccess));

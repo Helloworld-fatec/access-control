@@ -1,0 +1,36 @@
+{
+  "id": "128",
+  "numero": 128,
+  "nome": "Tauros",
+  "nome_en": "tauros",
+  "categoria": "Wild Bull Pokémon",
+  "descricao": "When it targets an enemy, it charges furiously while whipping its body with its long tails.",
+  "tipos": [
+    "Normal"
+  ],
+  "altura_m": 1.4,
+  "peso_kg": 88.4,
+  "habilidades": [
+    {
+      "nome": "Intimidate",
+      "oculta": false
+    },
+    {
+      "nome": "Anger Point",
+      "oculta": false
+    },
+    {
+      "nome": "Sheer Force",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 75,
+    "attack": 100,
+    "defense": 95,
+    "special-attack": 40,
+    "special-defense": 70,
+    "speed": 110
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/128.png"
+}

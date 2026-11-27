@@ -78,6 +78,37 @@ describe("401 que não é de sessão", () => {
     await api("/authorizations").catch(() => undefined);
     expect(handler).toHaveBeenCalledTimes(1);
   });
+
+  it("ignora 401 tardio de uma sessão anterior mesmo com o mesmo token", async () => {
+    let release!: () => void;
+    let started!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    const sent = new Promise<void>((resolve) => { started = resolve; });
+    server.use(http.get(`${API}/locations`, async () => {
+      started();
+      await pending;
+      return HttpResponse.json({ error: { code: "INVALID_TOKEN" } }, { status: 401 });
+    }));
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    setAccessToken("token");
+    const stale = api("/locations");
+    await sent;
+    setAccessToken(null);
+    setAccessToken("token");
+    release();
+    await expect(stale).rejects.toMatchObject({ status: 401 });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("mantém a sessão diante de 403", async () => {
+    server.use(http.get(`${API}/access-logs`, () => HttpResponse.json({ error: { code: "FORBIDDEN" } }, { status: 403 })));
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    setAccessToken("valido");
+    await expect(api("/access-logs")).rejects.toMatchObject({ status: 403, code: "FORBIDDEN" });
+    expect(handler).not.toHaveBeenCalled();
+  });
 });
 
 describe("filenameFrom", () => {

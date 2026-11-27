@@ -1,0 +1,48 @@
+name: device-esp32 CI
+
+on:
+  pull_request:
+    branches:
+      - stage
+      - main
+      # - develop # habilitar quando a branch entrar no fluxo
+    paths:
+      - "device-esp32/hardware/firmware/**"
+      - ".github/workflows/device-esp32-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: device-esp32-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  compile-firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+        with:
+          version: "1.x"
+
+      - name: Configure ESP32 board package
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32
+
+      - name: Install firmware libraries
+        run: |
+          arduino-cli lib update-index
+          arduino-cli lib install "Adafruit GFX Library"
+          arduino-cli lib install "Adafruit SSD1306"
+          arduino-cli lib install ESP32Servo
+          arduino-cli lib install MFRC522
+
+      - name: Compile ESP32 Dev Module firmware
+        run: >-
+          arduino-cli compile
+          --fqbn esp32:esp32:esp32
+          device-esp32/hardware/firmware/controle_acesso

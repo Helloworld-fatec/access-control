@@ -1,9 +1,14 @@
 // Modo demonstração (npm run dev:mock): responde a /api/* com dados em memória,
 // sem backend. Só é carregado quando VITE_MOCK=true; não vai para a build normal.
 import { METHOD_LABEL, REASON_LABEL, todayInSaoPaulo } from "./format";
-import type { AccessLog, Location, Role, User } from "./types";
+import type { AccessLog, Location, NfcEnrollment, Pokemon, Role, User, Visit } from "./types";
 
-interface MUser extends User { face: boolean; tags: { id: string; uid: string; active: boolean; createdAt: string }[] }
+interface MUser extends User {
+  face: boolean;
+  tags: { id: string; uid: string; active: boolean; createdAt: string }[];
+  enrollment?: NfcEnrollment;
+  enrolledTagId?: string;
+}
 interface MTerminal { id: string; name: string; locationId: string; latitude: number; longitude: number; online: boolean; lastPresenceAt: string | null; lastSeenAt: string | null }
 interface MAuth { id: string; userId: string; locationId: string; startDate: string; endDate: string; startTime: string; endTime: string; maxUses: number | null; usedCount: number; canceled: boolean }
 interface MLog { id: string; userId: string | null; terminalId: string; method: AccessLog["method"]; result: AccessLog["result"]; reason: string | null; nfcUid: string | null; createdAt: string }
@@ -40,6 +45,26 @@ const terminals: MTerminal[] = [
   { id: "tm1", name: "Portaria A", locationId: "l1", latitude: -23.5505, longitude: -46.6333, online: true, lastPresenceAt: iso(1), lastSeenAt: iso(1) },
   { id: "tm2", name: "Sala B", locationId: "l2", latitude: -23.5512, longitude: -46.6341, online: false, lastPresenceAt: iso(600), lastSeenAt: iso(600) },
 ];
+const demoPokemon: Pokemon = {
+  id: "001", numero: 1, nome: "Bulbasaur", altura_m: 0.7, peso_kg: 6.9,
+  stats: { hp: 45, attack: 49, defense: 49, "special-attack": 65, "special-defense": 65, speed: 45 },
+  imagem_url: "",
+};
+const visits: Visit[] = users.slice(1, 3).map((user, i) => ({
+  id: `visit-${i + 1}`,
+  status: "INSIDE",
+  user: { id: user.id, name: user.name },
+  location: locations[0]!,
+  entryTerminal: { id: terminals[0]!.id, name: terminals[0]!.name },
+  entryLog: { id: `demo-entry-${i + 1}`, method: "QR", commandAcked: true },
+  enteredAt: iso(10 + i),
+  exitedAt: null,
+  checkoutType: null,
+  checkedOutBy: null,
+  pokemon: null,
+  doorCommand: null,
+}));
+const visitDraws = new Map<string, string>();
 const auths: MAuth[] = [
   { id: "a1", userId: "u2", locationId: "l1", startDate: day(-30), endDate: day(60), startTime: "06:00", endTime: "23:00", maxUses: null, usedCount: 12, canceled: false },
   { id: "a2", userId: "u3", locationId: "l1", startDate: day(-5), endDate: day(10), startTime: "08:00", endTime: "18:00", maxUses: 20, usedCount: 7, canceled: false },
@@ -134,11 +159,14 @@ function summarize(date: string, hours: ReturnType<typeof hourly>) {
   };
 }
 const terminalStatus = (t: MTerminal) => {
+  const now = Date.now();
   const last = t.lastPresenceAt ? new Date(t.lastPresenceAt).getTime() : 0;
-  const recent = Date.now() - last <= 5000;
+  const lastSeen = t.lastSeenAt ? new Date(t.lastSeenAt).getTime() : 0;
+  const recent = now - last >= 0 && now - last <= 5000;
+  const online = now - lastSeen >= 0 && now - lastSeen <= 120_000;
   const lastLog = logs.find((l) => l.terminalId === t.id);
   const opened = Boolean(lastLog && lastLog.result === "GRANTED" && Date.now() - new Date(lastLog.createdAt).getTime() <= 5000);
-  return { id: t.id, online: t.online, presence: recent, presenceActive: recent, lastPresenceAt: t.lastPresenceAt, lastSeenAt: t.lastSeenAt, lock: opened ? "UNLOCKED" : "LOCKED" };
+  return { id: t.id, name: t.name, online, presenceActive: recent, lastPresenceAt: t.lastPresenceAt, lastSeenAt: t.lastSeenAt, lock: opened ? "UNLOCKED" : "LOCKED" };
 };
 
 const need = (b: Record<string, unknown>, field: string, msg: string) => {
@@ -154,6 +182,43 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
     const u = users.find((x) => x.email === String(b.email ?? "").trim().toLowerCase() && x.active && x.role === "ADMIN");
     if (!u) throw new HttpErr(401, "INVALID_CREDENTIALS", "E-mail ou senha incorretos. (Demonstração: use admin@teste.com)");
     return ok({ accessToken: "mock-token", tokenType: "Bearer", expiresIn: "1h", user: publicUser(u) });
+  }
+
+  if (res === "pokemon" && method === "GET" && rid === demoPokemon.id && !sub) return ok(demoPokemon);
+  if (res === "visits") {
+    if (method === "GET" && !rid) {
+      const search = (q.get("search") ?? "").trim().toLowerCase();
+      const status = q.get("status") ?? "INSIDE";
+      return ok(page(visits.filter((visit) =>
+        visit.status === status && (!q.get("locationId") || visit.location.id === q.get("locationId")) &&
+        (!search || visit.user?.name.toLowerCase().includes(search))), q));
+    }
+    const visit = find(visits, rid ?? "", "Visita");
+    if (method === "GET" && !sub) return ok(visit);
+    if (method === "POST" && sub === "pokemon" && sid === "draw") {
+      if (visit.exitedAt) throw new HttpErr(409, "VISIT_NOT_OPEN", "A visita não está aberta para sorteio.");
+      const drawnAt = visitDraws.get(visit.id) ?? new Date().toISOString();
+      visitDraws.set(visit.id, drawnAt);
+      return ok({ visitId: visit.id, drawnAt, pokemon: demoPokemon });
+    }
+    if (method === "POST" && (sub === "checkout" || (sub === "pokemon" && sid === "claim"))) {
+      const type = sub === "checkout" ? "SIMPLE" : "POKEMON";
+      if (visit.exitedAt) {
+        if (visit.checkoutType === type) return ok(visit);
+        throw new HttpErr(409, "VISIT_ALREADY_CLOSED", "A visita já foi encerrada.");
+      }
+      if (type === "POKEMON" && !visitDraws.has(visit.id)) {
+        throw new HttpErr(409, "POKEMON_DRAW_REQUIRED", "Inicie o sorteio antes de confirmar.");
+      }
+      visit.exitedAt = new Date().toISOString();
+      visit.checkoutType = type;
+      visit.status = "EXITED";
+      if (type === "POKEMON") {
+        visit.pokemon = { pokemonId: demoPokemon.id, claimedAt: visit.exitedAt };
+        visit.doorCommand = { id: id(), status: "CONFIRMED" };
+      }
+      return ok(visit);
+    }
   }
 
   if (res === "users") {
@@ -173,8 +238,16 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
       return ok(publicUser(u), 201);
     }
     const u = find(users, rid, "Usuário");
+    if (sub === "pokemon" && method === "GET") {
+      return ok(page(visits.flatMap((visit) => visit.user?.id === u.id && visit.pokemon
+        ? [{ visitId: visit.id, claimedAt: visit.pokemon.claimedAt, pokemon: demoPokemon }]
+        : []), q));
+    }
     if (!sub) {
-      if (method === "GET") return ok({ ...publicUser(u), hasFace: u.face, hasPhoto: false, nfcTags: u.tags.map((t) => ({ ...t, userId: u.id })) });
+      if (method === "GET") return ok({ ...publicUser(u), hasFace: u.face, hasPhoto: false,
+        nfcTags: u.tags.map((t) => ({ ...t, userId: u.id })),
+        nfcCredential: u.enrolledTagId ? { status: "ACTIVE" } : null,
+        nfcEnrollment: u.enrollment ?? null });
       if (b.email && users.some((x) => x.id !== u.id && x.email === String(b.email).trim().toLowerCase())) throw new HttpErr(409, "CONFLICT", "Já existe um usuário com esse e-mail.", [{ path: "email", message: "Já existe um usuário com esse e-mail." }]);
       if (b.name) u.name = String(b.name).trim();
       if (b.email) u.email = String(b.email).trim().toLowerCase();
@@ -184,8 +257,37 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
     }
     if (sub === "status") { u.active = Boolean(b.active); return ok(publicUser(u)); }
     if (sub === "face") { u.face = false; return none; }
+    if (sub === "nfc-enrollments") {
+      if (method === "GET" && u.enrollment?.id === sid) return ok(u.enrollment);
+      if (method !== "POST") throw new HttpErr(404, "NOT_FOUND", "Pedido de gravação não encontrado.");
+      if (u.enrollment?.status === "PENDING") return ok(u.enrollment, 202);
+      if (u.enrolledTagId) throw new HttpErr(409, "NFC_CREDENTIAL_ACTIVE", "Remova a tag ativa antes de gravar outra.");
+      const uid = String(b.expectedUid ?? Array.from(
+        crypto.getRandomValues(new Uint8Array(4)), (byte) => byte.toString(16).padStart(2, "0"),
+      ).join("")).toUpperCase();
+      if (!/^[0-9A-F]{8,20}$/.test(uid)) throw bad("expectedUid", "UID deve ser hexadecimal, com 8 a 20 caracteres");
+      const request: NfcEnrollment = {
+        id: id(), status: "PENDING", reason: null, expiresAt: new Date(Date.now() + 30_000).toISOString(),
+      };
+      u.enrollment = request;
+      setTimeout(() => {
+        if (users.some((other) => other.id !== u.id && other.tags.some((tag) => tag.uid === uid))) {
+          u.enrollment = { ...request, status: "FAILED", reason: "TAG_CONFLICT" };
+          return;
+        }
+        const tag = u.tags.find((item) => item.uid === uid) ?? { id: id(), uid, active: true, createdAt: new Date().toISOString() };
+        if (!u.tags.includes(tag)) u.tags.push(tag);
+        u.enrolledTagId = tag.id;
+        u.enrollment = { ...request, status: "WRITTEN" };
+      }, 1_500);
+      return ok(request, 202);
+    }
     if (sub === "tags") {
-      if (method === "DELETE") { u.tags = u.tags.filter((t) => t.id !== sid); return none; }
+      if (method === "DELETE") {
+        u.tags = u.tags.filter((t) => t.id !== sid);
+        if (u.enrolledTagId === sid) { u.enrolledTagId = undefined; u.enrollment = undefined; }
+        return none;
+      }
       const uidv = String(b.uid ?? "").replace(/[\s:-]/g, "").toUpperCase();
       if (!/^[0-9A-F]{8,20}$/.test(uidv)) throw bad("uid", "UID deve ser hexadecimal, com 8 a 20 caracteres");
       if (users.some((x) => x.tags.some((t) => t.uid === uidv))) throw new HttpErr(409, "CONFLICT", "Essa tag já está vinculada a um usuário.");
@@ -228,7 +330,10 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
     }
     if (rid === "status" && method === "GET") return ok({ data: terminals.map(terminalStatus) });
     const t = find(terminals, rid, "Terminal");
-    if (sub === "status") return ok(terminalStatus(t));
+    if (sub === "status") {
+      const status = terminalStatus(t);
+      return ok({ ...status, presence: status.presenceActive });
+    }
     if (method === "DELETE") { terminals.splice(terminals.indexOf(t), 1); return none; }
     if (b.name) t.name = String(b.name).trim();
     if (b.locationId) t.locationId = String(b.locationId);
@@ -262,9 +367,12 @@ function route(method: string, path: string[], q: URLSearchParams, b: Record<str
     }
   }
 
-  if (res === "dashboard" && (rid === "summary" || rid === "accesses-by-hour")) {
-    const date = q.get("date") || todayInSaoPaulo();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw bad("date", "Data inválida (use AAAA-MM-DD)");
+  if (method === "GET" && res === "dashboard" && !sub && (rid === "summary" || rid === "accesses-by-hour")) {
+    const date = q.get("date") ?? todayInSaoPaulo();
+    const parsed = new Date(`${date}T00:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date.startsWith("0000-") || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
+      throw bad("date", "Data inválida (use AAAA-MM-DD)");
+    }
     const hours = hourly(date);
     return ok(rid === "summary" ? summarize(date, hours) : hours);
   }

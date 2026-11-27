@@ -17,7 +17,7 @@ Map<String, Object> envelope(String code, String message, [Object? details]) => 
       'error': {
         'code': code,
         'message': message,
-        if (details != null) 'details': details,
+        'details': ?details,
       },
     };
 

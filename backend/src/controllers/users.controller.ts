@@ -1,16 +1,24 @@
 // backend/src/controllers/users.controller.ts
 import fs from "node:fs";
 import type { Request, Response } from "express";
+import { z } from "zod";
+import {
+  beginEnrollment, enrollmentResponseFields, enrollmentTerminalId, lockEnrollmentUser, toEnrollmentResponse,
+} from "../services/nfc-enrollment.service.js";
+import { mqttStatus } from "../services/mqtt.service.js";
+import { nfcUidSchema } from "../models/dtos/nfc-tag.dto.js";
 import bcrypt from "bcrypt";
-import type { Prisma } from "../generated/prisma/client.js";
+import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
-import { removePhotoFile, resolvePhotoPath } from "../config/photos.js";
+import { removePhotoFile, resolvePhotoPath, savePhotoFile } from "../config/photos.js";
 import { AppError } from "../middlewares/error.middleware.js";
+import { extractFace } from "../services/face-recognition.service.js";
 import {
   createNfcTagSchema,
   createUserSchema,
   idParamSchema,
+  linkNfcCredentialSchema,
   listUsersQuerySchema,
   nfcTagParamsSchema,
   updateUserSchema,
@@ -66,6 +74,7 @@ export async function listUsers(req: Request, res: Response) {
   const [rows, total] = await prisma.$transaction([
     prisma.user.findMany({
       where,
+      include: { photo: { select: { id: true } } },
       orderBy: { name: "asc" },
       skip: (q.page - 1) * q.pageSize,
       take: q.pageSize,
@@ -73,7 +82,11 @@ export async function listUsers(req: Request, res: Response) {
     prisma.user.count({ where }),
   ]);
 
-  res.json(paginate(rows.map(toUserResponse), total, q.page, q.pageSize));
+  const data = rows.map((user) => ({
+    ...toUserResponse(user),
+    hasPhoto: user.photo != null,
+  }));
+  res.json(paginate(data, total, q.page, q.pageSize));
 }
 
 // GET /users/:id
@@ -84,13 +97,16 @@ export async function getUser(req: Request, res: Response) {
     where: { id },
     include: {
       nfcTags: { orderBy: { createdAt: "desc" } },
+      nfcCredential: { select: { status: true } },
+      nfcEnrollments: { orderBy: { createdAt: "desc" }, take: 1, select: enrollmentResponseFields },
       faceTemplate: { select: { id: true } }, // nunca devolve o embedding
       photo: { select: { id: true } },
     },
   });
   if (!user) throw userNotFound();
 
-  res.json(toUserDetailResponse(user));
+  const latest = user.nfcEnrollments?.[0];
+  res.json({ ...toUserDetailResponse(user), nfcEnrollment: latest ? toEnrollmentResponse(latest) : null });
 }
 
 // POST /users
@@ -125,6 +141,37 @@ export async function updateUser(req: Request, res: Response) {
   res.json(toUserResponse(user));
 }
 
+// DELETE /users/:id
+export async function deleteUser(req: Request, res: Response) {
+  const { id } = idParamSchema.parse(req.params);
+  const photoPath = await prisma.$transaction(async (tx) => {
+    await lockPhotoOwner(tx, id);
+    const photo = await tx.userphoto.findUnique({
+      where: { userId: id },
+      select: { filePath: true },
+    });
+    try {
+      await tx.user.delete({ where: { id }, select: { id: true } });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        if (err.code === "P2025") throw userNotFound();
+        if (err.code === "P2003") {
+          throw new AppError(
+            409,
+            "Usuários que criaram autorizações ainda vinculadas não podem ser excluídos",
+            "USER_DELETE_CONFLICT",
+          );
+        }
+      }
+      throw err;
+    }
+    return photo?.filePath;
+  });
+
+  await removePhotoFile(photoPath);
+  res.status(204).send();
+}
+
 // PATCH /users/:id/status
 export async function updateUserStatus(req: Request, res: Response) {
   const { id } = idParamSchema.parse(req.params);
@@ -137,6 +184,26 @@ export async function updateUserStatus(req: Request, res: Response) {
 
 // ───────────── Tags NFC ─────────────
 
+export async function startNfcEnrollment(req: Request, res: Response) {
+  const { id } = idParamSchema.parse(req.params);
+  const { expectedUid } = z.strictObject({ expectedUid: nfcUidSchema.optional() }).parse(req.body ?? {});
+  const terminalId = enrollmentTerminalId();
+  if (!terminalId || mqttStatus() !== "connected") {
+    throw new AppError(503, "O gravador NFC está indisponível", "NFC_READER_OFFLINE");
+  }
+  res.status(202).json(await beginEnrollment(id, terminalId, expectedUid));
+}
+
+export async function getNfcEnrollment(req: Request, res: Response) {
+  const { id, requestId } = idParamSchema.extend({ requestId: z.uuid() }).parse(req.params);
+  const enrollment = await prisma.nfcEnrollment.findFirst({
+    where: { id: requestId, userId: id },
+    select: enrollmentResponseFields,
+  });
+  if (!enrollment) throw new AppError(404, "Pedido de gravação NFC não encontrado", "NFC_ENROLLMENT_NOT_FOUND");
+  res.json(toEnrollmentResponse(enrollment));
+}
+
 // POST /users/:id/tags
 export async function addTag(req: Request, res: Response) {
   const { id } = idParamSchema.parse(req.params);
@@ -146,12 +213,12 @@ export async function addTag(req: Request, res: Response) {
   if (!user) throw userNotFound();
 
   // Mensagem genérica: não revela de quem é a tag.
-  const existing = await prisma.nfcTag.findUnique({ where: { uid }, select: { id: true } });
+  const existing = await prisma.nfctag.findUnique({ where: { uid }, select: { id: true } });
   if (existing) {
     throw new AppError(409, "Esta tag já está cadastrada", "TAG_CONFLICT");
   }
 
-  const tag = await prisma.nfcTag.create({ data: { uid, userId: id } });
+  const tag = await prisma.nfctag.create({ data: { uid, userId: id } });
 
   res.status(201).json(toNfcTagResponse(tag));
 }
@@ -160,97 +227,155 @@ export async function addTag(req: Request, res: Response) {
 export async function removeTag(req: Request, res: Response) {
   const { id, tagId } = nfcTagParamsSchema.parse(req.params);
 
-  const { count } = await prisma.nfcTag.deleteMany({ where: { id: tagId, userId: id } });
-  if (count === 0) throw new AppError(404, "Tag não encontrada", "TAG_NOT_FOUND");
+  await prisma.$transaction(async (tx) => {
+    await lockEnrollmentUser(tx, id);
+    const tag = await tx.nfctag.findFirst({ where: { id: tagId, userId: id }, select: { uid: true } });
+    if (!tag) throw new AppError(404, "Tag não encontrada", "TAG_NOT_FOUND");
+    await tx.nfccredential.updateMany({
+      where: { userId: id, tagId }, data: { status: "REVOKED", tagId: null },
+    });
+    await tx.nfcEnrollment.updateMany({
+      where: { userId: id, status: "PENDING", OR: [{ expectedUid: null }, { expectedUid: tag.uid }] },
+      data: { status: "FAILED", reason: "TAG_REMOVED" },
+    });
+    await tx.nfctag.delete({ where: { id: tagId } });
+  });
 
   res.status(204).send();
 }
 
+// PUT /users/:id/nfc-credential
+export async function linkNfcCredential(req: Request, res: Response) {
+  const { id } = idParamSchema.parse(req.params);
+  const { codeHex } = linkNfcCredentialSchema.parse(req.body);
+  try {
+    const credential = await prisma.$transaction(async (tx) => {
+      // A unicidade no banco resolve cadastros simultâneos e retentativas.
+      await tx.nfccredential.createMany({
+        data: { userId: id, codeHex },
+        skipDuplicates: true,
+      });
+      return tx.nfccredential.findUnique({
+        where: { userId: id },
+        select: { codeHex: true, status: true },
+      });
+    });
+    if (!credential) {
+      throw new AppError(409, "Este código NFC já está em uso", "NFC_CODE_CONFLICT");
+    }
+    if (credential.codeHex !== codeHex) {
+      throw new AppError(409, "Este usuário já tem um código NFC", "NFC_CREDENTIAL_EXISTS");
+    }
+    res.json({ status: credential.status });
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2003") {
+      throw userNotFound();
+    }
+    // Erros brutos do Prisma podem incluir o código recebido.
+    throw new AppError(500, "Não foi possível gravar o código NFC", "NFC_CREDENTIAL_WRITE_FAILED");
+  }
+}
+
 // ───────────── Rosto e foto ─────────────
+
+async function lockPhotoOwner(tx: Prisma.TransactionClient, id: string): Promise<void> {
+  // Serialize uploads and deletions even when no photo row exists yet.
+  const users = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM users WHERE id = ${id} FOR UPDATE
+  `;
+  if (users.length === 0) throw userNotFound();
+}
 
 /**
  * POST /users/:id/face  (multipart/form-data)
- * Campos: embedding (JSON), modelVersion, consent. Arquivo opcional: photo.
- * O multer (middleware de upload) já gravou a foto em PHOTOS_DIR antes de chegar aqui.
+ * Campos: consent=true e photo (JPEG).
+ * O middleware valida o upload e mantém a foto em memória.
  */
 export async function upsertFace(req: Request, res: Response) {
-  const file = req.file;
+  const { id } = idParamSchema.parse(req.params);
+  upsertFaceSchema.parse(req.body);
+  const photo = req.file?.buffer;
+  if (!photo) throw new AppError(400, "A foto é obrigatória", "PHOTO_REQUIRED");
 
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+  if (!user) throw userNotFound();
+
+  const consentAt = new Date();
+  const descriptor = await extractFace(photo);
+  const faceData = { ...descriptor, consentAt };
+  let filePath: string | undefined;
+  let oldPath: string | undefined;
   try {
-    const { id } = idParamSchema.parse(req.params);
-    const dto = upsertFaceSchema.parse(req.body);
-
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select: { id: true, photo: { select: { filePath: true } } },
-    });
-    if (!user) throw userNotFound();
-
-    const now = new Date();
-    const faceData = {
-      embedding: dto.embedding,
-      modelVersion: dto.modelVersion,
-      consentAt: now,
-    };
-
-    const ops: Prisma.PrismaPromise<unknown>[] = [
-      prisma.faceTemplate.upsert({
+    const savedPath = await savePhotoFile(photo);
+    filePath = savedPath;
+    oldPath = await prisma.$transaction(async (tx) => {
+      await lockPhotoOwner(tx, id);
+      const previous = await tx.userphoto.findUnique({
+        where: { userId: id },
+        select: { filePath: true },
+      });
+      await tx.facetemplate.upsert({
         where: { userId: id },
         create: { userId: id, ...faceData },
         update: faceData,
-      }),
-    ];
-
-    if (file) {
-      ops.push(
-        prisma.userPhoto.upsert({
-          where: { userId: id },
-          create: { userId: id, filePath: file.filename, mimeType: file.mimetype },
-          update: { filePath: file.filename, mimeType: file.mimetype, updatedAt: now },
-        }),
-      );
-    }
-
-    await prisma.$transaction(ops);
-
-    // Só apaga a foto antiga depois de o banco apontar para a nova.
-    if (file && user.photo && user.photo.filePath !== file.filename) {
-      await removePhotoFile(user.photo.filePath);
-    }
-
-    res.status(201).json({ hasFace: true, hasPhoto: Boolean(file || user.photo) });
-  } catch (err) {
-    // Falhou depois do upload: não deixa arquivo órfão no disco.
-    if (file) await removePhotoFile(file.filename);
-    throw err;
+        select: { id: true },
+      });
+      const photoData = { filePath: savedPath, mimeType: "image/jpeg" };
+      await tx.userphoto.upsert({
+        where: { userId: id },
+        create: { userId: id, ...photoData },
+        update: photoData,
+        select: { id: true },
+      });
+      return previous?.filePath;
+    });
+  } catch (error) {
+    await removePhotoFile(filePath);
+    if (error instanceof AppError) throw error;
+    // O erro bruto do Prisma pode incluir os valores enviados na operação.
+    throw new AppError(500, "Não foi possível gravar o cadastro facial", "FACE_PERSISTENCE_FAILED");
   }
+
+  await removePhotoFile(oldPath);
+  res.status(201).json({ hasFace: true, hasPhoto: true });
 }
 
 // DELETE /users/:id/face  (exclusão dos dados biométricos, LGPD)
 export async function deleteFace(req: Request, res: Response) {
   const { id } = idParamSchema.parse(req.params);
 
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: { id: true, photo: { select: { filePath: true } } },
+  const photoPath = await prisma.$transaction(async (tx) => {
+    await lockPhotoOwner(tx, id);
+    const photo = await tx.userphoto.findUnique({
+      where: { userId: id },
+      select: { filePath: true },
+    });
+    await tx.facetemplate.deleteMany({ where: { userId: id } });
+    await tx.userphoto.deleteMany({ where: { userId: id } });
+    return photo?.filePath;
   });
-  if (!user) throw userNotFound();
-
-  await prisma.$transaction([
-    prisma.faceTemplate.deleteMany({ where: { userId: id } }),
-    prisma.userPhoto.deleteMany({ where: { userId: id } }),
-  ]);
-  await removePhotoFile(user.photo?.filePath);
+  await removePhotoFile(photoPath);
 
   res.status(204).send();
 }
 
 // GET /users/:id/photo
-// TODO: exigir autenticação quando existir login (a pasta nunca é servida como estática).
 export async function getPhoto(req: Request, res: Response) {
   const { id } = idParamSchema.parse(req.params);
+  await sendUserPhoto(id, res);
+}
 
-  const photo = await prisma.userPhoto.findUnique({ where: { userId: id } });
+export async function getOwnPhoto(req: Request, res: Response) {
+  if (!req.auth) throw new AppError(401, "User not authenticated", "UNAUTHORIZED");
+  await sendUserPhoto(req.auth.userId, res);
+}
+
+async function sendUserPhoto(id: string, res: Response) {
+  const photo = await prisma.userphoto.findUnique({ where: { userId: id } });
   if (!photo) throw new AppError(404, "Foto não encontrada", "PHOTO_NOT_FOUND");
 
   const absolutePath = resolvePhotoPath(photo.filePath);

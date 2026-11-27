@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/widgets/app_logo.dart';
 import '../../core/api/api_client.dart';
 import '../../core/session/session_scope.dart';
 import '../../data/authorization.dart';
@@ -31,39 +32,44 @@ class _AuthorizationsPageState extends State<AuthorizationsPage> {
     try {
       final r = await SessionScope.of(context).loadAuthorizations();
       final d = r['data'];
-      if (d is! List)
+      if (d is! List) {
         throw const ApiException('Resposta de autorizacoes invalida.');
+      }
       final next =
           d
               .whereType<Map<String, dynamic>>()
               .map(Authorization.fromJson)
               .toList()
             ..sort((a, b) => a.status.index.compareTo(b.status.index));
-      if (mounted)
+      if (mounted) {
         setState(() {
           items = next;
         });
+      }
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           error = e.message;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           error = 'Nao foi possivel carregar autorizacoes.';
         });
+      }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           loading = false;
         });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Minhas autorizacoes')),
+    appBar: AppBar(title: const BrandedTitle('Minhas autorizacoes')),
     body: RefreshIndicator(
       onRefresh: load,
       child: loading && items.isEmpty
@@ -108,7 +114,7 @@ class _AuthorizationsPageState extends State<AuthorizationsPage> {
                 final a = items[i];
                 return ListTile(
                   title: Text(a.place),
-                  subtitle: Text(a.period + ' | ' + a.timeWindow),
+                  subtitle: Text('${a.period} | ${a.timeWindow}'),
                   trailing: Text(a.usesLabel),
                 );
               },

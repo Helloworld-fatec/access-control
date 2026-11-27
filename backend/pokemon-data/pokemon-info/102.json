@@ -1,0 +1,33 @@
+{
+  "id": "102",
+  "numero": 102,
+  "nome": "Exeggcute",
+  "nome_en": "exeggcute",
+  "categoria": "Egg Pokémon",
+  "descricao": "Often mistaken for eggs. When disturbed, they quickly gather and attack in swarms.",
+  "tipos": [
+    "Planta",
+    "Psíquico"
+  ],
+  "altura_m": 0.4,
+  "peso_kg": 2.5,
+  "habilidades": [
+    {
+      "nome": "Chlorophyll",
+      "oculta": false
+    },
+    {
+      "nome": "Harvest",
+      "oculta": true
+    }
+  ],
+  "stats": {
+    "hp": 60,
+    "attack": 40,
+    "defense": 80,
+    "special-attack": 60,
+    "special-defense": 45,
+    "speed": 40
+  },
+  "imagem_url": "https://www.pokemon.com/static-assets/content-assets/cms2/img/pokedex/full/102.png"
+}

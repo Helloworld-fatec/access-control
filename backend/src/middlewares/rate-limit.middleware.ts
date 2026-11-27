@@ -4,6 +4,7 @@ interface RateLimitOptions {
   windowMs: number;
   max: number;
   key: (req: Request) => string;
+  countStatus?: number;
 }
 
 interface Bucket {
@@ -12,7 +13,7 @@ interface Bucket {
 }
 
 /** Limite simples em memória, adequado a uma instância do backend. */
-export function rateLimit({ windowMs, max, key }: RateLimitOptions): RequestHandler {
+export function rateLimit({ windowMs, max, key, countStatus }: RateLimitOptions): RequestHandler {
   const buckets = new Map<string, Bucket>();
 
   return (req, res, next) => {
@@ -39,6 +40,11 @@ export function rateLimit({ windowMs, max, key }: RateLimitOptions): RequestHand
 
     bucket.count += 1;
     buckets.set(bucketKey, bucket);
+    if (countStatus !== undefined) {
+      res.once("finish", () => {
+        if (res.statusCode !== countStatus) bucket.count -= 1;
+      });
+    }
     next();
   };
 }
