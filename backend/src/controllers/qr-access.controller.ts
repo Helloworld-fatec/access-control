@@ -174,7 +174,7 @@ export async function consumeQr(req: Request, res: Response) {
     }
 
     const granted = grantedAuthorizationId !== null && reason === null;
-    const accessLog = await tx.accesslog.create({
+    const accessLog = await tx.accessLog.create({
       data: {
         userId: logUserId,
         terminalId: qr.terminalId,

@@ -14,6 +14,9 @@ npm ci
 npm run dev              # http://localhost:5173
 ```
 
+Entre com um administrador. Para criar um, no `backend/`:
+`npm run admin:create -- email senha "Nome"`.
+
 O Vite encaminha `/api` para o backend, então o front usa caminho relativo e não depende de IP.
 Para subir Express, PostgreSQL e o serviço facial em ambiente de teste, siga a seção de execução do [roteiro local](../docs/demonstracao-mobile-readings.md).
 
@@ -26,12 +29,20 @@ npm run dev:mock
 A API é simulada no navegador, com dados de exemplo. Entre com **admin@teste.com** e qualquer senha.
 Os dados voltam ao início ao recarregar a página. O código está em `src/shared/mock.ts` e não entra na build normal.
 
+O modo demonstração é ligado pelo arquivo `.env.mock` (conteúdo: `VITE_MOCK=true`). Se ele faltar, o
+`dev:mock` chama a API de verdade e o Vite devolve erro 500 por não achar o backend.
+
+### Com Docker
+
+O `docker-compose.yml`, na raiz do projeto, sobe banco, backend e front (Nginx). O front usa `frontend/Dockerfile` e
+`frontend/deploy/nginx.conf`. Os comandos estão em `docs/como-rodar.md`.
+
 ### Qualidade
 
 ```bash
 npm run typecheck   # tipos
 npm run lint        # ESLint (inclui a proibição de dangerouslySetInnerHTML)
-npm test            # Vitest + Testing Library + MSW
+npm test            # Vitest + Testing Library + MSW (58 testes)
 npm run check       # os três, em sequência
 ```
 
@@ -51,9 +62,14 @@ O front usa os endpoints do backend deste repositório.
 
 - **Login:** `POST /api/login` → `{ accessToken, tokenType, expiresIn, user }`. O token vai em `Authorization: Bearer`.
   Só administradores entram. O token dura `JWT_EXPIRES_IN` (padrão 1h) e **não há renovação** (`/auth/refresh` não existe):
-  ao expirar, o front volta ao login com a mensagem "Sua sessão expirou".
+  ao expirar, o front volta ao login com a mensagem "Sua sessão expirou. Entre novamente."
 - **Autorizações:** o administrador que cria ou cancela vem do token; o front não envia `createdById` nem `canceledById`.
 - No `.env` do backend é preciso `JWT_SECRET` com **pelo menos 32 caracteres**.
+- **Rotas ainda sem JWT:** `users` (incluindo tags, rosto e foto), `locations` e a listagem do histórico (`GET /access-logs`)
+  continuam abertas, como combinado, para o JWT ser ligado depois. Já exigem token: `authorizations`, o CRUD de
+  `terminals`, o painel (`/dashboard/*`, `/terminals/status`) e a exportação (`/access-logs/export`). O front já envia o token
+  e trata o 401, então ligar o JWT nas rotas abertas não exige alteração aqui. Antes de ligar, confira se os aplicativos
+  mobile e o terminal usam alguma dessas rotas sem token, porque eles passariam a receber 401.
 
 ## Painel (dashboard)
 
@@ -96,6 +112,8 @@ não conseguem chamar uma API em HTTP (bloqueio de conteúdo misto).
 - **Dados pessoais exibidos:** nome, perfil, e-mail, telefone, foto e horários de entrada, **somente a administradores**,
   com a finalidade de gestão de acessos, segurança do local e auditoria (RF06, RF17).
   O documento aparece parcialmente oculto (só os 3 últimos caracteres). Embeddings faciais nunca são exibidos.
+- **Exportação:** o CSV leva nomes e horários para fora do sistema. Por isso exige administrador, mostra um aviso antes
+  de baixar e não inclui o documento nem o UID das tags.
 - **Foto:** buscada por requisição autenticada e exibida via `URL.createObjectURL` (a tag `<img>` não envia o token).
 - **HTTP na LAN de demonstração:** funciona, mas o tráfego não é cifrado (limitação aceita para a demonstração).
   Em HTTP fora de `localhost`, o navegador desativa o botão **Copiar chave** do terminal; a chave continua visível

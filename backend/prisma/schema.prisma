@@ -45,7 +45,7 @@ model user {
   @@map("users")
 }
 
-model nfctag {
+model NfcTag {
   id        String   @id @default(uuid())
   uid       String   @unique // hexadecimal em maiúsculas, padronizado
   userId    String
@@ -103,7 +103,7 @@ model facetemplate {
   @@map("face_templates")
 }
 
-model userphoto {
+model UserPhoto {
   id        String   @id @default(uuid())
   userId    String   @unique(map: "user_photos_user_id_key")
   filePath  String // caminho relativo dentro de PHOTOS_DIR
@@ -184,7 +184,7 @@ model authorization {
   location   location @relation(fields: [locationId], references: [id], map: "authorizations_location_id_fkey")
   createdBy  user     @relation("authorization_created_by", fields: [createdById], references: [id], map: "authorizations_created_by_id_fkey")
   canceledBy user?    @relation("authorization_canceled_by", fields: [canceledById], references: [id], map: "authorizations_canceled_by_id_fkey")
-  accessLogs accesslog[]
+  accessLogs AccessLog[]
 
   @@index([userId, locationId, status], map: "authorizations_user_location_status_idx")
   @@index([endDate], map: "authorizations_end_date_idx")
@@ -194,7 +194,7 @@ model authorization {
 
 // ───────────── Histórico e anti-replay ─────────────
 
-model accesslog {
+model AccessLog {
   id              String   @id @default(uuid())
   userId          String?
   terminalId      String

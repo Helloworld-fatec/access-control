@@ -318,3 +318,4 @@ routes.use("/visits", visitRoutes);
 routes.use("/pokemon", pokemonRoutes);
 routes.use("/dashboard", dashboardRoutes);
 routes.use("/access", accessRoutes);
+routes.use("/dashboard", dashboardRoutes);

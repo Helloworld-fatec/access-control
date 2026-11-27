@@ -6,6 +6,7 @@ import { authenticate, requireAdmin as requireActiveAdmin } from "../middlewares
 import { requireAdmin } from "../middlewares/admin.middleware.js";
 import { rateLimit } from "../middlewares/rate-limit.middleware.js";
 import * as terminals from "../controllers/terminals.controller.js";
+import * as dashboard from "../controllers/dashboard.controller.js";
 import * as qrAccess from "../controllers/qr-access.controller.js";
 
 export const terminalRoutes = Router();
@@ -35,6 +36,8 @@ terminalRoutes.get(
 
 terminalRoutes.get("/status", authenticate, requireActiveAdmin, h(terminals.listTerminalStatus));
 terminalRoutes.use(authenticate, requireAdmin);
+// "/status" precisa vir antes de "/:id".
+terminalRoutes.get("/status", h(dashboard.listTerminalStatuses));
 terminalRoutes.get("/", h(terminals.listTerminals));
 terminalRoutes.post("/", h(terminals.createTerminal));
 terminalRoutes.post("/:id/rotate-key", h(terminals.rotateTerminalKey));
