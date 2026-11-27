@@ -9,7 +9,7 @@ Registro da segunda sprint do projeto access-control: meta, resultado, entregas 
 | Product Owner | Bruno |
 | Scrum Master | Suelen |
 | Professor | Leandro Toss Hoffmann |
-| **Resultado parcial (planilha de 10/11)** | **63 de 79 tarefas concluídas, 510 de 647 pontos (79%)** |
+| **Resultado** | **Sprint concluída: 89 de 89 tarefas no Notion (22/11/2026).** Na planilha de 10/11, véspera da review: 63 de 79 tarefas, 510 de 647 pontos (79%) |
 
 ## 1. Meta da sprint
 
@@ -35,6 +35,23 @@ Fonte: planilha Sprint-Backlog, uma aba por pessoa. A pontuação de cada tarefa
 - Na planilha, todas as tarefas da Sprint 1 aparecem concluídas, inclusive as pendências que passaram para esta sprint: o login das rotas protegidas do frontend (Pedro) e as da Bruna.
 - Já há tarefas planejadas para a Sprint 3: 8 do Nicolas (mobile-readings), 64 pontos, todas pendentes.
 
+### 2.1 Fechamento pelo Notion (22/11/2026)
+
+A Sprint 2 está concluída. No banco "Backlog do Projeto", todas as 89 tarefas da sprint estão em "Concluída".
+
+| Responsável | Tarefas da Sprint 2 | Concluídas |
+|---|---|---|
+| Ryan | 36 | 36 |
+| Pedro | 20 | 20 |
+| Nicolas | 8 | 8 |
+| Bruno | 5 | 5 |
+| Alicia | 2 | 2 |
+| Suelen | 9 | 9 |
+| Bruna | 9 | 9 |
+| **Total** | **89** | **89** |
+
+As 14 tarefas do Ryan que estavam em andamento em 10/11 (cadastro em etapas, gravar tag e situação das tags) foram concluídas. O diagnóstico e a integração do leitor RC522 e o teste do GPS passaram para a Sprint 3, porque a Bruna os listou como trabalho da próxima sprint.
+
 ## 3. O que cada serviço entregou
 
 | Serviço | Responsável | Entregas |
@@ -47,7 +64,9 @@ Fonte: planilha Sprint-Backlog, uma aba por pessoa. A pontuação de cada tarefa
 | documentação e Scrum | Suelen | Documento da Sprint 1 (PR #10), inclusão da Alicia no time (PR #11) e organização das tarefas da planilha no Notion |
 | diagrama de caso de uso e testes do backend | Alicia | Diagrama de caso de uso (PR #18) e testes do backend com Vitest (PR #19), ambos mergeados em 10/11 |
 
-## 4. Em andamento
+## 4. Em andamento em 10/11
+
+Em 22/11, as tarefas do mobile-registry e do backend desta seção constam como concluídas, e o RC522 e o GPS passaram para a Sprint 3.
 
 | Serviço | Responsável | O que falta |
 |---|---|---|
@@ -74,7 +93,7 @@ Fonte: planilha Sprint-Backlog, uma aba por pessoa. A pontuação de cada tarefa
 
 ## 6. Impedimentos e pontos de alinhamento
 
-1. **Arquitetura e contrato divergem.** [`docs/arquitetura.md`](../../docs/arquitetura.md) descreve tópicos `terminal/{id}/...`, com o ESP32 lendo e gravando a tag NFC e o sensor HC-SR04. O contrato v1 ([`docs/contrato-mqtt.md`](../../docs/contrato-mqtt.md)) usa `access/v1/terminals/{terminalId}/...`, com os tópicos `presence`, `door/state`, `access/request` e `access/decision`, e está marcado como rascunho para validação. A Bruna já testou o sensor infravermelho no lugar do ultrassônico.
+1. **Arquitetura e contrato divergem.** [`docs/arquitetura.md`](../../docs/arquitetura.md) descreve tópicos `terminal/{id}/...`, com o ESP32 lendo e gravando a tag NFC e o sensor HC-SR04. O contrato v1 ([`docs/contrato-mqtt.md`](../../docs/contrato-mqtt.md)) usa `access/v1/terminals/{terminalId}/...`, com os tópicos `presence`, `door/state`, `access/request` e `access/decision`, e já é usado pelo mobile-readings. A Bruna já testou o sensor infravermelho no lugar do ultrassônico. **Resolvido em 22/11/2026:** o `arquitetura.md` foi atualizado para o contrato v1 e para o sensor infravermelho.
 2. **Leitor RC522 e GPS.** O RC522 físico segue em diagnóstico, com possível falha de soldagem, e a validação final aguarda a avaliação do professor. O teste do GPS passa para a próxima sprint.
 3. **Compilação lenta no mobile-registry.** O tempo de compilação do app é extremamente lento, o que atrasa os testes das tarefas em andamento (relato do Ryan).
 4. **Fluxo de gravação de tag.** Depende do terminal e do backend em MQTT: o botão "Gravar tag" do mobile-registry e o unlock por MQTT do backend ainda estão em andamento.
@@ -125,7 +144,7 @@ Itens apontados pelo time na Review 2 e na daily seguinte, cada um com o context
 
 ### 8.2 Ações de melhoria para a Sprint 3
 
-Proposta da Scrum Master a partir do registro do time, **a validar** na próxima retrospectiva.
+Ações propostas pela Scrum Master a partir do registro do time para a Sprint 3, acompanhadas em [`sprint-3.md`](./sprint-3.md).
 
 | Item | Ação | Responsável | Como acompanhar |
 |---|---|---|---|

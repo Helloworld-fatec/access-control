@@ -283,6 +283,11 @@ Todas as rotas ficam sob o prefixo `/api`.
 | Contrato MQTT | [docs/contrato-mqtt.md](./docs/contrato-mqtt.md) |
 | Evidências da Sprint 2 | [docs/evidencias-sprint-2.md](./docs/evidencias-sprint-2.md) |
 | Riscos e decisões | [scrum/RISCOS.md](./scrum/RISCOS.md) |
+| Estado do backlog | [scrum/ESTADO-BACKLOG.md](./scrum/ESTADO-BACKLOG.md) |
+| Índice da documentação de Scrum | [scrum/README.md](./scrum/README.md) |
+| Impedimentos | [scrum/IMPEDIMENTOS.md](./scrum/IMPEDIMENTOS.md) |
+| Métricas das sprints | [scrum/METRICAS.md](./scrum/METRICAS.md) |
+| Como contribuir (branches e commits) | [CONTRIBUTING.md](./CONTRIBUTING.md) |
 
 ---
 

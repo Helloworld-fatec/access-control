@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900"><rect width="1600" height="900" fill="#F7F7F4"/>
+<defs><marker id="ah" markerUnits="userSpaceOnUse" markerWidth="16" markerHeight="16" refX="15" refY="8" orient="auto"><path d="M0,0 L16,8 L0,16 z" fill="#31566A"/></marker><marker id="ahr" markerUnits="userSpaceOnUse" markerWidth="16" markerHeight="16" refX="15" refY="8" orient="auto"><path d="M0,0 L16,8 L0,16 z" fill="#B51F2E"/></marker><marker id="ahrs" markerUnits="userSpaceOnUse" markerWidth="16" markerHeight="16" refX="1" refY="8" orient="auto"><path d="M16,0 L0,8 L16,16 z" fill="#B51F2E"/></marker></defs>
+<text x="30" y="58" font-family="Segoe UI, Arial, sans-serif" font-size="38" font-weight="700" fill="#2A4A5C" >Arquitetura geral · access-control</text>
+<text x="30" y="90" font-family="Segoe UI, Arial, sans-serif" font-size="19" font-weight="400" fill="#5B6B76" >Terminal de acesso = tela do mobile-readings + ESP32 com leitor NFC, sensor infravermelho, display OLED, trava, buzzer e LEDs</text>
+<rect x="30" y="110" width="370" height="700" rx="22" fill="#E5EBEE" />
+<text x="55" y="150" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#B51F2E" letter-spacing="2">CLIENTES</text>
+<rect x="500" y="110" width="600" height="700" rx="22" fill="#E5EBEE" />
+<text x="525" y="150" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#B51F2E" letter-spacing="2">SERVIDOR · DOCKER COMPOSE · LAN</text>
+<rect x="1200" y="110" width="370" height="700" rx="22" fill="#E5EBEE" />
+<text x="1225" y="150" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#B51F2E" letter-spacing="2">TERMINAL FÍSICO</text>
+<rect x="55" y="175" width="320" height="125" rx="14" fill="#F7F7F4" stroke="#B9C5CC" stroke-width="2"/>
+<text x="75" y="213" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" fill="#2A4A5C" >mobile-readings</text>
+<text x="75" y="243" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6B76" >Flutter · terminal de acesso</text>
+<text x="75" y="267" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6B76" >QR, resultado e facial (extra)</text>
+<rect x="55" y="325" width="320" height="125" rx="14" fill="#F7F7F4" stroke="#B9C5CC" stroke-width="2"/>
+<text x="75" y="363" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" fill="#2A4A5C" >mobile-registry</text>
+<text x="75" y="393" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6B76" >Flutter · app do administrador</text>
+<text x="75" y="417" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6B76" >Usuários, foto, facial e tags</text>
+<rect x="55" y="475" width="320" height="125" rx="14" fill="#F7F7F4" stroke="#B9C5CC" stroke-width="2"/>
+<text x="75" y="513" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" fill="#2A4A5C" >mobile-user</text>
+<text x="75" y="543" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6B76" >Flutter · app do usuário</text>
+<text x="75" y="567" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6B76" >Lê o QR e vê autorizações</text>
+<rect x="55" y="625" width="320" height="125" rx="14" fill="#F7F7F4" stroke="#B9C5CC" stroke-width="2"/>
+<text x="75" y="663" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" fill="#2A4A5C" >frontend</text>
+<text x="75" y="693" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6B76" >React · painel web</text>
+<text x="75" y="717" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6B76" >Cadastros, histórico e dashboard</text>
+<rect x="530" y="175" width="540" height="150" rx="14" fill="#31566A" />
+<text x="560" y="215" font-family="Segoe UI, Arial, sans-serif" font-size="36" font-weight="700" fill="#F7F7F4" >backend</text>
+<text x="560" y="248" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="400" fill="#F7F7F4" >Node.js · Express · TypeScript</text>
+<text x="560" y="282" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="400" fill="#F7F7F4" >Regras · decisão de acesso · ponte MQTT</text>
+<rect x="530" y="375" width="170" height="125" rx="14" fill="#F7F7F4" stroke="#B9C5CC" stroke-width="2"/>
+<text x="550" y="413" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" fill="#2A4A5C" >PostgreSQL</text>
+<text x="550" y="443" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6B76" >banco de dados</text>
+<rect x="715" y="375" width="170" height="125" rx="14" fill="#F7F7F4" stroke="#B9C5CC" stroke-width="2"/>
+<text x="735" y="413" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" fill="#2A4A5C" >/photos</text>
+<text x="735" y="443" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6B76" >volume Docker</text>
+<rect x="900" y="375" width="170" height="125" rx="14" fill="#F7F7F4" stroke="#B9C5CC" stroke-width="2"/>
+<text x="920" y="413" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" fill="#2A4A5C" >Mosquitto</text>
+<text x="920" y="443" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6B76" >broker MQTT (TLS)</text>
+<rect x="530" y="520" width="540" height="66" rx="14" fill="#F7F7F4" stroke="#B9C5CC" stroke-width="2"/>
+<text x="550" y="548" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="700" fill="#2A4A5C" >Reconhecimento facial · Python (extra)</text>
+<text x="550" y="574" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6B76" >microsserviço chamado pelo backend por HTTP</text>
+<rect x="530" y="604" width="540" height="186" rx="14" fill="#F7F7F4" stroke="#B9C5CC" stroke-width="2"/>
+<text x="550" y="634" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700" fill="#2A4A5C" >Tópicos MQTT  ·  access/v1/terminals/{id}/</text>
+<text x="550" y="664" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#2A4A5C" >ESP32 → backend: presence, status, door/state,</text>
+<text x="550" y="687" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#2A4A5C" >access/request, door/ack, nfc/enroll/ack</text>
+<text x="550" y="717" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#2A4A5C" >backend → ESP32: access/decision, door/command,</text>
+<text x="550" y="740" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#2A4A5C" >nfc/enroll</text>
+<text x="550" y="770" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6B76" >ao mobile-readings: presence (do ESP32) e access/decision (do backend)</text>
+<rect x="1225" y="175" width="320" height="105" rx="14" fill="#31566A" />
+<text x="1245" y="215" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" fill="#F7F7F4" >device-esp32</text>
+<text x="1245" y="248" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="400" fill="#F7F7F4" >ESP32 · programado com Arduino</text>
+<rect x="1225" y="300" width="320" height="78" rx="14" fill="#B51F2E" />
+<text x="1245" y="333" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" fill="#F7F7F4" >Leitor NFC (RC522)</text>
+<text x="1245" y="360" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="400" fill="#F7F7F4" >lê e grava o código da tag</text>
+<rect x="1225" y="390" width="320" height="78" rx="14" fill="#F7F7F4" stroke="#B9C5CC" stroke-width="2"/>
+<text x="1245" y="423" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" fill="#2A4A5C" >Sensor infravermelho</text>
+<text x="1245" y="450" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6B76" >detecta a presença</text>
+<rect x="1225" y="480" width="320" height="78" rx="14" fill="#F7F7F4" stroke="#B9C5CC" stroke-width="2"/>
+<text x="1245" y="513" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" fill="#2A4A5C" >Display OLED</text>
+<text x="1245" y="540" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6B76" >exibe mensagens e o QR Code</text>
+<rect x="1225" y="570" width="320" height="78" rx="14" fill="#F7F7F4" stroke="#B9C5CC" stroke-width="2"/>
+<text x="1245" y="603" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" fill="#2A4A5C" >Trava (microservo)</text>
+<text x="1245" y="630" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6B76" >abre quando o backend manda</text>
+<rect x="1225" y="660" width="320" height="78" rx="14" fill="#F7F7F4" stroke="#B9C5CC" stroke-width="2"/>
+<text x="1245" y="693" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" fill="#2A4A5C" >Buzzer e LEDs</text>
+<text x="1245" y="720" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6B76" >sinalizam liberado ou negado</text>
+<text x="1225" y="775" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700" fill="#2A4A5C" >Terminal de acesso =</text>
+<text x="1225" y="797" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6B76" >ESP32 + tela do mobile-readings</text>
+<line x1="405" y1="458" x2="493" y2="458" stroke="#31566A" stroke-width="5" marker-end="url(#ah)"/>
+<text x="450" y="430" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700" fill="#31566A" text-anchor="middle">HTTP/REST</text>
+<line x1="1107" y1="458" x2="1193" y2="458" stroke="#B51F2E" stroke-width="5" marker-end="url(#ahr)" marker-start="url(#ahrs)"/>
+<text x="1150" y="430" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700" fill="#B51F2E" text-anchor="middle">MQTT</text>
+<line x1="615" y1="328" x2="615" y2="370" stroke="#31566A" stroke-width="4" marker-end="url(#ah)"/>
+<line x1="800" y1="328" x2="800" y2="370" stroke="#31566A" stroke-width="4" marker-end="url(#ah)"/>
+<line x1="985" y1="328" x2="985" y2="370" stroke="#B51F2E" stroke-width="4" marker-end="url(#ahr)" marker-start="url(#ahrs)"/>
+<rect x="30" y="835" width="60" height="6" fill="#31566A"/>
+<text x="102" y="845" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6B76" >HTTP / REST</text>
+<rect x="270" y="835" width="60" height="6" fill="#B51F2E"/>
+<text x="342" y="845" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6B76" >MQTT</text>
+<text x="1570" y="872" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6B76" text-anchor="end">Atualizado em 22/11/2026</text>
+</svg>

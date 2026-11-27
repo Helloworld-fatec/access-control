@@ -5,6 +5,8 @@
 Legenda de prioridade (MoSCoW): **Must** (essencial), **Should** (importante), **Could** (desejável / extra).
 Os identificadores `US` reiniciam em cada épico. Referências a requisitos (RF, RNF, RP) vêm do documento do desafio.
 
+A situação de cada história (concluída, em andamento ou planejada) está em [`ESTADO-BACKLOG.md`](./ESTADO-BACKLOG.md).
+
 > **Atualização de 18/10/2026:** por definição do professor, a leitura de tags NFC é feita pelo ESP32, e não pelo terminal. Por definição do Product Owner, o mesmo ESP32 grava nas tags um código gerado pelo backend, a pedido do mobile-registry ou do frontend. Histórias ajustadas: épico 1 (US-11 e US-12), épico 2 (US-09 e US-10), épico 4 (novas US-22 a US-25), épico 5 (US-05, US-09, US-12 e US-15) e épico 6 (US-07). O épico 4 passa a ter 25 histórias.
 
 ---
