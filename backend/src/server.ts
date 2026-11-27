@@ -11,7 +11,7 @@ ensurePhotosDir();
 const server = app.listen(env.PORT, "0.0.0.0", (err?: Error) => {
   if (err) return; // no Express 5 o callback também recebe o erro; ele é tratado em server.on("error")
   console.log(`Servidor rodando na porta ${env.PORT}`);
-  console.log(`Health check: http://localhost:${env.PORT}/health`);
+  console.log(`Health check: http://localhost:${env.PORT}/api/health`);
   console.log(`Pasta de fotos: ${env.PHOTOS_DIR}`);
 });
 
