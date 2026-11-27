@@ -39,6 +39,6 @@ O responsável por um serviço responde pelo andamento das histórias do respect
 
 ## Combinados do time
 
-- O quadro (GitHub Projects) é a fonte única do andamento; cada task tem dono e etapa.
-- Cada pessoa registra suas tasks na planilha Sprint-Backlog (aba com o próprio nome).
-- Mudanças entram na `main` por Pull Request com ao menos uma revisão.
+- O Notion (banco "Backlog do Projeto") é a fonte única do andamento. Cada pessoa registra suas tasks lá, com responsável, dificuldade, prioridade e etapa. A planilha Sprint-Backlog foi usada nas Sprints 1 e 2.
+- O GitHub guarda o código e os Pull Requests. O repositório não usa issues.
+- Todo código entra por Pull Request com ao menos uma revisão. O fluxo de branches e o padrão de commits estão em [`CONTRIBUTING.md`](../CONTRIBUTING.md).

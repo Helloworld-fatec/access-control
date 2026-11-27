@@ -92,46 +92,50 @@ Anotações do professor e esclarecimentos do grupo, registrados como foram dito
 | Bluetooth direto para o terminal, via aplicativo | Em vez do HTTP, gerar o QR Code |
 | QR Code no celular: simular por meio de aplicativos | |
 
-### 6.2 Impactos e ações propostas para a Sprint 2
+### 6.2 Impactos para a Sprint 2 e o que foi feito
 
-Proposta da Scrum Master, **a validar com o Product Owner e com o professor**.
+Cada ponto do feedback virou trabalho na Sprint 2. A última coluna registra o que existe hoje, conforme o código, a planilha e a documentação do hardware (posição de 22/11/2026).
 
-| Feedback | Impacto provável | Serviço (responsável) | Ação proposta |
+| Feedback | Impacto | Serviço (responsável) | O que foi feito |
 |---|---|---|---|
-| Trocar o sensor por infravermelho | O protótipo e a lista de componentes usam o HC-SR04 | device-esp32 (Bruna) | Refazer o protótipo e a lista de componentes com o sensor infravermelho |
-| GPS no terminal | O RF11 pede receptor de GPS, hoje marcado como pendente | device-esp32 (Bruna) | Incluir o módulo de GPS no plano de montagem e nos componentes |
-| Localização de teste configurada | O GPS tem pouco sinal em ambiente fechado | device-esp32 (Bruna) | Coordenada de teste configurável no firmware |
-| Localização guardada no ESP32 | Hoje o plano guarda a coordenada do terminal no backend | device-esp32 e backend (Bruna, Bruno) | Definir como o backend passa a obter a coordenada do terminal |
-| Display | O RF11 lista a tela como parte do terminal | device-esp32 e mobile-readings (Bruna, Nicolas) | Definir onde fica o display e o que ele mostra |
-| QR Code no celular, por aplicativos | O QR deve poder aparecer fora do app do terminal | mobile-readings e backend (Nicolas, Bruno) | Adaptar a exibição do QR e prever a simulação por aplicativos na demonstração |
-| Bluetooth no lugar do HTTP | Muda como o QR e o acesso chegam ao terminal | backend, mobile-user e device-esp32 (Bruno, Bruna) | Avaliar o canal Bluetooth entre o app do usuário e o terminal, e atualizar a arquitetura |
+| Trocar o sensor por infravermelho | O protótipo e a lista de componentes usavam o HC-SR04 | device-esp32 (Bruna) | Sensor infravermelho testado em substituição ao ultrassônico, com a presença confirmada por três segundos no sensor físico |
+| GPS no terminal | O RF11 pede receptor de GPS | device-esp32 (Bruna) | Módulo GY-NEO6MV2 previsto. O GPS físico ainda não foi testado e passa para a Sprint 3 |
+| Localização de teste configurada | O GPS tem pouco sinal em ambiente fechado | device-esp32 (Bruna) | Coordenadas fixas de demonstração no código da simulação (comando `G`) |
+| Localização guardada no ESP32 | O plano guardava a coordenada do terminal no backend | device-esp32 e backend (Bruna, Bruno) | Sem decisão registrada. O backend guarda a latitude e a longitude de cada terminal |
+| Display | O RF11 lista a tela como parte do terminal | device-esp32 e mobile-readings (Bruna, Nicolas) | Display OLED no ESP32, com mensagens e QR Code testados fisicamente |
+| QR Code no celular, por aplicativos | O QR deve poder aparecer fora do app do terminal | mobile-readings e backend (Nicolas, Bruno) | QR exibido no OLED e no mobile-readings. O QR do OLED foi decodificado por fotografia, e a leitura direta pelo celular está em ajuste |
+| Bluetooth no lugar do HTTP | Mudaria como o QR e o acesso chegam ao terminal | backend, mobile-user e device-esp32 (Bruno, Bruna) | Sem decisão registrada. O app do usuário continua usando HTTP |
 
-### 6.3 Dúvidas em aberto
+### 6.3 Dúvidas levantadas e como ficaram
 
-1. O display é físico, no ESP32, ou é a tela do celular ou do app do terminal?
-2. Quem gera o QR Code: o terminal (ESP32) ou o backend, como hoje?
-3. O Bluetooth substitui o HTTP entre o app do usuário e o terminal? As regras de autorização continuam no backend?
-4. O GPS será um módulo real com coordenada de teste, ou apenas uma coordenada configurada?
-5. O sensor infravermelho é de obstáculo ou de presença (PIR)?
+| Dúvida | Como ficou | Fonte |
+|---|---|---|
+| O display é físico, no ESP32, ou é a tela do celular ou do app do terminal? | Display físico, um OLED no ESP32 | [`device-esp32/hardware/README.md`](../../device-esp32/hardware/README.md) |
+| Quem gera o QR Code: o terminal (ESP32) ou o backend? | O backend gera e o terminal exibe | [`docs/api.md`](../../docs/api.md) |
+| O Bluetooth substitui o HTTP entre o app do usuário e o terminal? | Sem decisão registrada. O HTTP segue, e as regras de autorização continuam no backend | código do `mobile-user` |
+| O GPS será um módulo real com coordenada de teste, ou só uma coordenada configurada? | Hoje só coordenada fixa de demonstração. O módulo físico será testado na Sprint 3 | [`device-esp32/hardware/README.md`](../../device-esp32/hardware/README.md) |
+| O sensor infravermelho é de obstáculo ou de presença (PIR)? | Sensor de obstáculos reflexivo infravermelho | [`device-esp32/hardware/README.md`](../../device-esp32/hardware/README.md) |
 
 ## 7. Pontos de alinhamento técnico
 
-Diferenças entre o que está no código e o que a arquitetura define ([`docs/arquitetura.md`](../../docs/arquitetura.md)).
+Diferenças entre o que estava no código e o que a arquitetura define ([`docs/arquitetura.md`](../../docs/arquitetura.md)), com a situação em 22/11/2026.
 
-1. **NFC no app do terminal.** O mobile-readings (PR #6) lê NFC e o backend tem `POST /access/nfc`. A arquitetura define que a leitura é feita pelo ESP32, por MQTT (`terminal/{id}/nfc`), e que o terminal não usa NFC.
-2. **Vínculo de tags no frontend.** O frontend vincula a tag por UID digitado ou por leitor USB. A arquitetura prevê o pedido de gravação (`POST /users/{id}/tags`), com o ESP32 gravando um código gerado pelo backend.
-3. **Branches.** As branches `develop` e `approval` não aparecem mais no GitHub após os merges de 21/10, e a documentação ainda as cita (arquitetura, seção 8). É preciso confirmar o fluxo de branches e atualizar o texto.
-
-## 8. Pendências que passam para a Sprint 2
-
-| Responsável | Pendência | Pontos |
+| # | Ponto | Situação |
 |---|---|---|
-| Pedro | Login das rotas protegidas do frontend (em andamento) | 8 |
-| Bruna | Adaptações elétricas para o ESP32 (em andamento) | 9 |
-| Bruna | Documentar a arquitetura com ESP32 e RC522 (em andamento) | 8 |
-| Bruna | Consolidar a lista de componentes físicos (em andamento) | 7 |
-| Bruna | Preparar a demonstração para a Review (a fazer; a review já ocorreu, encerrar a tarefa) | 8 |
-| Bruno e Ryan | Abrir PR para levar o mobile-user e o mobile-registry à `main` | |
+| 1 | **NFC no app do terminal.** O mobile-readings (PR #6) lia NFC e o backend tem `POST /access/nfc`. A arquitetura define que a leitura é feita pelo ESP32, e que o terminal não usa NFC | Resolvido na `develop` em 20/11, com a remoção da leitura de NFC nativo do mobile-readings. Ainda não está na `main` |
+| 2 | **Vínculo de tags no frontend.** O frontend vincula a tag por UID digitado ou por leitor USB. A arquitetura prevê o pedido de gravação, com o ESP32 gravando um código gerado pelo backend | Aberto. O fluxo "Gravar tag" do mobile-registry está em andamento, e o backend ainda não tem a consulta de tags do usuário |
+| 3 | **Branches.** As branches `develop` e `approval` não apareciam no GitHub após os merges de 21/10, e a documentação ainda as citava | A `develop` voltou a ser a branch de integração do código. O fluxo está em [`CONTRIBUTING.md`](../../CONTRIBUTING.md) |
+
+## 8. Pendências que passaram para a Sprint 2
+
+| Responsável | Pendência | Pontos | Situação na planilha de 10/11 |
+|---|---|---|---|
+| Pedro | Login das rotas protegidas do frontend (em andamento) | 8 | Concluída |
+| Bruna | Adaptações elétricas para o ESP32 (em andamento) | 9 | Concluída |
+| Bruna | Documentar a arquitetura com ESP32 e RC522 (em andamento) | 8 | Concluída |
+| Bruna | Consolidar a lista de componentes físicos (em andamento) | 7 | Concluída |
+| Bruna | Preparar a demonstração para a Review (a fazer; a review já havia ocorrido) | 8 | Não consta mais na planilha |
+| Bruno e Ryan | Abrir PR para levar o mobile-user e o mobile-registry à `main` | | Feito: mobile-user no PR #14 e mobile-registry no PR #23, levados à `main` no PR #25 |
 
 ## 9. Retrospectiva
 
@@ -154,23 +158,25 @@ Itens apontados pelo time na retrospectiva, cada um com o contexto que o sustent
 | Os pontos que o professor disse | O feedback da review (sensor infravermelho, GPS, localização de teste guardada no ESP32, display, QR Code no celular e Bluetooth no lugar do HTTP) está na seção 6 e vira trabalho da Sprint 2 |
 | Otimizar o tempo | Boa parte da integração ficou para o fim: cinco PRs entraram na `main` no dia da review, e as decisões de arquitetura vieram depois de parte do código escrito. Também restaram 5 tarefas (40 pontos) abertas |
 
-### 9.2 Ações de melhoria para a Sprint 2
+### 9.2 Ações de melhoria combinadas para a Sprint 2 e o que aconteceu
 
-Proposta da Scrum Master a partir do registro do time, **a validar** na próxima retrospectiva.
+As ações saíram do registro do time. A coluna da direita foi preenchida depois da Sprint 2, com fatos do repositório e da planilha.
 
-| Item | Ação | Como acompanhar |
+| Item | Ação | Como acompanhar | O que aconteceu |
+|---|---|---|---|
+| Pontos do professor | Transformar cada ponto da seção 6.2 em tarefas na planilha e no quadro, cada uma com responsável | Tarefas criadas no planning da Sprint 2 | Atendida. As tarefas do infravermelho, do OLED e do QR estão na planilha da Bruna |
+| Otimizar o tempo | Abrir PRs menores durante a sprint, em vez de um PR grande no fim | PRs mesclados até 48 horas antes da review | Não atendida. Os PRs #22, #23, #24 e #25 entraram entre 19h24 e 19h27 do dia da review (ver [`sprint-2.md`](./sprint-2.md), seção 8.1) |
+| Otimizar o tempo | Registrar a decisão de arquitetura antes de implementar | Decisão na pauta ou no backlog antes de a tarefa começar | Sem registro. A divergência entre a arquitetura e o contrato MQTT segue aberta |
+| Otimizar o tempo | Ensaiar a apresentação e manter a `main` estável na véspera da review | Ensaio feito e `main` sem PR pendente | Parcial. A `main` recebeu o PR #25 às 19h27 do dia da review |
+| Otimizar o tempo | Atualizar etapa e data na planilha a cada daily | Planilha atualizada nas quartas | Parcial. A planilha foi atualizada, mas as abas da Alicia e da Suelen ficaram sem tarefas da Sprint 2. O time decidiu passar para o Notion |
+
+## 10. Encaminhamentos da Sprint 1 e situação
+
+| # | Encaminhamento | Situação em 22/11/2026 |
 |---|---|---|
-| Pontos do professor | Transformar cada ponto da seção 6.2 em tarefas na planilha e no quadro, cada uma com responsável | Tarefas criadas no planning da Sprint 2 |
-| Otimizar o tempo | Abrir PRs menores durante a sprint, em vez de um PR grande no fim | PRs mesclados até 48 horas antes da review |
-| Otimizar o tempo | Registrar a decisão de arquitetura antes de implementar | Decisão na pauta ou no backlog antes de a tarefa começar |
-| Otimizar o tempo | Ensaiar a apresentação e manter a `main` estável na véspera da review | Ensaio feito e `main` sem PR pendente |
-| Otimizar o tempo | Atualizar etapa e data na planilha a cada daily | Planilha atualizada nas quartas |
-
-## 10. Próximos passos
-
-1. Fazer o planning da Sprint 2 (Review em 11/11/2026, 19h30), incluindo o feedback do professor.
-2. Levar as dúvidas da seção 6.3 ao professor e registrar as respostas em [`PAUTA-PROFESSOR.md`](../PAUTA-PROFESSOR.md).
-3. Resolver os pontos de alinhamento da seção 7.
-4. Mesclar o mobile-user e o mobile-registry na `main`.
-5. Atualizar `docs/arquitetura.md` e o backlog conforme as respostas do professor.
-6. Validar as ações de melhoria da seção 9.2 no planning da Sprint 2.
+| 1 | Planning da Sprint 2 (Review em 11/11/2026), incluindo o feedback do professor | Feito. Os pontos da seção 6.2 viraram tarefas |
+| 2 | Levar as dúvidas da seção 6.3 ao professor e registrar as respostas em [`PAUTA-PROFESSOR.md`](../PAUTA-PROFESSOR.md) | Parcial. As dúvidas da seção 6.3 foram respondidas pela implementação. A pauta foi atualizada em 22/11 |
+| 3 | Resolver os pontos de alinhamento da seção 7 | Um resolvido na `develop`, um aberto e um documentado |
+| 4 | Mesclar o mobile-user e o mobile-registry na `main` | Feito (seção 8) |
+| 5 | Atualizar `docs/arquitetura.md` e o backlog conforme as respostas do professor | Pendente. O `arquitetura.md` não é alterado desde 18/10 |
+| 6 | Validar as ações de melhoria da seção 9.2 | Feito na retrospectiva da Sprint 2 ([`sprint-2.md`](./sprint-2.md), seção 8) |

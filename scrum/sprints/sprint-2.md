@@ -9,7 +9,7 @@ Registro da segunda sprint do projeto access-control: meta, resultado, entregas 
 | Product Owner | Bruno |
 | Scrum Master | Suelen |
 | Professor | Leandro Toss Hoffmann |
-| **Resultado parcial (planilha de 10/11)** | **64 de 81 tarefas concluídas, 519 de 665 pontos (78%)** |
+| **Resultado** | **Sprint concluída: 89 de 89 tarefas no Notion (22/11/2026).** Na planilha de 10/11, véspera da review: 63 de 79 tarefas, 510 de 647 pontos (79%) |
 
 ## 1. Meta da sprint
 
@@ -23,17 +23,34 @@ Fonte: planilha Sprint-Backlog, uma aba por pessoa. A pontuação de cada tarefa
 |---|---|---|---|---|---|---|
 | Ryan | mobile-registry | 36 | 22 | 14 | 292 | 175 |
 | Pedro | frontend | 20 | 20 | 0 | 165 | 165 |
-| Bruna | device-esp32 | 12 | 10 | 2 | 110 | 91 |
+| Bruna | device-esp32 | 10 | 9 | 1 | 92 | 82 |
 | Nicolas | mobile-readings e rotas do backend | 8 | 7 | 1 | 64 | 54 |
 | Bruno | backend, mobile-user e contrato de comunicação | 5 | 5 | 0 | 34 | 34 |
 | Alicia | diagrama de caso de uso e testes do backend | | | | | |
 | Suelen | Scrum e documentação | | | | | |
-| **Total na planilha** | | **81** | **64** | **17** | **665** | **519** |
+| **Total na planilha** | | **79** | **63** | **16** | **647** | **510** |
 
 - Alicia entrou no time em 02/11 e a aba dela ainda não tem tarefas. As entregas dela estão nas Pull Requests #18 e #19 (seção 5).
 - A aba da Suelen não tem tarefas da Sprint 2. As entregas de documentação estão na seção 3.
 - Na planilha, todas as tarefas da Sprint 1 aparecem concluídas, inclusive as pendências que passaram para esta sprint: o login das rotas protegidas do frontend (Pedro) e as da Bruna.
 - Já há tarefas planejadas para a Sprint 3: 8 do Nicolas (mobile-readings), 64 pontos, todas pendentes.
+
+### 2.1 Fechamento pelo Notion (22/11/2026)
+
+A Sprint 2 está concluída. No banco "Backlog do Projeto", todas as 89 tarefas da sprint estão em "Concluída".
+
+| Responsável | Tarefas da Sprint 2 | Concluídas |
+|---|---|---|
+| Ryan | 36 | 36 |
+| Pedro | 20 | 20 |
+| Nicolas | 8 | 8 |
+| Bruno | 5 | 5 |
+| Alicia | 2 | 2 |
+| Suelen | 9 | 9 |
+| Bruna | 9 | 9 |
+| **Total** | **89** | **89** |
+
+As 14 tarefas do Ryan que estavam em andamento em 10/11 (cadastro em etapas, gravar tag e situação das tags) foram concluídas. O diagnóstico e a integração do leitor RC522 e o teste do GPS passaram para a Sprint 3, porque a Bruna os listou como trabalho da próxima sprint.
 
 ## 3. O que cada serviço entregou
 
@@ -41,18 +58,20 @@ Fonte: planilha Sprint-Backlog, uma aba por pessoa. A pontuação de cada tarefa
 |---|---|---|
 | mobile-registry | Ryan | Login restrito a administrador, com token em armazenamento seguro, verificação de sessão ativa, tratamento de token expirado e logout. Lista de usuários paginada, com busca por nome ou documento, filtro por perfil e estados de carregamento, vazio e erro. Formulário de cadastro com validações e erros do backend exibidos no campo. Tela de detalhes e edição com confirmação de salvamento. Ativação e desativação de usuário com confirmação prévia, e usuários inativos identificados na lista |
 | frontend | Pedro | Painel com resumo do dia, taxa de negação, acessos por hora e por método (QR, NFC e facial), cartões de autorizações ativas, expirando e canceladas e motivos de negação mais frequentes. Últimos acessos com atualização automática (polling) e cartão por terminal com conexão, presença e trava. Endereço da API em `config.json`, sem rebuild. Contraste medido (WCAG AA), foco visível e layout para telas estreitas. Bloqueio de `dangerouslySetInnerHTML` por ESLint. Documentação de HTTP, HTTPS, CORS e LGPD. Testes com Vitest, Testing Library e MSW e comando `npm run check` |
-| device-esp32 | Bruna | Simulação do terminal com ESP32 no Wokwi, com validação do fluxo integrado (presença por três segundos exibe o QR). Ambiente do ESP32 físico configurado e montagem organizada. Sensor infravermelho testado em substituição ao ultrassônico e confirmação de presença validada com o sensor físico. OLED com QR Code, LEDs, buzzer e microservo testados individualmente e integrados no firmware de bancada |
+| device-esp32 | Bruna | Simulação do terminal com ESP32 no Wokwi, com o fluxo de estados testado por comandos no Monitor Serial. Ambiente do ESP32 físico configurado, pinagem registrada, jumpers padronizados e componentes montados na protoboard. Componentes testados individualmente e depois integrados no firmware de bancada, com autorização simulada e sem backend. Presença confirmada por três segundos com o sensor infravermelho, no lugar do ultrassônico, e QR Code exibido no OLED físico, decodificado por fotografia (a leitura direta pela câmera depende de ajuste) |
 | mobile-readings e backend | Nicolas | Tópicos MQTT atualizados para o contrato v1, novo payload JSON de presença, assinatura do tópico de decisão de acesso, exibição do QR Code para leitura pelo mobile-user, simulação de eventos de hardware no modo web e desktop e suíte de testes atualizada. No backend, headers de autenticação do terminal |
 | backend, mobile-user e contrato | Bruno | Rotas de criação de QR Code para exibição no dispositivo, rotas e middleware de autenticação, ajuste de estilo do mobile-user e o contrato de comunicação entre os serviços ([`docs/contrato-mqtt.md`](../../docs/contrato-mqtt.md)) |
 | documentação e Scrum | Suelen | Documento da Sprint 1 (PR #10), inclusão da Alicia no time (PR #11) e organização das tarefas da planilha no Notion |
-| diagrama de caso de uso e testes do backend | Alicia | Diagrama de caso de uso (PR #18) e testes do backend com Vitest (PR #19), ambos abertos |
+| diagrama de caso de uso e testes do backend | Alicia | Diagrama de caso de uso (PR #18) e testes do backend com Vitest (PR #19), ambos mergeados em 10/11 |
 
-## 4. Em andamento
+## 4. Em andamento em 10/11
+
+Em 22/11, as tarefas do mobile-registry e do backend desta seção constam como concluídas, e o RC522 e o GPS passaram para a Sprint 3.
 
 | Serviço | Responsável | O que falta |
 |---|---|---|
 | mobile-registry | Ryan | 14 tarefas (117 pontos). Cadastro em etapas (progresso, navegação condicional, tela de revisão e envio sequencial) e fluxo de tags: botão "Gravar tag", situação de cada tag (pendente, ativa, falha ou revogada), revogação, substituição, mensagem de terminal offline ou ocupado e garantia de que o código gravado nunca é exibido |
-| device-esp32 | Bruna | Teste e diagnóstico do leitor RC522 físico (em andamento) e teste da comunicação e leitura do módulo GPS (pendente) |
+| device-esp32 | Bruna | Diagnóstico do leitor RC522 físico (em andamento): alimentação, pinagem e leitura testadas, com possível falha de soldagem. Passam para a próxima sprint a revisão e a integração do RC522, os testes do GPS, a comunicação com o backend via MQTT, a montagem do suporte físico ou maquete e o ajuste do QR Code para leitura direta pelo celular |
 | backend | Nicolas | Integração do fluxo de unlock com a publicação MQTT (em andamento) |
 
 ## 5. Pull Requests da sprint
@@ -66,25 +85,72 @@ Fonte: planilha Sprint-Backlog, uma aba por pessoa. A pontuação de cada tarefa
 | #14 | Mobile user/app acesso (backend, 5 arquivos) | BrunoBerval | mergeado | 08/11 |
 | #15 | docs: device-esp32 - contrato mqtt | Helloworld-fatec | mergeado | 08/11 |
 | #16 | update (docs) | Helloworld-fatec | mergeado em `develop` | 08/11 |
-| #17 | feat(frontend): painel, paleta Fatec, detalhe de autorização, testes | PedroJesusFr | **aberto**, base `develop` | 10/11 |
-| #18 | DIAGRAMA_DE_CASO_DE_USO | TIALICIA | **aberto**, base `main` | 10/11 |
-| #19 | feat(backend): adiciona testes unitarios e integracao com vitest | TIALICIA | **aberto**, base `main` | 10/11 |
+| #17 | feat(frontend): painel, paleta Fatec, detalhe de autorização, testes | PedroJesusFr | mergeado em `develop` | 10/11 |
+| #18 | DIAGRAMA_DE_CASO_DE_USO | TIALICIA | mergeado | 10/11 |
+| #19 | feat(backend): adiciona testes unitarios e integracao com vitest | TIALICIA | mergeado | 10/11 |
+| #20 | docs(sprint-2): registra resultado parcial, entregas, PRs e impedimentos da Sprint 2 | Helloworld-fatec | mergeado | 10/11 |
+| #21 | Atualização da main (leva o conteúdo da `develop`, incluindo o painel do frontend) | Helloworld-fatec | mergeado | 10/11 |
 
 ## 6. Impedimentos e pontos de alinhamento
 
-1. **PR #17 do frontend aponta para `develop`.** As demais PRs vão para `main`, e o fluxo combinado é por Pull Request na `main` ([`PAPEIS.md`](../PAPEIS.md)). A `develop` tem 1 commit a mais que a `main` (o merge da #16). Falta definir se a #17 muda a base para `main`.
-2. **PRs #17, #18 e #19 abertas** e ainda sem revisão registrada. O combinado do time é ao menos uma revisão antes do merge.
-3. **Arquitetura e contrato divergem.** [`docs/arquitetura.md`](../../docs/arquitetura.md) descreve tópicos `terminal/{id}/...`, com o ESP32 lendo e gravando a tag NFC e o sensor HC-SR04. O contrato v1 ([`docs/contrato-mqtt.md`](../../docs/contrato-mqtt.md)) usa `access/v1/terminals/{terminalId}/...`, com os tópicos `presence`, `door/state`, `access/request` e `access/decision`, e está marcado como rascunho para validação. A Bruna já testou o sensor infravermelho no lugar do ultrassônico.
-4. **Leitor RC522 e GPS.** O RC522 físico ainda está em diagnóstico e o GPS não foi testado. Os dois dependem da bancada da Bruna.
-5. **Fluxo de gravação de tag.** Depende do terminal e do backend em MQTT: o botão "Gravar tag" do mobile-registry e o unlock por MQTT do backend ainda estão em andamento.
-6. **Planilha.** As abas da Alicia e da Suelen não têm tarefas da Sprint 2, e a pontuação delas não entra no total acima.
+1. **Arquitetura e contrato divergem.** [`docs/arquitetura.md`](../../docs/arquitetura.md) descreve tópicos `terminal/{id}/...`, com o ESP32 lendo e gravando a tag NFC e o sensor HC-SR04. O contrato v1 ([`docs/contrato-mqtt.md`](../../docs/contrato-mqtt.md)) usa `access/v1/terminals/{terminalId}/...`, com os tópicos `presence`, `door/state`, `access/request` e `access/decision`, e já é usado pelo mobile-readings. A Bruna já testou o sensor infravermelho no lugar do ultrassônico. **Resolvido em 22/11/2026:** o `arquitetura.md` foi atualizado para o contrato v1 e para o sensor infravermelho.
+2. **Leitor RC522 e GPS.** O RC522 físico segue em diagnóstico, com possível falha de soldagem, e a validação final aguarda a avaliação do professor. O teste do GPS passa para a próxima sprint.
+3. **Compilação lenta no mobile-registry.** O tempo de compilação do app é extremamente lento, o que atrasa os testes das tarefas em andamento (relato do Ryan).
+4. **Fluxo de gravação de tag.** Depende do terminal e do backend em MQTT: o botão "Gravar tag" do mobile-registry e o unlock por MQTT do backend ainda estão em andamento.
+5. **Planilha.** As abas da Alicia e da Suelen não têm tarefas da Sprint 2, e a pontuação delas não entra no total acima.
 
 ## 7. Sprint Review 2
 
 Data: 11/11/2026, 19h30.
 
-Feedback do professor: a registrar depois da review.
+### 7.1 Feedback do professor
+
+| Ponto | Registro |
+|---|---|
+| Avaliação geral | O professor considerou a entrega da Sprint 2 bacana |
+| Diagrama de caso de uso | O diagrama precisa ser refeito. A versão atual está em `scrum/DIAGRAMA DE CASO DE USO.jpeg` (PR #18). Refazer fica com a Alicia, responsável pela US-12 |
+
+### 7.2 Impedimentos apresentados
+
+Cada integrante apresentou os seus impedimentos, que estão na seção 6: a compilação lenta do mobile-registry (Ryan) e o RC522 com possível falha na soldagem, junto com o GPS ainda sem teste (Bruna). A avaliação do professor sobre o RC522 ainda não foi registrada.
 
 ## 8. Retrospectiva
 
-A registrar depois da review.
+### 8.1 Registro do time
+
+Itens apontados pelo time na Review 2 e na daily seguinte, cada um com o contexto que o sustenta.
+
+**O que deu certo**
+
+| Item do time | Contexto |
+|---|---|
+| Entrega da Sprint 2 | A sprint foi entregue e apresentada na Review 2, e o professor considerou a entrega bacana (seção 7.1) |
+
+**O que melhorar**
+
+| Item do time | Contexto |
+|---|---|
+| Organização das tasks | Foi tema da daily. As tarefas ficavam em uma planilha com uma aba por pessoa, e as abas da Alicia e da Suelen ficaram sem tarefas da Sprint 2 (seção 6, item 5). O time decidiu usar o Notion, em vez da planilha, para organizar as tarefas |
+| Tempo | Foi tema da daily. Os PRs #22, #23 e #24 e o #25 entraram na `main` entre 19h24 e 19h27 do dia da review, repetindo o ponto da Sprint 1. O mobile-registry também perdeu tempo com a compilação lenta (seção 6, item 3) |
+| Diagrama de caso de uso | O professor pediu que o diagrama seja refeito (seção 7.1) |
+
+**Impedimentos da sprint**
+
+| Impedimento | Quem | Situação |
+|---|---|---|
+| Compilação extremamente lenta do mobile-registry | Ryan | Aberto |
+| RC522 com possível falha na soldagem | Bruna | Aguarda a avaliação do professor |
+| GPS ainda sem teste | Bruna | Passa para a Sprint 3 |
+
+### 8.2 Ações de melhoria para a Sprint 3
+
+Ações propostas pela Scrum Master a partir do registro do time para a Sprint 3, acompanhadas em [`sprint-3.md`](./sprint-3.md).
+
+| Item | Ação | Responsável | Como acompanhar |
+|---|---|---|---|
+| Organização das tasks | Usar o Notion (banco "Backlog do Projeto") como fonte das tarefas, no lugar da planilha. As tarefas da Sprint 3 são criadas lá no planning, cada uma com responsável, dificuldade, prioridade e etapa | Suelen e cada integrante | Notion atualizado a cada daily |
+| Tempo | Abrir PRs menores durante a sprint e mesclar até 48 horas antes da review | Todos | PRs mesclados até 23/11, 19h30 |
+| Diagrama de caso de uso | Refazer o diagrama conforme o feedback do professor | Alicia | Novo diagrama em PR antes da Review 3 |
+| Compilação lenta | Investigar como reduzir o tempo de compilação do mobile-registry | Ryan | Relato na daily |
+| RC522 | Levar ao professor a avaliação da possível falha na soldagem | Bruna e Suelen | Resposta registrada na daily |
+| Contrato MQTT | Validar o contrato em reunião com firmware, terminal de leitura e backend, e definir se vale a arquitetura ou o contrato | Bruno, Bruna e Nicolas | Decisão registrada em `docs/` |
